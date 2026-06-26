@@ -1,0 +1,42 @@
+databases:
+  - name: attendance-db
+    plan: free
+    databaseName: attendance_db
+    user: db_user
+
+services:
+  - type: web
+    name: attendance-backend
+    env: docker
+    plan: free
+    region: oregon
+    branch: main
+    numInstances: 1
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DB_URL
+        value: jdbc:postgresql://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}?sslmode=require
+      - key: DB_USERNAME
+        fromDatabase:
+          name: attendance-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: attendance-db
+          property: password
+      - key: DATABASE_HOST
+        fromDatabase:
+          name: attendance-db
+          property: host
+      - key: DATABASE_PORT
+        fromDatabase:
+          name: attendance-db
+          property: port
+      - key: DATABASE_NAME
+        fromDatabase:
+          name: attendance-db
+          property: database
+      - key: DB_DRIVER_CLASS_NAME
+        value: org.postgresql.Driver
+      - key: SPRING_JPA_HIBERNATE_DDL_AUTO
+        value: update
