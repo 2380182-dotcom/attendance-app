@@ -20,6 +20,7 @@ public class Mart {
     private Boolean geoFencingEnabled = true;
     private LocalDateTime createdAt;
     
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @OneToMany(mappedBy = "mart", cascade = CascadeType.ALL)
     private List<Attendance> attendances = new ArrayList<>();
     

@@ -3,8 +3,10 @@ package com.dawnbread.attendance.service;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.repository.AgentRepository;
 import com.dawnbread.attendance.security.TokenProvider;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,48 +22,132 @@ public class AgentService {
     private AgentRepository agentRepository;
 
     @Autowired
-    private AuditLogService auditLogService;
+    private HttpServletRequest request;
 
     @Autowired
-    private HttpServletRequest request;
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private TokenProvider tokenProvider;
 
     private String getCurrentUser() {
         if (request != null) {
-            TokenProvider.Claims claims = (TokenProvider.Claims) request.getAttribute("userClaims");
-            if (claims != null) {
-                return claims.getAgentId();
+            Object username = request.getAttribute("username");
+            if (username != null) {
+                return username.toString();
             }
         }
         return "SYSTEM";
     }
 
-    private String getClientIp() {
-        return request != null ? request.getRemoteAddr() : "0.0.0.0";
+    // ===== AUTHENTICATION =====
+    
+    public Optional<Agent> authenticate(String username, String password) {
+        Optional<Agent> agentOpt = agentRepository.findByAgentId(username);
+        
+        if (agentOpt.isPresent()) {
+            Agent agent = agentOpt.get();
+            
+            // Check if agent is active
+            if (agent.getIsActive() == null || !agent.getIsActive()) {
+                return Optional.empty();
+            }
+            
+            // Verify password with BCrypt
+            if (passwordEncoder.matches(password, agent.getPassword())) {
+                return agentOpt;
+            }
+            
+            // Legacy plaintext password support (migrate on login)
+            if (password.equals(agent.getPassword())) {
+                agent.setPassword(passwordEncoder.encode(password));
+                agentRepository.save(agent);
+                return agentOpt;
+            }
+        }
+        return Optional.empty();
     }
 
+    public Optional<Agent> validateLogin(String username, String password) {
+        return authenticate(username, password);
+    }
+
+    // ===== CRUD OPERATIONS =====
+    
     public Agent createAgent(Agent agent) {
-        String currentUser = getCurrentUser();
-        String ip = getClientIp();
-        if (agentRepository.existsByAgentId(agent.getAgentId())) {
-            auditLogService.logAction("CREATE_USER", currentUser, "Failed to create user: Agent ID already exists: " + agent.getAgentId(), ip, "FAILED");
-            throw new RuntimeException("Agent ID already exists: " + agent.getAgentId());
-        }
-        if (agentRepository.existsByEmail(agent.getEmail())) {
-            auditLogService.logAction("CREATE_USER", currentUser, "Failed to create user: Email already registered: " + agent.getEmail(), ip, "FAILED");
-            throw new RuntimeException("Email already registered: " + agent.getEmail());
+        if (agent.getPassword() != null && !agent.getPassword().isEmpty()) {
+            agent.setPassword(passwordEncoder.encode(agent.getPassword()));
         }
         agent.setCreatedAt(LocalDateTime.now());
-        agent.setCreatedBy(currentUser);
-        agent.setIsActive(true);
-        Agent created = agentRepository.save(agent);
-        auditLogService.logAction("CREATE_USER", currentUser, "Created user: " + created.getAgentId() + " (" + created.getRole() + ")", ip, "SUCCESS");
-        return created;
+        return agentRepository.save(agent);
     }
 
-    public List<Agent> getAllAgents() {
-        return agentRepository.findAll();
+    public Agent updateAgent(Agent agent) {
+        if (agent.getPassword() != null && !agent.getPassword().isEmpty()) {
+            if (!agent.getPassword().startsWith("$2a$")) {
+                agent.setPassword(passwordEncoder.encode(agent.getPassword()));
+            }
+        }
+        return agentRepository.save(agent);
     }
 
+    public Agent updateAgent(Long id, Agent agentDetails) {
+        Agent existing = agentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Agent not found with id: " + id));
+
+        if (agentDetails.getAgentId() != null) {
+            existing.setAgentId(agentDetails.getAgentId());
+        }
+        if (agentDetails.getName() != null) {
+            existing.setName(agentDetails.getName());
+        }
+        if (agentDetails.getEmail() != null) {
+            existing.setEmail(agentDetails.getEmail());
+        }
+        if (agentDetails.getPhone() != null) {
+            existing.setPhone(agentDetails.getPhone());
+        }
+        if (agentDetails.getRole() != null) {
+            existing.setRole(agentDetails.getRole());
+        }
+        if (agentDetails.getDepartment() != null) {
+            existing.setDepartment(agentDetails.getDepartment());
+        }
+        if (agentDetails.getIsActive() != null) {
+            existing.setIsActive(agentDetails.getIsActive());
+        }
+        if (agentDetails.getFaceVerifyOnCheckIn() != null) {
+            existing.setFaceVerifyOnCheckIn(agentDetails.getFaceVerifyOnCheckIn());
+        }
+        if (agentDetails.getFaceVerifyOnCheckOut() != null) {
+            existing.setFaceVerifyOnCheckOut(agentDetails.getFaceVerifyOnCheckOut());
+        }
+        if (agentDetails.getFaceVerifyAnytime() != null) {
+            existing.setFaceVerifyAnytime(agentDetails.getFaceVerifyAnytime());
+        }
+        if (agentDetails.getFaceRegistered() != null) {
+            existing.setFaceRegistered(agentDetails.getFaceRegistered());
+        }
+        if (agentDetails.getFaceTemplate() != null) {
+            existing.setFaceTemplate(agentDetails.getFaceTemplate());
+        }
+        if (agentDetails.getPassword() != null && !agentDetails.getPassword().isEmpty()) {
+            if (!agentDetails.getPassword().startsWith("$2a$")) {
+                existing.setPassword(passwordEncoder.encode(agentDetails.getPassword()));
+            } else {
+                existing.setPassword(agentDetails.getPassword());
+            }
+        }
+
+        return agentRepository.save(existing);
+    }
+
+    public void deleteAgent(Long id) {
+        agentRepository.deleteById(id);
+    }
+
+    // ===== QUERY METHODS =====
+    
     public Optional<Agent> getAgentById(Long id) {
         return agentRepository.findById(id);
     }
@@ -74,99 +160,72 @@ public class AgentService {
         return agentRepository.findByEmail(email);
     }
 
+    public List<Agent> getAllAgents() {
+        return agentRepository.findAll();
+    }
+
     public List<Agent> searchAgentsByName(String name) {
         return agentRepository.findByNameContainingIgnoreCase(name);
     }
 
-    public Agent updateAgent(Long id, Agent agentDetails) {
-        String currentUser = getCurrentUser();
-        String ip = getClientIp();
-        Agent agent = agentRepository.findById(id)
-                .orElseThrow(() -> {
-                    auditLogService.logAction("UPDATE_USER", currentUser, "Failed to update user: Not found with id " + id, ip, "FAILED");
-                    return new RuntimeException("Agent not found with id: " + id);
-                });
-        
-        if (agentDetails.getName() != null) {
-            agent.setName(agentDetails.getName());
-        }
-        if (agentDetails.getEmail() != null) {
-            Optional<Agent> existingAgent = agentRepository.findByEmail(agentDetails.getEmail());
-            if (existingAgent.isPresent() && !existingAgent.get().getId().equals(id)) {
-                auditLogService.logAction("UPDATE_USER", currentUser, "Failed to update user: Email already taken: " + agentDetails.getEmail(), ip, "FAILED");
-                throw new RuntimeException("Email already taken: " + agentDetails.getEmail());
-            }
-            agent.setEmail(agentDetails.getEmail());
-        }
-        if (agentDetails.getPhone() != null) {
-            agent.setPhone(agentDetails.getPhone());
-        }
-        if (agentDetails.getPassword() != null) {
-            agent.setPassword(agentDetails.getPassword());
-        }
-        if (agentDetails.getRole() != null) {
-            agent.setRole(agentDetails.getRole());
-        }
-        if (agentDetails.getDepartment() != null) {
-            agent.setDepartment(agentDetails.getDepartment());
-        }
-        if (agentDetails.getIsActive() != null) {
-            agent.setIsActive(agentDetails.getIsActive());
-        }
-        
-        Agent updated = agentRepository.save(agent);
-        auditLogService.logAction("UPDATE_USER", currentUser, "Updated user: " + updated.getAgentId(), ip, "SUCCESS");
-        return updated;
-    }
-
-    public void deleteAgent(Long id) {
-        String currentUser = getCurrentUser();
-        String ip = getClientIp();
-        Agent agent = agentRepository.findById(id)
-                .orElseThrow(() -> {
-                    auditLogService.logAction("DELETE_USER", currentUser, "Failed to delete user: Not found with id " + id, ip, "FAILED");
-                    return new RuntimeException("Agent not found with id: " + id);
-                });
-        agentRepository.deleteById(id);
-        auditLogService.logAction("DELETE_USER", currentUser, "Deleted user: " + agent.getAgentId(), ip, "SUCCESS");
-    }
-
-    public void deleteAgentByAgentId(String agentId) {
-        String currentUser = getCurrentUser();
-        String ip = getClientIp();
-        Agent agent = agentRepository.findByAgentId(agentId)
-                .orElseThrow(() -> {
-                    auditLogService.logAction("DELETE_USER", currentUser, "Failed to delete user: Not found with agentId " + agentId, ip, "FAILED");
-                    return new RuntimeException("Agent not found with agentId: " + agentId);
-                });
-        agentRepository.delete(agent);
-        auditLogService.logAction("DELETE_USER", currentUser, "Deleted user: " + agentId, ip, "SUCCESS");
-    }
-
     public List<Agent> getActiveAgents() {
-        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
-        return agentRepository.findActiveAgents(sevenDaysAgo);
+        return agentRepository.findActiveAgents(LocalDateTime.now().minusDays(7));
     }
 
     public List<Agent> getAgentsCheckedInToday() {
-        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
-        return agentRepository.findAgentsWithCheckInToday(startOfDay, endOfDay);
+        LocalDateTime start = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+        LocalDateTime end = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        return agentRepository.findAgentsWithCheckInToday(start, end);
     }
 
-    public Optional<Agent> validateLogin(String agentId, String password) {
-        Optional<Agent> agent = agentRepository.findByAgentId(agentId);
-        if (agent.isPresent() && agent.get().getPassword().equals(password) && Boolean.TRUE.equals(agent.get().getIsActive())) {
-            return agent;
-        }
-        return Optional.empty();
+    public long countAgents() {
+        return agentRepository.count();
     }
 
     public boolean existsByAgentId(String agentId) {
         return agentRepository.existsByAgentId(agentId);
     }
 
-    public long countAgents() {
-        return agentRepository.count();
+    public boolean existsByEmail(String email) {
+        return agentRepository.existsByEmail(email);
+    }
+
+    // ===== TOKEN METHODS =====
+    
+    public boolean validateTokenAndUser(String token, String username) {
+        try {
+            Claims claims = tokenProvider.parseToken(token);
+            String tokenUsername = claims.getSubject();
+            return tokenUsername.equals(username) && !tokenProvider.isTokenExpired(token);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public Long getAgentIdFromToken(String token) {
+        try {
+            Claims claims = tokenProvider.parseToken(token);
+            Object id = claims.get("id");
+            if (id != null) {
+                return Long.valueOf(id.toString());
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public String getRoleFromToken(String token) {
+        try {
+            Claims claims = tokenProvider.parseToken(token);
+            Object role = claims.get("role");
+            return role != null ? role.toString() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public List<Agent> getAgentsByCreatedDateRange(LocalDateTime start, LocalDateTime end) {
+        return agentRepository.findByCreatedAtBetween(start, end);
     }
 }

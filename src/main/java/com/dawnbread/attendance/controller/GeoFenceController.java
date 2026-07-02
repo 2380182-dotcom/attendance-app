@@ -13,7 +13,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/geo-fence")
-@CrossOrigin(origins = "*")
 public class GeoFenceController {
 
     @Autowired

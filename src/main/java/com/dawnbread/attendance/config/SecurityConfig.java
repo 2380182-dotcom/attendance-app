@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.config;
 
+import com.dawnbread.attendance.security.RateLimitInterceptor;
 import com.dawnbread.attendance.security.SecurityInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
@@ -12,9 +13,17 @@ public class SecurityConfig implements WebMvcConfigurer {
     @Autowired
     private SecurityInterceptor securityInterceptor;
 
+    @Autowired
+    private RateLimitInterceptor rateLimitInterceptor;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(rateLimitInterceptor)
+                .addPathPatterns("/api/**")
+                .order(0);
+
         registry.addInterceptor(securityInterceptor)
-                .addPathPatterns("/api/**");
+                .addPathPatterns("/api/**")
+                .order(1);
     }
 }

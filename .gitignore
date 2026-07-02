@@ -31,3 +31,34 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Environment & Secrets ###
+.env
+.env.*
+!.env.example
+!mobile/.env.example
+
+### Logs ###
+*.log
+backend.log
+mobile/*.log
+
+### Mobile / Node ###
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/android/app/build/
+mobile/android/build/
+mobile/ios/build/
+mobile/android/.gradle/
+
+### Keystores (never commit) ###
+*.jks
+*.keystore
+mobile/android/app/debug.keystore
+*-release.keystore
+
+### OS ###
+.DS_Store
+Thumbs.db

@@ -257,4 +257,15 @@ public class AttendanceService {
     public Optional<Attendance> getCurrentCheckIn(Long agentId) {
         return attendanceRepository.findOpenAttendanceByAgentId(agentId);
     }
+
+    /**
+     * Record mid-day face verification
+     */
+    public Attendance verifyMidDayFace(Long agentId) {
+        Attendance attendance = attendanceRepository.findOpenAttendanceByAgentId(agentId)
+                .orElseThrow(() -> new RuntimeException("No active check-in found for agent id: " + agentId + ". You must check in first."));
+        
+        attendance.setMidDayVerificationTime(LocalDateTime.now());
+        return attendanceRepository.save(attendance);
+    }
 }

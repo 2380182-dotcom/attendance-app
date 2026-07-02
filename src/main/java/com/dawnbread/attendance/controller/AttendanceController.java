@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/attendance")
-@CrossOrigin(origins = "*")
 public class AttendanceController {
 
     @Autowired
@@ -231,6 +230,19 @@ public class AttendanceController {
         return ResponseEntity.ok(ApiResponse.success("Total attendance count for agent", count));
     }
 
+    /**
+     * Record mid-day face verification
+     */
+    @PostMapping("/verify-midday/{agentId}")
+    public ResponseEntity<ApiResponse<AttendanceDTO>> verifyMidDayFace(@PathVariable Long agentId) {
+        try {
+            Attendance attendance = attendanceService.verifyMidDayFace(agentId);
+            return ResponseEntity.ok(ApiResponse.success("Mid-day face verification recorded successfully", convertToDTO(attendance)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
     // ===== Helper Methods =====
     private AttendanceDTO convertToDTO(Attendance attendance) {
         return new AttendanceDTO(
@@ -246,7 +258,8 @@ public class AttendanceController {
                 attendance.getCheckInLongitude(),
                 attendance.getCheckOutLatitude(),
                 attendance.getCheckOutLongitude(),
-                attendance.getDistanceFromMart()
+                attendance.getDistanceFromMart(),
+                attendance.getMidDayVerificationTime()
         );
     }
 }

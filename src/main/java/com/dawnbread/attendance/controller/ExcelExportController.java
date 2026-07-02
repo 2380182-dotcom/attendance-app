@@ -15,7 +15,6 @@ import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/reports")
-@CrossOrigin(origins = "*")
 public class ExcelExportController {
 
     @Autowired

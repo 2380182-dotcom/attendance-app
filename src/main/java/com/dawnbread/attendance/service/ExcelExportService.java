@@ -32,11 +32,11 @@ public class ExcelExportService {
     public ByteArrayInputStream exportAllReports(LocalDate date, Long agentId, Integer year, Integer month) throws IOException {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             
-            createDailyAttendanceSheet(workbook, date);
+            createDailyAttendanceSheet(workbook, date, agentId);
             createMonthlyAttendanceSheet(workbook, agentId, year, month);
-            createLateArrivalsSheet(workbook, date);
-            createSalesVisitsSheet(workbook, date);
-            createGeoFenceActionsSheet(workbook);
+            createLateArrivalsSheet(workbook, date, agentId);
+            createSalesVisitsSheet(workbook, date, agentId);
+            createGeoFenceActionsSheet(workbook, agentId);
 
             workbook.write(out);
             return new ByteArrayInputStream(out.toByteArray());
@@ -80,7 +80,7 @@ public class ExcelExportService {
         }
     }
 
-    private void createDailyAttendanceSheet(Workbook workbook, LocalDate date) {
+    private void createDailyAttendanceSheet(Workbook workbook, LocalDate date, Long agentId) {
         Sheet sheet = workbook.createSheet("Daily Attendance");
         
         Row headerRow = sheet.createRow(0);
@@ -96,7 +96,12 @@ public class ExcelExportService {
         LocalDate targetDate = date != null ? date : LocalDate.now();
         LocalDateTime start = targetDate.atStartOfDay();
         LocalDateTime end = targetDate.atTime(23, 59, 59);
-        List<Attendance> attendances = attendanceRepository.findByCheckInTimeBetween(start, end);
+        List<Attendance> attendances;
+        if (agentId != null) {
+            attendances = attendanceRepository.findByAgentIdAndCheckInTimeBetween(agentId, start, end);
+        } else {
+            attendances = attendanceRepository.findByCheckInTimeBetween(start, end);
+        }
 
         int rowIdx = 1;
         for (Attendance att : attendances) {
@@ -153,7 +158,7 @@ public class ExcelExportService {
         autoSizeColumns(sheet, columns.length);
     }
 
-    private void createLateArrivalsSheet(Workbook workbook, LocalDate date) {
+    private void createLateArrivalsSheet(Workbook workbook, LocalDate date, Long agentId) {
         Sheet sheet = workbook.createSheet("Late Arrivals");
 
         Row headerRow = sheet.createRow(0);
@@ -170,6 +175,11 @@ public class ExcelExportService {
         LocalDateTime start = targetDate.atStartOfDay();
         LocalDateTime end = targetDate.atTime(23, 59, 59);
         List<Attendance> attendances = attendanceRepository.findByDateRangeAndStatus(start, end, "LATE");
+        if (agentId != null) {
+            attendances = attendances.stream()
+                    .filter(att -> att.getAgent().getId().equals(agentId))
+                    .toList();
+        }
 
         int rowIdx = 1;
         for (Attendance att : attendances) {
@@ -185,7 +195,7 @@ public class ExcelExportService {
         autoSizeColumns(sheet, columns.length);
     }
 
-    private void createSalesVisitsSheet(Workbook workbook, LocalDate date) {
+    private void createSalesVisitsSheet(Workbook workbook, LocalDate date, Long agentId) {
         Sheet sheet = workbook.createSheet("Sales Visits");
 
         Row headerRow = sheet.createRow(0);
@@ -202,6 +212,11 @@ public class ExcelExportService {
         LocalDateTime start = targetDate.atStartOfDay();
         LocalDateTime end = targetDate.atTime(23, 59, 59);
         List<Attendance> attendances = attendanceRepository.findByCheckInTimeBetween(start, end);
+        if (agentId != null) {
+            attendances = attendances.stream()
+                    .filter(att -> att.getAgent().getId().equals(agentId))
+                    .toList();
+        }
 
         int rowIdx = 1;
         for (Attendance att : attendances) {
@@ -217,7 +232,7 @@ public class ExcelExportService {
         autoSizeColumns(sheet, columns.length);
     }
 
-    private void createGeoFenceActionsSheet(Workbook workbook) {
+    private void createGeoFenceActionsSheet(Workbook workbook, Long agentId) {
         Sheet sheet = workbook.createSheet("Geo-fence Logs");
 
         Row headerRow = sheet.createRow(0);
@@ -230,7 +245,12 @@ public class ExcelExportService {
             cell.setCellStyle(headerStyle);
         }
 
-        List<GeoFenceLog> logs = geoFenceLogRepository.findAll();
+        List<GeoFenceLog> logs;
+        if (agentId != null) {
+            logs = geoFenceLogRepository.findByAgentIdOrderByCreatedAtDesc(agentId);
+        } else {
+            logs = geoFenceLogRepository.findAll();
+        }
 
         int rowIdx = 1;
         for (GeoFenceLog log : logs) {

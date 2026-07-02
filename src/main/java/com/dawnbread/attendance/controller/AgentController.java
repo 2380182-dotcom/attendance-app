@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/agents")
-@CrossOrigin(origins = "*")
 public class AgentController {
 
     @Autowired
@@ -153,7 +152,12 @@ public class AgentController {
                 agent.getPhone(),
                 agent.getRole(),
                 agent.getDepartment(),
-                agent.getCreatedAt()
+                agent.getCreatedAt(),
+                agent.getFaceVerifyOnCheckIn(),
+                agent.getFaceVerifyOnCheckOut(),
+                agent.getFaceVerifyAnytime(),
+                agent.getFaceRegistered(),
+                agent.getFaceTemplate()
         );
     }
 }

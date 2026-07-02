@@ -26,6 +26,7 @@ public class Attendance {
     private Double checkOutLatitude;
     private Double checkOutLongitude;
     private Double distanceFromMart;
+    private LocalDateTime midDayVerificationTime;
     
     // Constructors
     public Attendance() {}
@@ -42,6 +43,7 @@ public class Attendance {
     public Double getCheckOutLatitude() { return checkOutLatitude; }
     public Double getCheckOutLongitude() { return checkOutLongitude; }
     public Double getDistanceFromMart() { return distanceFromMart; }
+    public LocalDateTime getMidDayVerificationTime() { return midDayVerificationTime; }
     
     // Setters
     public void setId(Long id) { this.id = id; }
@@ -55,4 +57,5 @@ public class Attendance {
     public void setCheckOutLatitude(Double checkOutLatitude) { this.checkOutLatitude = checkOutLatitude; }
     public void setCheckOutLongitude(Double checkOutLongitude) { this.checkOutLongitude = checkOutLongitude; }
     public void setDistanceFromMart(Double distanceFromMart) { this.distanceFromMart = distanceFromMart; }
+    public void setMidDayVerificationTime(LocalDateTime midDayVerificationTime) { this.midDayVerificationTime = midDayVerificationTime; }
 }

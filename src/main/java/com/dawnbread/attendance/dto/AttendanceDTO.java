@@ -16,6 +16,7 @@ public class AttendanceDTO {
     private Double checkOutLatitude;
     private Double checkOutLongitude;
     private Double distanceFromMart;
+    private LocalDateTime midDayVerificationTime;
     
     // Constructors
     public AttendanceDTO() {}
@@ -38,6 +39,26 @@ public class AttendanceDTO {
         this.checkOutLongitude = checkOutLongitude;
         this.distanceFromMart = distanceFromMart;
     }
+
+    public AttendanceDTO(Long id, Long agentId, String agentName, Long martId, String martName,
+                         LocalDateTime checkInTime, LocalDateTime checkOutTime, String status,
+                         Double checkInLatitude, Double checkInLongitude, Double checkOutLatitude,
+                         Double checkOutLongitude, Double distanceFromMart, LocalDateTime midDayVerificationTime) {
+        this.id = id;
+        this.agentId = agentId;
+        this.agentName = agentName;
+        this.martId = martId;
+        this.martName = martName;
+        this.checkInTime = checkInTime;
+        this.checkOutTime = checkOutTime;
+        this.status = status;
+        this.checkInLatitude = checkInLatitude;
+        this.checkInLongitude = checkInLongitude;
+        this.checkOutLatitude = checkOutLatitude;
+        this.checkOutLongitude = checkOutLongitude;
+        this.distanceFromMart = distanceFromMart;
+        this.midDayVerificationTime = midDayVerificationTime;
+    }
     
     // Getters
     public Long getId() { return id; }
@@ -53,6 +74,7 @@ public class AttendanceDTO {
     public Double getCheckOutLatitude() { return checkOutLatitude; }
     public Double getCheckOutLongitude() { return checkOutLongitude; }
     public Double getDistanceFromMart() { return distanceFromMart; }
+    public LocalDateTime getMidDayVerificationTime() { return midDayVerificationTime; }
     
     // Setters
     public void setId(Long id) { this.id = id; }
@@ -68,4 +90,5 @@ public class AttendanceDTO {
     public void setCheckOutLatitude(Double checkOutLatitude) { this.checkOutLatitude = checkOutLatitude; }
     public void setCheckOutLongitude(Double checkOutLongitude) { this.checkOutLongitude = checkOutLongitude; }
     public void setDistanceFromMart(Double distanceFromMart) { this.distanceFromMart = distanceFromMart; }
+    public void setMidDayVerificationTime(LocalDateTime midDayVerificationTime) { this.midDayVerificationTime = midDayVerificationTime; }
 }

@@ -24,6 +24,9 @@ public class NotificationService {
     @Autowired
     private AgentService agentService;
 
+    @Autowired
+    private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("hh:mm a");
 
     public Notification saveNotification(Notification notification) {
@@ -31,7 +34,13 @@ public class NotificationService {
         if (notification.getIsRead() == null) {
             notification.setIsRead(false);
         }
-        return notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+        try {
+            messagingTemplate.convertAndSend("/topic/alerts", saved);
+        } catch (Exception e) {
+            logger.error("Failed to broadcast notification: ", e);
+        }
+        return saved;
     }
 
     public void sendCheckInNotification(Attendance attendance) {

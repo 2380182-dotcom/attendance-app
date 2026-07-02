@@ -1,0 +1,12 @@
+package com.dawnbread.attendance.repository;
+
+import com.dawnbread.attendance.entity.SalesSyncLog;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface SalesSyncLogRepository extends JpaRepository<SalesSyncLog, Long> {
+    List<SalesSyncLog> findBySaleRecordId(Long saleRecordId);
+}
