@@ -1,7 +1,7 @@
 package com.dawnbread.attendance.controller;
 
-import com.dawnbread.attendance.dto.AdminStatsDTO;
-import com.dawnbread.attendance.dto.ApiResponse;
+import com.dawnbread.attendance.dto.*;
+import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Mart;
 import com.dawnbread.attendance.service.AdminService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +23,64 @@ public class AdminController {
         try {
             AdminStatsDTO stats = adminService.getAdminDashboardStats();
             return ResponseEntity.ok(ApiResponse.success("Statistics retrieved successfully", stats));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/agents")
+    public ResponseEntity<ApiResponse<Agent>> createAgent(@RequestBody AgentRegistrationDTO dto) {
+        try {
+            Agent created = adminService.createAgent(dto);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.success("Agent created successfully", created));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/agents")
+    public ResponseEntity<ApiResponse<List<Agent>>> listAgents(
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) Boolean active) {
+        try {
+            List<Agent> agents = adminService.listAgents(role, department, active);
+            return ResponseEntity.ok(ApiResponse.success("Agents retrieved", agents));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PutMapping("/agents/{id}/face-config")
+    public ResponseEntity<ApiResponse<Agent>> updateFaceConfig(
+            @PathVariable Long id,
+            @RequestBody FaceConfigDTO config) {
+        try {
+            Agent updated = adminService.updateFaceConfig(id, config);
+            return ResponseEntity.ok(ApiResponse.success("Face config updated", updated));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PutMapping("/agents/{id}/shift")
+    public ResponseEntity<ApiResponse<Agent>> updateShift(
+            @PathVariable Long id,
+            @RequestBody ShiftScheduleDTO shift) {
+        try {
+            Agent updated = adminService.updateShift(id, shift);
+            return ResponseEntity.ok(ApiResponse.success("Shift updated", updated));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/agents/{id}/schedule")
+    public ResponseEntity<ApiResponse<ShiftScheduleDTO>> getAgentSchedule(@PathVariable Long id) {
+        try {
+            ShiftScheduleDTO schedule = adminService.getAgentSchedule(id);
+            return ResponseEntity.ok(ApiResponse.success("Shift schedule retrieved", schedule));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }

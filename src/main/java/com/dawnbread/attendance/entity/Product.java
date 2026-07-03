@@ -1,6 +1,7 @@
 package com.dawnbread.attendance.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "products")
@@ -12,6 +13,12 @@ public class Product {
 
     @Column(nullable = false)
     private String name;
+
+    @Column(length = 50)
+    private String category;
+
+    @Column(length = 50)
+    private String unit;
 
     @Column(nullable = false)
     private Double price;
@@ -28,6 +35,12 @@ public class Product {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     public Product() {}
 
     public Product(String name, Double price, String imageUrl, String thumbnailUrl, String description) {
@@ -39,12 +52,17 @@ public class Product {
         this.isActive = true;
     }
 
-    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+
+    public String getUnit() { return unit; }
+    public void setUnit(String unit) { this.unit = unit; }
 
     public Double getPrice() { return price; }
     public void setPrice(Double price) { this.price = price; }
@@ -60,4 +78,10 @@ public class Product {
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }

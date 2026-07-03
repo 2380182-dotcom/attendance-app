@@ -2,10 +2,14 @@ package com.dawnbread.attendance.controller;
 
 import com.dawnbread.attendance.dto.ApiResponse;
 import com.dawnbread.attendance.dto.AttendanceDTO;
+import com.dawnbread.attendance.dto.AttendanceWithShiftDTO;
 import com.dawnbread.attendance.dto.CheckInRequest;
 import com.dawnbread.attendance.dto.CheckOutRequest;
+import com.dawnbread.attendance.dto.FaceVerificationStatusDTO;
+import com.dawnbread.attendance.dto.FaceResultRequest;
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.service.AttendanceService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -15,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -23,6 +28,9 @@ public class AttendanceController {
 
     @Autowired
     private AttendanceService attendanceService;
+
+    @Autowired
+    private com.dawnbread.attendance.service.FaceVerificationService faceVerificationService;
 
     /**
      * Check-in an agent
@@ -231,7 +239,32 @@ public class AttendanceController {
     }
 
     /**
-     * Record mid-day face verification
+     * Record on-device face verification result from mobile app.
+     */
+    @PostMapping("/face-result")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> recordFaceResult(
+            @Valid @RequestBody FaceResultRequest request) {
+        try {
+            var log = faceVerificationService.recordFaceResult(request);
+
+            // Update mid-shift attendance record when applicable
+            if ("MIDSHIFT".equalsIgnoreCase(request.getCheckpointType())
+                    && "PASS".equalsIgnoreCase(request.getVerificationResult())) {
+                attendanceService.recordMidShiftVerification(request.getAgentId());
+            }
+
+            Map<String, Object> data = new java.util.HashMap<>();
+            data.put("logId", log.getId());
+            data.put("success", log.getSuccess());
+            data.put("confidenceScore", log.getSimilarityScore());
+            return ResponseEntity.ok(ApiResponse.success("Face verification result recorded", data));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    /**
+     * Record mid-day face verification (legacy — prefer /face-result with MIDSHIFT checkpoint)
      */
     @PostMapping("/verify-midday/{agentId}")
     public ResponseEntity<ApiResponse<AttendanceDTO>> verifyMidDayFace(@PathVariable Long agentId) {
@@ -241,6 +274,35 @@ public class AttendanceController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
+    }
+
+    @PostMapping("/verify-scheduled")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyScheduled(
+            @Valid @RequestBody FaceResultRequest request) {
+        try {
+            request.setCheckpointType("MIDSHIFT");
+            var log = attendanceService.recordScheduledFaceResult(request);
+            Map<String, Object> data = new java.util.HashMap<>();
+            data.put("verified", log.getSuccess());
+            data.put("logId", log.getId());
+            return ResponseEntity.ok(ApiResponse.success("Scheduled face verification recorded", data));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/daily-report")
+    public ResponseEntity<ApiResponse<List<AttendanceWithShiftDTO>>> getDailyReportWithShift(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        LocalDate target = date != null ? date : LocalDate.now();
+        List<AttendanceWithShiftDTO> report = attendanceService.getDailyReportWithShift(target);
+        return ResponseEntity.ok(ApiResponse.success("Daily attendance report with shift compliance", report));
+    }
+
+    @GetMapping("/verification-status/{agentId}")
+    public ResponseEntity<ApiResponse<FaceVerificationStatusDTO>> getVerificationStatus(@PathVariable Long agentId) {
+        FaceVerificationStatusDTO status = attendanceService.getVerificationStatusForAgent(agentId);
+        return ResponseEntity.ok(ApiResponse.success("Verification status retrieved", status));
     }
 
     // ===== Helper Methods =====

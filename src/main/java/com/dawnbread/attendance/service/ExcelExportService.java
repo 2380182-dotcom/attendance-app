@@ -2,8 +2,11 @@ package com.dawnbread.attendance.service;
 
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.entity.GeoFenceLog;
+import com.dawnbread.attendance.entity.SaleItem;
+import com.dawnbread.attendance.entity.SalesRecord;
 import com.dawnbread.attendance.repository.AttendanceRepository;
 import com.dawnbread.attendance.repository.GeoFenceLogRepository;
+import com.dawnbread.attendance.repository.SalesRecordRepository;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,8 +29,57 @@ public class ExcelExportService {
     @Autowired
     private GeoFenceLogRepository geoFenceLogRepository;
 
+    @Autowired
+    private SalesRecordRepository salesRecordRepository;
+
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    public ByteArrayInputStream exportSalesRecords(List<SalesRecord> records) throws IOException {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Sales Records");
+            Row headerRow = sheet.createRow(0);
+            String[] columns = {"ID", "Agent", "Store", "Date", "Time", "Total Units", "Total Amount (PKR)", "Status"};
+
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            for (int i = 0; i < columns.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(columns[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            int rowIdx = 1;
+            for (SalesRecord record : records) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(record.getId());
+                row.createCell(1).setCellValue(record.getAgent().getName());
+                row.createCell(2).setCellValue(record.getStoreName() != null ? record.getStoreName() : record.getLocation());
+                row.createCell(3).setCellValue(record.getSaleDate().format(DATE_FORMATTER));
+                row.createCell(4).setCellValue(record.getSaleTime().toString());
+                int units = record.getTotalUnits() != null ? record.getTotalUnits() :
+                        record.getItems().stream().mapToInt(SaleItem::getQuantity).sum();
+                row.createCell(5).setCellValue(units);
+                row.createCell(6).setCellValue(record.getTotalAmount());
+                row.createCell(7).setCellValue(record.getStatus() != null ? record.getStatus() : "PENDING");
+            }
+
+            autoSizeColumns(sheet, columns.length);
+            workbook.write(out);
+            return new ByteArrayInputStream(out.toByteArray());
+        }
+    }
+
+    public ByteArrayInputStream exportAllSales() throws IOException {
+        return exportSalesRecords(salesRecordRepository.findAll());
+    }
+
+    public ByteArrayInputStream exportAgentSales(Long agentId) throws IOException {
+        return exportSalesRecords(salesRecordRepository.findByAgentIdOrderBySaleDateDescSaleTimeDesc(agentId));
+    }
+
+    public ByteArrayInputStream exportDepartmentSales(String department) throws IOException {
+        return exportSalesRecords(salesRecordRepository.findByAgentDepartment(department));
+    }
 
     public ByteArrayInputStream exportAllReports(LocalDate date, Long agentId, Integer year, Integer month) throws IOException {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {

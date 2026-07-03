@@ -136,6 +136,30 @@ public class NotificationService {
         logger.info("[PUSH NOTIFICATION TO AGENT id={}] Title: {} | Body: {}", agentId, title, body);
     }
 
+    public void sendFaceVerificationFailureAlert(Agent agent, String checkpointType, double confidenceScore) {
+        String agentName = agent.getName();
+        String msg = String.format(
+                "Face verification FAILED for %s at %s checkpoint (confidence: %.1f%%)",
+                agentName, checkpointType, confidenceScore * 100);
+
+        Notification adminNotif = new Notification();
+        adminNotif.setAgent(agent);
+        adminNotif.setAgentName(agentName);
+        adminNotif.setMessage(msg);
+        adminNotif.setType("FACE_VERIFY_FAIL");
+        adminNotif.setDepartment("ADMIN");
+        saveNotification(adminNotif);
+        logger.warn("[ADMIN ALERT] {}", msg);
+
+        Notification hrNotif = new Notification();
+        hrNotif.setAgent(agent);
+        hrNotif.setAgentName(agentName);
+        hrNotif.setMessage(msg);
+        hrNotif.setType("FACE_VERIFY_FAIL");
+        hrNotif.setDepartment("HR");
+        saveNotification(hrNotif);
+    }
+
     public List<Notification> getSalesNotifications() {
         return notificationRepository.findByDepartmentOrderByCreatedAtDesc("SALES");
     }

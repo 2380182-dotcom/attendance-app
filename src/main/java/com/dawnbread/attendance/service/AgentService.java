@@ -131,6 +131,28 @@ public class AgentService {
         if (agentDetails.getFaceTemplate() != null) {
             existing.setFaceTemplate(agentDetails.getFaceTemplate());
         }
+        if (agentDetails.getFaceVerificationEnabled() != null) {
+            existing.setFaceVerificationEnabled(agentDetails.getFaceVerificationEnabled());
+        }
+        if (agentDetails.getFaceVerificationFrequency() != null) {
+            existing.setFaceVerificationFrequency(agentDetails.getFaceVerificationFrequency());
+        }
+        if (agentDetails.getFaceVerificationTimes() != null) {
+            existing.setFaceVerificationTimes(agentDetails.getFaceVerificationTimes());
+        }
+        if (agentDetails.getShiftStartTime() != null) {
+            existing.setShiftStartTime(agentDetails.getShiftStartTime());
+        }
+        if (agentDetails.getShiftEndTime() != null) {
+            existing.setShiftEndTime(agentDetails.getShiftEndTime());
+        }
+        if (agentDetails.getGracePeriodMinutes() != null) {
+            existing.setGracePeriodMinutes(agentDetails.getGracePeriodMinutes());
+        }
+        if (agentDetails.getWorkingDays() != null) {
+            existing.setWorkingDays(agentDetails.getWorkingDays());
+        }
+        existing.setUpdatedAt(LocalDateTime.now());
         if (agentDetails.getPassword() != null && !agentDetails.getPassword().isEmpty()) {
             if (!agentDetails.getPassword().startsWith("$2a$")) {
                 existing.setPassword(passwordEncoder.encode(agentDetails.getPassword()));

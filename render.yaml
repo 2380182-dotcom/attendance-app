@@ -1,50 +1,115 @@
-databases:
-  - name: attendance-db
-    plan: free
-    databaseName: attendance_db
-    user: db_user
-
 services:
   - type: web
-    name: attendance-backend
-    env: docker
-    plan: free
+    name: attendance-hub-backend
+    runtime: docker
+    plan: starter
     region: oregon
-    branch: main
-    numInstances: 1
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
+      - key: JDBC_DATABASE_URL
+        fromDatabase:
+          name: attendance-hub-db
+          property: connectionString
+      - key: DB_URL
+        fromDatabase:
+          name: attendance-hub-db
+          property: connectionString
+      - key: JDBC_DATABASE_USERNAME
+        fromDatabase:
+          name: attendance-hub-db
+          property: user
+      - key: DB_USERNAME
+        fromDatabase:
+          name: attendance-hub-db
+          property: user
+      - key: JDBC_DATABASE_PASSWORD
+        fromDatabase:
+          name: attendance-hub-db
+          property: password
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: attendance-hub-db
+          property: password
+      - key: DB_DRIVER_CLASS_NAME
+        value: org.postgresql.Driver
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
         value: "*"
-      - key: DB_URL
-        value: jdbc:postgresql://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}?sslmode=require
-      - key: DB_USERNAME
-        fromDatabase:
-          name: attendance-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: attendance-db
-          property: password
-      - key: DATABASE_HOST
-        fromDatabase:
-          name: attendance-db
-          property: host
-      - key: DATABASE_PORT
-        fromDatabase:
-          name: attendance-db
-          property: port
-      - key: DATABASE_NAME
-        fromDatabase:
-          name: attendance-db
-          property: database
-      - key: DB_DRIVER_CLASS_NAME
-        value: org.postgresql.Driver
       - key: SPRING_JPA_HIBERNATE_DDL_AUTO
-        value: update
-      - key: RATE_LIMIT_REQUESTS_PER_MINUTE
-        value: "120"
+        value: validate
+      - key: SPRING_FLYWAY_ENABLED
+        value: "true"
+      - key: SPRING_FLYWAY_BASELINE_ON_MIGRATE
+        value: "true"
+    dockerCommand: java -jar app.jar
+
+  - type: cronjob
+    name: database-backup
+    runtime: image
+    schedule: "0 2 * * *"
+    image:
+      url: postgres:15
+    envVars:
+      - key: PGHOST
+        fromDatabase:
+          name: attendance-hub-db
+          property: host
+      - key: PGUSER
+        fromDatabase:
+          name: attendance-hub-db
+          property: user
+      - key: PGPASSWORD
+        fromDatabase:
+          name: attendance-hub-db
+          property: password
+      - key: PGDATABASE
+        fromDatabase:
+          name: attendance-hub-db
+          property: database
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET_NAME
+        sync: false
+    dockerCommand: |
+      pg_dump -Fc -Z 9 -f /tmp/backup.dump &&
+      aws s3 cp /tmp/backup.dump s3://${S3_BUCKET_NAME}/backups/$(date +%Y/%m/%d)/backup-$(date +%Y%m%d-%H%M%S).dump
+
+  - type: cronjob
+    name: backup-monitor
+    runtime: image
+    schedule: "0 4 * * *"
+    image:
+      url: postgres:15
+    envVars:
+      - key: PGHOST
+        fromDatabase:
+          name: attendance-hub-db
+          property: host
+      - key: PGUSER
+        fromDatabase:
+          name: attendance-hub-db
+          property: user
+      - key: PGPASSWORD
+        fromDatabase:
+          name: attendance-hub-db
+          property: password
+      - key: PGDATABASE
+        fromDatabase:
+          name: attendance-hub-db
+          property: database
+    dockerCommand: |
+      echo "Checking database health..."
+      psql -c "SELECT count(*) FROM agent;" || exit 1
+      echo "Database is healthy!"
+
+databases:
+  - name: attendance-hub-db
+    plan: starter
+    databaseName: attendance_hub
+    ipAllowList: []
+    postgresMajorVersion: 15

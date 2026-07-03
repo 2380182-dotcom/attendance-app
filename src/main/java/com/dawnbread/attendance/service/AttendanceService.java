@@ -1,7 +1,9 @@
 package com.dawnbread.attendance.service;
 
+import com.dawnbread.attendance.dto.AttendanceWithShiftDTO;
 import com.dawnbread.attendance.dto.CheckInRequest;
 import com.dawnbread.attendance.dto.CheckOutRequest;
+import com.dawnbread.attendance.dto.FaceVerificationStatusDTO;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.entity.Mart;
@@ -12,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,6 +33,12 @@ public class AttendanceService {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private FaceVerificationService faceVerificationService;
+
+    @Autowired
+    private ShiftValidationService shiftValidationService;
 
     /**
      * Calculate distance between two coordinates (Haversine formula)
@@ -60,40 +68,31 @@ public class AttendanceService {
      * Check-in an agent
      */
     public Attendance checkIn(CheckInRequest request) {
-        // Validate agent
         Agent agent = agentService.getAgentById(request.getAgentId())
                 .orElseThrow(() -> new RuntimeException("Agent not found with id: " + request.getAgentId()));
-        
-        // Validate mart
+
         Mart mart = martService.getMartById(request.getMartId())
                 .orElseThrow(() -> new RuntimeException("Mart not found with id: " + request.getMartId()));
-        
-        // Check if already checked in
+
         Optional<Attendance> openAttendance = attendanceRepository.findOpenAttendanceByAgentId(request.getAgentId());
         if (openAttendance.isPresent()) {
             throw new RuntimeException("Agent already checked in. Please check out first.");
         }
-        
-        // Calculate distance from mart
-        double distance = calculateDistance(request.getLatitude(), request.getLongitude(), 
-                                           mart.getLatitude(), mart.getLongitude());
-        
-        // Determine status
-        String status = "IN";
+
+        double distance = calculateDistance(request.getLatitude(), request.getLongitude(),
+                mart.getLatitude(), mart.getLongitude());
+
         LocalDateTime now = LocalDateTime.now();
-        
-        // If distance is greater than mart radius, mark as LATE
-        if (distance > mart.getRadius() * 1000) { // Convert radius from km to meters
+        AttendanceWithShiftDTO shiftResult = shiftValidationService.validateAttendanceWithShift(request.getAgentId(), now);
+
+        String status = "IN";
+        if ("LATE".equals(shiftResult.getShiftCompliance()) || distance > mart.getRadius() * 1000) {
             status = "LATE";
         }
-        
-        // Check if it's before 9:30 AM (can adjust as needed)
-        LocalTime checkInTime = now.toLocalTime();
-        if (checkInTime.isAfter(LocalTime.of(9, 30))) {
-            status = "LATE";
+        if (!shiftResult.isWorkingDay()) {
+            status = "NON_WORKING_DAY";
         }
-        
-        // Create attendance record
+
         Attendance attendance = new Attendance();
         attendance.setAgent(agent);
         attendance.setMart(mart);
@@ -102,7 +101,11 @@ public class AttendanceService {
         attendance.setCheckInLatitude(request.getLatitude());
         attendance.setCheckInLongitude(request.getLongitude());
         attendance.setDistanceFromMart(distance);
-        
+        attendance.setShiftStartTime(agent.getShiftStartTime());
+        attendance.setShiftEndTime(agent.getShiftEndTime());
+        attendance.setLateMinutes(shiftResult.getLateMinutes());
+        attendance.setFaceVerifiedCheckin(Boolean.TRUE.equals(request.getFaceVerified()));
+
         Attendance saved = attendanceRepository.save(attendance);
         notificationService.sendCheckInNotification(saved);
         return saved;
@@ -112,18 +115,66 @@ public class AttendanceService {
      * Check-out an agent
      */
     public Attendance checkOut(CheckOutRequest request) {
-        // Find open attendance
         Attendance attendance = attendanceRepository.findOpenAttendanceByAgentId(request.getAgentId())
                 .orElseThrow(() -> new RuntimeException("No active check-in found for agent id: " + request.getAgentId()));
-        
-        // Update check-out details
+
         attendance.setCheckOutTime(LocalDateTime.now());
         attendance.setCheckOutLatitude(request.getLatitude());
         attendance.setCheckOutLongitude(request.getLongitude());
-        
+        attendance.setFaceVerifiedCheckout(Boolean.TRUE.equals(request.getFaceVerified()));
+
         Attendance saved = attendanceRepository.save(attendance);
         notificationService.sendCheckOutNotification(saved);
         return saved;
+    }
+
+    public void recordMidShiftVerification(Long agentId) {
+        Attendance attendance = attendanceRepository.findOpenAttendanceByAgentId(agentId)
+                .orElse(null);
+        if (attendance != null) {
+            attendance.setMidDayVerificationTime(LocalDateTime.now());
+            attendanceRepository.save(attendance);
+        }
+    }
+
+    public com.dawnbread.attendance.entity.FaceVerificationLog recordScheduledFaceResult(
+            com.dawnbread.attendance.dto.FaceResultRequest request) {
+        var log = faceVerificationService.recordFaceResult(request);
+        if (Boolean.TRUE.equals(log.getSuccess())) {
+            recordMidShiftVerification(request.getAgentId());
+        }
+        return log;
+    }
+
+    public List<AttendanceWithShiftDTO> getDailyReportWithShift(LocalDate date) {
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.atTime(23, 59, 59);
+        List<Attendance> records = attendanceRepository.findByCheckInTimeBetween(start, end);
+        List<AttendanceWithShiftDTO> report = new ArrayList<>();
+
+        for (Attendance att : records) {
+            AttendanceWithShiftDTO dto = shiftValidationService.validateAttendanceWithShift(
+                    att.getAgent().getId(), att.getCheckInTime());
+
+            AttendanceWithShiftDTO.AttendanceDTO attDto = new AttendanceWithShiftDTO.AttendanceDTO();
+            attDto.setId(att.getId());
+            attDto.setAgentId(att.getAgent().getId());
+            attDto.setAgentName(att.getAgent().getName());
+            attDto.setCheckInTime(att.getCheckInTime());
+            attDto.setCheckOutTime(att.getCheckOutTime());
+            attDto.setStatus(att.getStatus());
+            attDto.setLateMinutes(att.getLateMinutes());
+            attDto.setFaceVerifiedCheckin(att.getFaceVerifiedCheckin());
+            attDto.setFaceVerifiedCheckout(att.getFaceVerifiedCheckout());
+            dto.setAttendance(attDto);
+            dto.setFaceVerified(Boolean.TRUE.equals(att.getFaceVerifiedCheckin()));
+            report.add(dto);
+        }
+        return report;
+    }
+
+    public FaceVerificationStatusDTO getVerificationStatusForAgent(Long agentId) {
+        return faceVerificationService.getVerificationStatus(agentId);
     }
 
     /**

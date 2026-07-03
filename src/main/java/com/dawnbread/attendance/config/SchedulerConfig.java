@@ -4,6 +4,7 @@ import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.repository.AttendanceRepository;
 import com.dawnbread.attendance.service.AgentService;
+import com.dawnbread.attendance.service.FaceVerificationService;
 import com.dawnbread.attendance.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,15 @@ public class SchedulerConfig {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private FaceVerificationService faceVerificationService;
+
+    @Scheduled(cron = "0 0 0 * * *")
+    public void resetDailyFaceVerificationCounts() {
+        logger.info("Resetting daily face verification counts at midnight");
+        faceVerificationService.resetAllDailyVerificationCounts();
+    }
 
     /**
      * If agent checks in but forgets to check out, auto-checkout at 11:59 PM

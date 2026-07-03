@@ -7,13 +7,19 @@ import com.dawnbread.attendance.entity.SalesSyncLog;
 import com.dawnbread.attendance.repository.ProductRepository;
 import com.dawnbread.attendance.repository.SalesSyncLogRepository;
 import com.dawnbread.attendance.service.DashboardService;
+import com.dawnbread.attendance.service.ExcelExportService;
 import com.dawnbread.attendance.service.SalesService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -34,11 +40,51 @@ public class SalesController {
     @Autowired
     private SalesSyncLogRepository salesSyncLogRepository;
 
-    // Get products with images
+    @Autowired
+    private ExcelExportService excelExportService;
+
+    @GetMapping("/products")
+    public ResponseEntity<ApiResponse<List<ProductCatalogDTO>>> getProducts() {
+        List<ProductCatalogDTO> products = salesService.getProductCatalog();
+        return ResponseEntity.ok(ApiResponse.success("Product catalog loaded", products));
+    }
+
     @GetMapping("/products-with-images")
     public ResponseEntity<ApiResponse<List<Product>>> getProductsWithImages() {
         List<Product> products = productRepository.findByIsActiveTrue();
         return ResponseEntity.ok(ApiResponse.success("Products catalog loaded successfully", products));
+    }
+
+    @PostMapping("/entry")
+    public ResponseEntity<ApiResponse<SalesEntryResponseDTO>> submitSalesEntry(
+            @Valid @RequestBody SalesEntryRequestDTO request) {
+        try {
+            SalesEntryResponseDTO response = salesService.submitSalesEntry(request);
+            return ResponseEntity.ok(ApiResponse.success("Sales entry submitted", response));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/dashboard/today")
+    public ResponseEntity<ApiResponse<SalesDashboardDTO>> getTodayDashboard() {
+        SalesDashboardDTO dto = salesService.getTodaySummary();
+        return ResponseEntity.ok(ApiResponse.success("Today's sales summary", dto));
+    }
+
+    @GetMapping("/dashboard/agent/{agentId}")
+    public ResponseEntity<ApiResponse<List<SalesDTO>>> getAgentDashboardSales(@PathVariable Long agentId) {
+        List<SalesDTO> dtos = salesService.getSalesWithImages(agentId);
+        return ResponseEntity.ok(ApiResponse.success("Agent sales retrieved", dtos));
+    }
+
+    @GetMapping("/dashboard/search")
+    public ResponseEntity<ApiResponse<List<SalesDTO>>> searchSales(
+            @RequestParam(required = false) String agentName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String storeName) {
+        List<SalesDTO> results = salesService.searchSales(agentName, date, storeName);
+        return ResponseEntity.ok(ApiResponse.success("Sales search results", results));
     }
 
     // Add sales with product images
@@ -191,5 +237,38 @@ public class SalesController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<InputStreamResource> exportAllSales() throws IOException {
+        ByteArrayInputStream in = excelExportService.exportAllSales();
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=sales_export.xlsx");
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(new InputStreamResource(in));
+    }
+
+    @GetMapping("/export/agent/{agentId}")
+    public ResponseEntity<InputStreamResource> exportAgentSales(@PathVariable Long agentId) throws IOException {
+        ByteArrayInputStream in = excelExportService.exportAgentSales(agentId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=agent_sales_" + agentId + ".xlsx");
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(new InputStreamResource(in));
+    }
+
+    @GetMapping("/export/department/{department}")
+    public ResponseEntity<InputStreamResource> exportDepartmentSales(@PathVariable String department) throws IOException {
+        ByteArrayInputStream in = excelExportService.exportDepartmentSales(department);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=sales_" + department + ".xlsx");
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(new InputStreamResource(in));
     }
 }

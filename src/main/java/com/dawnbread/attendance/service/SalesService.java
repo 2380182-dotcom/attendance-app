@@ -48,6 +48,108 @@ public class SalesService {
     @Value("${sales.max-quantity-limit:500}")
     private int maxQuantityLimit;
 
+    public List<ProductCatalogDTO> getProductCatalog() {
+        return productRepository.findByIsActiveTrue().stream()
+                .map(p -> new ProductCatalogDTO(p.getId(), p.getName(), p.getCategory(), p.getUnit(), p.getPrice()))
+                .collect(Collectors.toList());
+    }
+
+    public SalesEntryResponseDTO submitSalesEntry(SalesEntryRequestDTO request) {
+        Agent agent = agentService.getAgentById(request.getAgentId())
+                .orElseThrow(() -> new IllegalArgumentException("Agent not found with ID: " + request.getAgentId()));
+
+        LocalDate saleDate = request.getSaleDate() != null ? request.getSaleDate() : LocalDate.now();
+
+        List<SalesRecord> existingSales = salesRecordRepository.findByAgentIdAndSaleDate(agent.getId(), saleDate);
+        Set<Long> existingProductIds = existingSales.stream()
+                .flatMap(sr -> sr.getItems().stream())
+                .map(item -> item.getProduct().getId())
+                .collect(Collectors.toSet());
+
+        double totalAmount = 0.0;
+        int totalUnits = 0;
+        List<SaleItem> itemsToSave = new ArrayList<>();
+        List<SalesEntryResponseDTO.ItemDetail> itemDetails = new ArrayList<>();
+
+        for (SalesEntryRequestDTO.SalesEntryItemDTO itemReq : request.getItems()) {
+            if (itemReq.getQuantity() <= 0) {
+                throw new IllegalArgumentException("Quantity must be greater than zero.");
+            }
+            if (itemReq.getQuantity() > maxQuantityLimit) {
+                throw new IllegalArgumentException("Quantity exceeds maximum allowed limit of " + maxQuantityLimit);
+            }
+            if (existingProductIds.contains(itemReq.getProductId())) {
+                throw new IllegalArgumentException("Duplicate entry: product already recorded for this date.");
+            }
+
+            Product product = productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
+
+            double itemTotal = product.getPrice() * itemReq.getQuantity();
+            totalAmount += itemTotal;
+            totalUnits += itemReq.getQuantity();
+
+            SaleItem item = new SaleItem();
+            item.setProduct(product);
+            item.setQuantity(itemReq.getQuantity());
+            item.setUnitPrice(product.getPrice());
+            item.setTotalPrice(itemTotal);
+            item.setProductImageUrl(product.getImageUrl());
+            itemsToSave.add(item);
+
+            itemDetails.add(new SalesEntryResponseDTO.ItemDetail(
+                    product.getId(), product.getName(), itemReq.getQuantity(), product.getPrice(), itemTotal));
+        }
+
+        SalesRecord record = new SalesRecord();
+        record.setAgent(agent);
+        record.setStoreName(request.getStoreName());
+        record.setTotalAmount(totalAmount);
+        record.setTotalUnits(totalUnits);
+        record.setSaleDate(saleDate);
+        record.setSaleTime(LocalTime.now());
+        record.setSubmittedAt(LocalDateTime.now());
+        record.setLocation(request.getStoreName());
+        record.setStatus("PENDING");
+        record.setCreatedAt(LocalDateTime.now());
+        record.setCreatedBy(agent.getId());
+
+        for (SaleItem item : itemsToSave) {
+            record.addItem(item);
+        }
+
+        SalesRecord saved = salesRecordRepository.save(record);
+        syncToSalesDepartment(saved);
+        syncToHRDepartment(saved);
+        broadcastSaleUpdate(saved);
+        createSystemNotification(saved);
+
+        return new SalesEntryResponseDTO(saved.getId(), totalUnits, totalAmount, itemDetails);
+    }
+
+    public List<SalesDTO> searchSales(String agentName, LocalDate date, String storeName) {
+        List<SalesRecord> records = salesRecordRepository.searchSales(agentName, date, storeName);
+        return records.stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+
+    public SalesDashboardDTO getTodaySummary() {
+        LocalDate today = LocalDate.now();
+        List<SalesRecord> records = salesRecordRepository.findBySaleDate(today);
+        double totalAmount = records.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
+        int totalUnits = records.stream()
+                .mapToInt(r -> r.getTotalUnits() != null ? r.getTotalUnits() :
+                        r.getItems().stream().mapToInt(SaleItem::getQuantity).sum())
+                .sum();
+
+        SalesDashboardDTO dto = new SalesDashboardDTO();
+        dto.setTodayTotalRevenue(totalAmount);
+        dto.setTodayTotalUnits(totalUnits);
+        dto.setTopSellingProducts(getProductPerformanceForRecords(records).stream()
+                .map(p -> new SalesDashboardDTO.ProductSalesDetail(p.getProductName(), p.getQuantitySold(), p.getTotalRevenue(), ""))
+                .collect(Collectors.toList()));
+        return dto;
+    }
+
     /**
      * Enhanced sales entry with validations and real-time sync
      */
@@ -112,6 +214,8 @@ public class SalesService {
         record.setSaleTime(LocalTime.now());
         record.setLocation(request.getLocation() != null ? request.getLocation() : "North Outlet");
         record.setCreatedAt(LocalDateTime.now());
+        record.setTotalUnits(itemsToSave.stream().mapToInt(SaleItem::getQuantity).sum());
+        record.setStatus("PENDING");
 
         for (SaleItem item : itemsToSave) {
             record.addItem(item);

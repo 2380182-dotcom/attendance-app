@@ -1,0 +1,13 @@
+-- Product catalog enhancements
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(50);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at TIMESTAMP(6);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP(6);
+
+-- Sales record enhancements
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS store_name VARCHAR(255);
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS total_units INT DEFAULT 0;
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP(6);
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'PENDING';
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS created_by BIGINT;
