@@ -1,3 +1,17 @@
+-- Ensure products table has the necessary columns (in case V1 was skipped due to baseline)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(50);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at TIMESTAMP(6);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP(6);
+
+-- Ensure sales_records table has the necessary columns (in case V1 was skipped due to baseline)
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS store_name VARCHAR(255);
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS total_units INT DEFAULT 0;
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP(6);
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'PENDING';
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE sales_records ADD COLUMN IF NOT EXISTS created_by BIGINT;
+
 -- Seed product catalog (skip if product name already exists)
 INSERT INTO products (name, category, unit, price, is_active, created_at)
 SELECT v.name, v.category, v.unit, v.price, true, NOW()
