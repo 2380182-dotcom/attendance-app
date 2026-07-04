@@ -53,7 +53,6 @@ export async function getEmbedding(inputPixels) {
     }
 
     const raw = outputs[0];
-    console.log('output type:', raw?.constructor?.name, 'length:', raw?.length);
 
     // Output shape is [1, 192] representing the face embedding.
     // Reinterpret the tensor's underlying bytes directly (buffer/byteOffset/byteLength)
@@ -69,8 +68,11 @@ export async function getEmbedding(inputPixels) {
     );
 
     if (floatArray.length !== EXPECTED_EMBEDDING_SIZE) {
+      // TEMP DIAGNOSTIC: raw type/length/byteLength included directly in the thrown
+      // message so it's readable in the on-screen alert without adb or a dev server.
       throw new Error(
-        `Face embedding has unexpected length ${floatArray.length} (expected ${EXPECTED_EMBEDDING_SIZE}). ` +
+        `Face embedding has unexpected length ${floatArray.length} (expected ${EXPECTED_EMBEDDING_SIZE}), ` +
+        `raw type: ${raw?.constructor?.name}, raw length: ${raw?.length}, raw byteLength: ${raw?.byteLength}. ` +
         'Refusing to save a potentially corrupt embedding.'
       );
     }
