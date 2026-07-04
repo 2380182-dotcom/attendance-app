@@ -15,6 +15,7 @@ export default ({ config }) => {
       version: '1.0.0',
       orientation: 'portrait',
       userInterfaceStyle: 'light',
+      icon: './assets/icon.png',
       splash: {
         backgroundColor: '#ffffff',
       },
@@ -37,6 +38,10 @@ export default ({ config }) => {
       },
       android: {
         package: 'com.raffaay.attendancemobile',
+        adaptiveIcon: {
+          foregroundImage: './assets/adaptive-icon.png',
+          backgroundColor: '#0a1830',
+        },
         config: {
           googleMaps: {
             apiKey: googleMapsKey,
@@ -75,7 +80,7 @@ export default ({ config }) => {
         [
           'expo-notifications',
           {
-            icon: './assets/icon.png',
+            icon: './assets/notification-icon.png',
             color: '#ffffff',
           },
         ],

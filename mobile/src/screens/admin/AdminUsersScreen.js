@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import RNPickerSelect from 'react-native-picker-select';
-import api from '../../services/api';
+import api, { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
 
@@ -42,7 +42,7 @@ export default function AdminUsersScreen() {
   const [faceVerifyOnCheckOut, setFaceVerifyOnCheckOut] = useState(true);
   const [faceVerifyAnytime, setFaceVerifyAnytime] = useState(true);
   const [faceRegistered, setFaceRegistered] = useState(false);
-  const [faceTemplate, setFaceTemplate] = useState('');
+  const [faceEmbedding, setFaceEmbedding] = useState('');
   const [faceModalVisible, setFaceModalVisible] = useState(false);
 
   // New Face Verify States (Create)
@@ -50,7 +50,7 @@ export default function AdminUsersScreen() {
   const [newFaceVerifyOnCheckOut, setNewFaceVerifyOnCheckOut] = useState(true);
   const [newFaceVerifyAnytime, setNewFaceVerifyAnytime] = useState(true);
   const [newFaceRegistered, setNewFaceRegistered] = useState(false);
-  const [newFaceTemplate, setNewFaceTemplate] = useState('');
+  const [newFaceEmbedding, setNewFaceEmbedding] = useState('');
   const [newFaceModalVisible, setNewFaceModalVisible] = useState(false);
 
   const resetCreateForm = () => {
@@ -65,7 +65,7 @@ export default function AdminUsersScreen() {
     setNewFaceVerifyOnCheckOut(true);
     setNewFaceVerifyAnytime(true);
     setNewFaceRegistered(false);
-    setNewFaceTemplate('');
+    setNewFaceEmbedding('');
   };
 
   const fetchAgents = useCallback(async () => {
@@ -93,7 +93,6 @@ export default function AdminUsersScreen() {
     setFaceVerifyOnCheckOut(agent.faceVerifyOnCheckOut ?? true);
     setFaceVerifyAnytime(agent.faceVerifyAnytime ?? true);
     setFaceRegistered(agent.faceRegistered ?? false);
-    setFaceTemplate(agent.faceTemplate || '');
     setModalVisible(true);
   };
 
@@ -107,8 +106,7 @@ export default function AdminUsersScreen() {
         faceVerifyOnCheckIn,
         faceVerifyOnCheckOut,
         faceVerifyAnytime,
-        faceRegistered,
-        faceTemplate
+        faceRegistered
       });
       if (response.data && response.data.success) {
         Alert.alert('Success', 'Agent role and department updated.');
@@ -175,10 +173,25 @@ export default function AdminUsersScreen() {
         faceVerifyOnCheckIn: newFaceVerifyOnCheckIn,
         faceVerifyOnCheckOut: newFaceVerifyOnCheckOut,
         faceVerifyAnytime: newFaceVerifyAnytime,
-        faceRegistered: newFaceRegistered,
-        faceTemplate: newFaceTemplate
+        faceRegistered: newFaceRegistered
       });
       if (response.data && response.data.success) {
+        const createdAgentId = response.data.data.id;
+        if (newFaceEmbedding) {
+          try {
+            await apiService.face.saveEmbedding(createdAgentId, newFaceEmbedding);
+          } catch (faceError) {
+            Alert.alert(
+              'Partial Success',
+              'User account created, but saving the face profile failed. Edit the user and register the face again before they check in.'
+            );
+            setCreateModalVisible(false);
+            resetCreateForm();
+            fetchAgents();
+            setLoading(false);
+            return;
+          }
+        }
         Alert.alert('Success', 'User account created successfully.');
         setCreateModalVisible(false);
         resetCreateForm();
@@ -360,9 +373,9 @@ export default function AdminUsersScreen() {
                 onClose={() => setNewFaceModalVisible(false)}
                 onSuccess={(embeddingBase64) => {
                   setNewFaceRegistered(true);
-                  setNewFaceTemplate(embeddingBase64);
+                  setNewFaceEmbedding(embeddingBase64);
                   setNewFaceModalVisible(false);
-                  Alert.alert('Registration Successful', 'Agent biometric registered.');
+                  Alert.alert('Face Captured', 'Face profile will be saved when the agent is created.');
                 }}
                 agentName={newName || 'New Agent'}
               />
@@ -456,11 +469,16 @@ export default function AdminUsersScreen() {
               <FaceVerificationModal
                 visible={faceModalVisible}
                 onClose={() => setFaceModalVisible(false)}
-                onSuccess={(embeddingBase64) => {
-                  setFaceRegistered(true);
-                  setFaceTemplate(embeddingBase64);
+                onSuccess={async (embeddingBase64) => {
                   setFaceModalVisible(false);
-                  Alert.alert('Registration Successful', 'Agent biometric registered.');
+                  if (!selectedAgent) return;
+                  try {
+                    await apiService.face.saveEmbedding(selectedAgent.id, embeddingBase64);
+                    setFaceRegistered(true);
+                    Alert.alert('Registration Successful', 'Agent biometric registered.');
+                  } catch (faceError) {
+                    Alert.alert('Error', 'Failed to save the face profile. Please try again.');
+                  }
                 }}
                 agentName={selectedAgent ? selectedAgent.name : 'Agent'}
               />
