@@ -43,8 +43,8 @@ export async function getEmbedding(inputPixels) {
   }
 
   try {
-    // Run the model with the input Float32Array buffer
-    const outputs = await model.run([inputPixels.buffer]);
+    // Run the model with the input Float32Array
+    const outputs = await model.run([inputPixels]);
     if (!outputs || outputs.length === 0) {
       throw new Error('Model inference returned no output.');
     }
