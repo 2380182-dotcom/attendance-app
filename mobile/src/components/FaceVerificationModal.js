@@ -18,7 +18,18 @@ import {
   submitVerificationResult,
   extractEmbeddingFromImage,
 } from '../services/OnDeviceFaceVerification';
-import { base64ToFloatArray, floatArrayToBase64 } from '../services/FaceEmbeddingService';
+import {
+  base64ToFloatArray,
+  floatArrayToBase64,
+  averageEmbeddings,
+  checkLiveness,
+} from '../services/FaceEmbeddingService';
+
+const REGISTRATION_INSTRUCTIONS = [
+  'Look straight at the camera',
+  'Turn your head slightly left',
+  'Turn your head slightly right',
+];
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +52,9 @@ export default function FaceVerificationModal({
   const [attempts, setAttempts] = useState(0);
   const [message, setMessage] = useState('');
   const [referenceEmbedding, setReferenceEmbedding] = useState(null);
+  const [registerStep, setRegisterStep] = useState(0);
+  const [registerEmbeddings, setRegisterEmbeddings] = useState([]);
+  const [registerFaces, setRegisterFaces] = useState([]);
   const cameraRef = useRef(null);
   const maxAttempts = config.FACE_MAX_ATTEMPTS;
 
@@ -48,7 +62,14 @@ export default function FaceVerificationModal({
     if (visible) {
       setStatus('ready');
       setAttempts(0);
-      setMessage('');
+      setRegisterStep(0);
+      setRegisterEmbeddings([]);
+      setRegisterFaces([]);
+      if (isRegistration) {
+        setMessage(`Pose 1: ${REGISTRATION_INSTRUCTIONS[0]}`);
+      } else {
+        setMessage('');
+      }
       loadReference();
     }
   }, [visible, agentId, isRegistration]);
@@ -100,15 +121,67 @@ export default function FaceVerificationModal({
         });
         
         setStatus('verifying');
-        setMessage('Processing face profile...');
+        setMessage('Processing face...');
         
-        const { embedding } = await extractEmbeddingFromImage(photo.uri);
-        const base64 = floatArrayToBase64(embedding);
+        let result;
+        try {
+          result = await extractEmbeddingFromImage(photo.uri);
+        } catch (err) {
+          setStatus('ready');
+          setMessage(`${err.message || 'No face detected.'}\nPlease retry: ${REGISTRATION_INSTRUCTIONS[registerStep]}`);
+          return;
+        }
         
-        setStatus('success');
-        setMessage('Face registered successfully!');
+        const { embedding, face } = result;
         
-        setTimeout(() => onSuccess(base64), 1200);
+        // 1. Perform liveness check
+        if (registerStep === 0) {
+          const liveness = checkLiveness(face);
+          if (!liveness.passed) {
+            setStatus('ready');
+            setMessage(`${liveness.reason}.\nPlease retry: ${REGISTRATION_INSTRUCTIONS[0]}`);
+            return;
+          }
+          // Valid first shot, store it
+          const nextEmbeddings = [embedding];
+          const nextFaces = [face];
+          setRegisterEmbeddings(nextEmbeddings);
+          setRegisterFaces(nextFaces);
+          setRegisterStep(1);
+          setStatus('ready');
+          setMessage(`Shot 1 of 3 captured.\nNow: ${REGISTRATION_INSTRUCTIONS[1]}`);
+        } else {
+          // Compare with the first face for head angle variation
+          const firstFace = registerFaces[0];
+          const liveness = checkLiveness(face, firstFace);
+          if (!liveness.passed) {
+            setStatus('ready');
+            setMessage(`${liveness.reason}.\nPlease retry: ${REGISTRATION_INSTRUCTIONS[registerStep]}`);
+            return;
+          }
+          
+          const nextEmbeddings = [...registerEmbeddings, embedding];
+          const nextFaces = [...registerFaces, face];
+          
+          if (registerStep === 1) {
+            setRegisterEmbeddings(nextEmbeddings);
+            setRegisterFaces(nextFaces);
+            setRegisterStep(2);
+            setStatus('ready');
+            setMessage(`Shot 2 of 3 captured.\nNow: ${REGISTRATION_INSTRUCTIONS[2]}`);
+          } else if (registerStep === 2) {
+            // All 3 shots captured successfully!
+            setStatus('verifying');
+            setMessage('Averaging embeddings...');
+            
+            const averaged = averageEmbeddings(nextEmbeddings);
+            const base64 = floatArrayToBase64(averaged);
+            
+            setStatus('success');
+            setMessage('Face registered successfully!');
+            setTimeout(() => onSuccess(base64), 1200);
+          }
+        }
       } else {
         const photo1 = await cameraRef.current.takePictureAsync({
           quality: 0.6,
@@ -169,7 +242,19 @@ export default function FaceVerificationModal({
         setMessage(`${e.message}. Attempt ${newAttempts}/${maxAttempts}.`);
       }
     }
-  }, [agentId, referenceEmbedding, attempts, checkpointType, onSuccess, onFailure, permission, isRegistration]);
+  }, [
+    agentId,
+    referenceEmbedding,
+    attempts,
+    checkpointType,
+    onSuccess,
+    onFailure,
+    permission,
+    isRegistration,
+    registerStep,
+    registerEmbeddings,
+    registerFaces,
+  ]);
 
   const renderContent = () => {
     if (!permission?.granted && status === 'ready') {
@@ -227,7 +312,7 @@ export default function FaceVerificationModal({
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
         <View style={styles.container}>
-          <Text style={styles.title}>Face Verification</Text>
+          <Text style={styles.title}>{isRegistration ? "Face Registration" : "Face Verification"}</Text>
           <Text style={styles.subtitle}>
             {agentName} · {checkpointType.replace('_', '-')}
           </Text>
@@ -243,7 +328,7 @@ export default function FaceVerificationModal({
               <TouchableOpacity style={styles.scanBtn} onPress={handleCapture}>
                 <MaterialIcons name={isRegistration ? "add-a-photo" : "face"} size={20} color="#fff" style={{ marginRight: 6 }} />
                 <Text style={styles.scanBtnText}>
-                  {isRegistration ? "Register Face" : `Verify Face (${attempts}/${maxAttempts} attempts)`}
+                  {isRegistration ? `Capture Shot (${registerStep + 1}/3)` : `Verify Face (${attempts}/${maxAttempts} attempts)`}
                 </Text>
               </TouchableOpacity>
             )}

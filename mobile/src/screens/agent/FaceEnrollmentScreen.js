@@ -15,6 +15,7 @@ import { apiService } from '../../services/api';
 import {
   averageEmbeddings,
   floatArrayToBase64,
+  checkLiveness,
 } from '../../services/FaceEmbeddingService';
 import { extractEmbeddingFromImage } from '../../services/OnDeviceFaceVerification';
 
@@ -25,6 +26,7 @@ export default function FaceEnrollmentScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [step, setStep] = useState(0);
   const [embeddings, setEmbeddings] = useState([]);
+  const [faces, setFaces] = useState([]);
   const [capturing, setCapturing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const cameraRef = useRef(null);
@@ -46,7 +48,26 @@ export default function FaceEnrollmentScreen({ navigation }) {
         quality: 0.7,
         skipProcessing: true,
       });
-      const { embedding } = await extractEmbeddingFromImage(photo.uri);
+      const { embedding, face } = await extractEmbeddingFromImage(photo.uri);
+      
+      // Perform liveness check
+      if (step === 0) {
+        const liveness = checkLiveness(face);
+        if (!liveness.passed) {
+          Alert.alert('Liveness Check Failed', liveness.reason);
+          return;
+        }
+        setFaces([face]);
+      } else {
+        const firstFace = faces[0];
+        const liveness = checkLiveness(face, firstFace);
+        if (!liveness.passed) {
+          Alert.alert('Liveness Check Failed', liveness.reason);
+          return;
+        }
+        setFaces([...faces, face]);
+      }
+
       const updated = [...embeddings, embedding];
       setEmbeddings(updated);
       setStep(updated.length);
@@ -75,6 +96,7 @@ export default function FaceEnrollmentScreen({ navigation }) {
     } catch (e) {
       Alert.alert('Enrollment Failed', e.message || 'Could not save face profile.');
       setEmbeddings([]);
+      setFaces([]);
       setStep(0);
     } finally {
       setSubmitting(false);
