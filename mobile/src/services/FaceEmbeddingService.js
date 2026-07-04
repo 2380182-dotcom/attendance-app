@@ -5,10 +5,10 @@ import FaceRecognitionModel from './FaceRecognitionModel';
 
 /**
  * On-device face embedding utilities using MobileFaceNet TFLite model.
- * Embeddings are 192-dim normalized vectors.
+ * Embeddings are 384-dim normalized vectors.
  */
 
-const EMBEDDING_SIZE = 192;
+const EMBEDDING_SIZE = 384;
 
 function normalize(vec) {
   const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0));
@@ -65,7 +65,7 @@ function base64ToUint8Array(base64) {
  * Preprocess face from camera frame, align/resize, and extract the MobileFaceNet embedding.
  * @param {string} imageUri - Local URI of the camera frame
  * @param {object} face - Face detection result from ML Kit
- * @returns {Promise<number[]>} 192-dimensional embedding vector
+ * @returns {Promise<number[]>} 384-dimensional embedding vector
  */
 export async function getFaceEmbedding(imageUri, face) {
   if (!face || !face.frame) {

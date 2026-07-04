@@ -83,7 +83,7 @@ export default function FaceVerificationModal({
     try {
       const embedding = await fetchReferenceEmbedding(agentId);
       const floats = base64ToFloatArray(embedding);
-      if (floats.length !== 192) {
+      if (floats.length !== 384) {
         throw new Error('Face profile update required. Please re-enroll your face under Settings.');
       }
       setReferenceEmbedding(embedding);

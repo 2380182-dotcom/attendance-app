@@ -48,7 +48,7 @@ export async function verifyAgainstReference(imageUri, referenceBase64, threshol
   const reference = base64ToFloatArray(referenceBase64);
   
   // Check for face model profile backward compatibility (dimension mismatch)
-  if (reference.length !== 192) {
+  if (reference.length !== 384) {
     throw new Error('Face profile update required. Please re-enroll your face under Settings.');
   }
 

@@ -4,7 +4,7 @@ let modelInstance = null;
 let loadPromise = null;
 
 // Must match EMBEDDING_SIZE in FaceEmbeddingService.js (duplicated here to avoid a circular import).
-const EXPECTED_EMBEDDING_SIZE = 192;
+const EXPECTED_EMBEDDING_SIZE = 384;
 
 /**
  * Load the MobileFaceNet model once on app start (or first usage).
@@ -37,7 +37,7 @@ export function loadModel() {
 /**
  * Feed the aligned and normalized face image pixels into the TFLite model.
  * @param {Float32Array} inputPixels - Float32Array of size 112 * 112 * 3
- * @returns {Promise<number[]>} 192-dimensional face embedding vector
+ * @returns {Promise<number[]>} 384-dimensional face embedding vector
  */
 export async function getEmbedding(inputPixels) {
   const model = await loadModel();
@@ -54,7 +54,7 @@ export async function getEmbedding(inputPixels) {
 
     const raw = outputs[0];
 
-    // Output shape is [1, 192] representing the face embedding.
+    // Output shape is [1, 384] representing the face embedding.
     // Reinterpret the tensor's underlying bytes directly (buffer/byteOffset/byteLength)
     // instead of passing `raw` straight into `new Float32Array(raw)`. If the native
     // binding hands back the tensor wrapped in a different TypedArray subtype (e.g.
