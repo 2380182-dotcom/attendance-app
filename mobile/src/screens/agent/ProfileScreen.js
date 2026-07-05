@@ -4,8 +4,13 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../../context/AuthContext';
 import { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
+import AppCard from '../../components/AppCard';
+import AppButton from '../../components/AppButton';
+import { useTheme } from '../../theme';
 
 export default function ProfileScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { user, logout } = useContext(AuthContext);
   const [totalCheckins, setTotalCheckins] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -38,9 +43,9 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.profileCard}>
+      <AppCard style={styles.profileCard}>
         <View style={styles.avatarContainer}>
-          <MaterialIcons name="account-circle" size={80} color="#1976D2" />
+          <MaterialIcons name="account-circle" size={80} color={colors.secondary} />
         </View>
         <Text style={styles.name}>{user?.name}</Text>
         <Text style={styles.roleTag}>{user?.role || 'AGENT'}</Text>
@@ -48,56 +53,51 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.divider} />
 
         <View style={styles.infoRow}>
-          <MaterialIcons name="badge" size={20} color="#757575" />
+          <MaterialIcons name="badge" size={20} color={colors.textSecondary} />
           <Text style={styles.infoText}>Agent ID: {user?.agentId}</Text>
         </View>
 
         <View style={styles.infoRow}>
-          <MaterialIcons name="business" size={20} color="#757575" />
+          <MaterialIcons name="business" size={20} color={colors.textSecondary} />
           <Text style={styles.infoText}>Department: {user?.department || 'Sales'}</Text>
         </View>
 
         <View style={styles.infoRow}>
-          <MaterialIcons name="email" size={20} color="#757575" />
+          <MaterialIcons name="email" size={20} color={colors.textSecondary} />
           <Text style={styles.infoText}>Email: {user?.email}</Text>
         </View>
 
         <View style={styles.infoRow}>
-          <MaterialIcons name="phone" size={20} color="#757575" />
+          <MaterialIcons name="phone" size={20} color={colors.textSecondary} />
           <Text style={styles.infoText}>Phone: {user?.phone || 'N/A'}</Text>
         </View>
 
         <View style={styles.infoRow}>
-          <MaterialIcons name="event-available" size={20} color="#757575" />
+          <MaterialIcons name="event-available" size={20} color={colors.textSecondary} />
           <Text style={styles.infoText}>Total Check-ins: {totalCheckins}</Text>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <MaterialIcons name="exit-to-app" size={20} color="#fff" />
-          <Text style={styles.logoutButtonText}>Log Out</Text>
-        </TouchableOpacity>
-      </View>
+        <AppButton
+          title="Log Out"
+          onPress={handleLogout}
+          variant="danger"
+          icon="exit-to-app"
+          style={{ marginTop: 20 }}
+        />
+      </AppCard>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
     justifyContent: 'center',
     padding: 16,
   },
   profileCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
   },
   avatarContainer: {
     marginBottom: 12,
@@ -105,13 +105,13 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
   },
   roleTag: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#1976D2',
-    backgroundColor: '#E3F2FD',
+    color: colors.secondary,
+    backgroundColor: colors.secondaryLight,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   divider: {
     width: '100%',
     height: 1,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: colors.divider,
     marginVertical: 20,
   },
   infoRow: {
@@ -131,23 +131,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#555',
+    color: colors.textSecondary,
     marginLeft: 12,
-  },
-  logoutButton: {
-    backgroundColor: '#D32F2F',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 48,
-    borderRadius: 8,
-    width: '100%',
-    marginTop: 20,
-  },
-  logoutButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 8,
-    fontSize: 15,
   },
 });

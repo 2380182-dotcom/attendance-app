@@ -6,15 +6,19 @@ import {
   RefreshControl,
   Alert,
   SafeAreaView,
-  TouchableOpacity,
   ScrollView
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
 import { AuthContext } from '../../context/AuthContext';
+import AppTopBar from '../../components/AppTopBar';
+import AppCard from '../../components/AppCard';
+import { useTheme } from '../../theme';
 
 export default function HRDashboardScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { logout } = useContext(AuthContext);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -59,40 +63,29 @@ export default function HRDashboardScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleBlock}>
-          <Text style={styles.headerTitle}>HR Dashboard</Text>
-          <Text style={styles.headerSubtitle} numberOfLines={2}>Dawn Bread Attendance & Performance</Text>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={() => navigation.navigate('ReportGenerator')} style={styles.iconButton}>
-            <MaterialIcons name="assessment" size={22} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('HRReport')} style={styles.iconButton}>
-            <MaterialIcons name="notifications-active" size={22} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('HRAgentAttendanceReport')} style={styles.iconButton}>
-            <MaterialIcons name="file-download" size={22} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout} style={styles.iconButton}>
-            <MaterialIcons name="exit-to-app" size={22} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppTopBar
+        title="HR Dashboard"
+        subtitle="Dawn Bread Attendance & Performance"
+        actions={[
+          { icon: 'assessment', onPress: () => navigation.navigate('ReportGenerator'), accessibilityLabel: 'Excel reports' },
+          { icon: 'notifications-active', onPress: () => navigation.navigate('HRReport'), accessibilityLabel: 'HR report' },
+          { icon: 'file-download', onPress: () => navigation.navigate('HRAgentAttendanceReport'), accessibilityLabel: 'Agent attendance report' },
+          { icon: 'exit-to-app', onPress: handleLogout, accessibilityLabel: 'Log out' },
+        ]}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} color="#1976D2" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
         }
       >
         {/* Today's Attendance Summary Card */}
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="assignment" size={16} color="#424242" />
+          <MaterialIcons name="assignment" size={16} color={colors.textSecondary} />
           <Text style={styles.sectionTitle}>Today's Attendance</Text>
         </View>
-        <View style={styles.card}>
+        <AppCard style={styles.card}>
           <View style={styles.headerStatsRow}>
             <Text style={styles.totalAgentsText}>Total Agents: {d?.totalAgents || 0}</Text>
             <Text style={styles.presentText}>Checked In: {d?.checkedInCount || 0} ({Math.round(d?.checkedInPercent || 0)}%)</Text>
@@ -100,26 +93,26 @@ export default function HRDashboardScreen({ navigation }) {
           <View style={styles.divider} />
           <View style={styles.statsRow}>
             <View style={styles.statCol}>
-              <Text style={[styles.statNum, { color: '#F57F17' }]}>{d?.lateCount || 0}</Text>
+              <Text style={[styles.statNum, { color: colors.warningDark }]}>{d?.lateCount || 0}</Text>
               <Text style={styles.statLabel}>Late Arrivals</Text>
             </View>
             <View style={styles.statCol}>
-              <Text style={[styles.statNum, { color: '#D32F2F' }]}>{d?.absentCount || 0}</Text>
+              <Text style={[styles.statNum, { color: colors.error }]}>{d?.absentCount || 0}</Text>
               <Text style={styles.statLabel}>Absent Today</Text>
             </View>
           </View>
-        </View>
+        </AppCard>
 
         {/* Verification Compliance Card */}
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="verified-user" size={16} color="#424242" />
+          <MaterialIcons name="verified-user" size={16} color={colors.textSecondary} />
           <Text style={styles.sectionTitle}>Verification Compliance (3x Daily)</Text>
         </View>
-        <View style={styles.card}>
+        <AppCard style={styles.card}>
           <View style={styles.complianceItem}>
             <View style={styles.complianceLabelRow}>
               <View style={styles.complianceLabelWithIcon}>
-                <MaterialIcons name="check-circle" size={14} color="#4CAF50" />
+                <MaterialIcons name="check-circle" size={14} color={colors.successDark} />
                 <Text style={styles.complianceTitle}>All 3 Verifications</Text>
               </View>
               <Text style={styles.complianceCount}>
@@ -127,14 +120,14 @@ export default function HRDashboardScreen({ navigation }) {
               </Text>
             </View>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressBar, { width: `${d?.complianceAll3Percent || 0}%`, backgroundColor: '#4CAF50' }]} />
+              <View style={[styles.progressBar, { width: `${d?.complianceAll3Percent || 0}%`, backgroundColor: colors.successDark }]} />
             </View>
           </View>
 
           <View style={styles.complianceItem}>
             <View style={styles.complianceLabelRow}>
               <View style={styles.complianceLabelWithIcon}>
-                <MaterialIcons name="warning" size={14} color="#FF9800" />
+                <MaterialIcons name="warning" size={14} color={colors.warningDark} />
                 <Text style={styles.complianceTitle}>Missing 1 Verification</Text>
               </View>
               <Text style={styles.complianceCount}>
@@ -142,14 +135,14 @@ export default function HRDashboardScreen({ navigation }) {
               </Text>
             </View>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressBar, { width: `${d?.complianceMissing1Percent || 0}%`, backgroundColor: '#FF9800' }]} />
+              <View style={[styles.progressBar, { width: `${d?.complianceMissing1Percent || 0}%`, backgroundColor: colors.warningDark }]} />
             </View>
           </View>
 
           <View style={styles.complianceItem}>
             <View style={styles.complianceLabelRow}>
               <View style={styles.complianceLabelWithIcon}>
-                <MaterialIcons name="cancel" size={14} color="#D32F2F" />
+                <MaterialIcons name="cancel" size={14} color={colors.error} />
                 <Text style={styles.complianceTitle}>Missing 2+ Verifications</Text>
               </View>
               <Text style={styles.complianceCount}>
@@ -157,17 +150,17 @@ export default function HRDashboardScreen({ navigation }) {
               </Text>
             </View>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressBar, { width: `${d?.complianceMissing2PlusPercent || 0}%`, backgroundColor: '#D32F2F' }]} />
+              <View style={[styles.progressBar, { width: `${d?.complianceMissing2PlusPercent || 0}%`, backgroundColor: colors.error }]} />
             </View>
           </View>
-        </View>
+        </AppCard>
 
         {/* Combined Attendance + Sales Sheet */}
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="table-chart" size={16} color="#424242" />
+          <MaterialIcons name="table-chart" size={16} color={colors.textSecondary} />
           <Text style={styles.sectionTitle}>Attendance + Sales Sheet (Today)</Text>
         </View>
-        <View style={styles.tableCard}>
+        <AppCard style={styles.tableCard} padding={12}>
           <View style={styles.tableHeader}>
             <Text style={[styles.tableCol, { flex: 2.2 }]}>Agent</Text>
             <Text style={[styles.tableCol, { flex: 1.2, textAlign: 'center' }]}>In</Text>
@@ -182,7 +175,7 @@ export default function HRDashboardScreen({ navigation }) {
                 <Text style={[styles.tableCell, { flex: 1.2, textAlign: 'center', fontSize: 11 }]}>{row.checkInTime}</Text>
                 <Text style={[styles.tableCell, { flex: 1.2, textAlign: 'center', fontSize: 11 }]}>{row.midDayTime}</Text>
                 <Text style={[styles.tableCell, { flex: 1.2, textAlign: 'center', fontSize: 11 }]}>{row.checkOutTime}</Text>
-                <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'center', fontWeight: 'bold', color: '#1976D2' }]}>
+                <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'center', fontWeight: 'bold', color: colors.secondary }]}>
                   {row.units}
                 </Text>
               </View>
@@ -190,14 +183,14 @@ export default function HRDashboardScreen({ navigation }) {
           ) : (
             <Text style={styles.emptyText}>No roster sheets recorded for today.</Text>
           )}
-        </View>
+        </AppCard>
 
         {/* Top Performing Agents Leaderboard */}
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="emoji-events" size={16} color="#424242" />
+          <MaterialIcons name="emoji-events" size={16} color={colors.textSecondary} />
           <Text style={styles.sectionTitle}>Top Performing Agents (Today)</Text>
         </View>
-        <View style={styles.leaderboardCard}>
+        <AppCard style={styles.leaderboardCard} padding={12}>
           {d?.topPerformers && d.topPerformers.length > 0 ? (
             d.topPerformers.map((agent, idx) => (
               <View key={idx} style={styles.leaderboardRow}>
@@ -215,51 +208,16 @@ export default function HRDashboardScreen({ navigation }) {
           ) : (
             <Text style={styles.emptyText}>No leaderboards available.</Text>
           )}
-        </View>
+        </AppCard>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  header: {
-    backgroundColor: '#1976D2',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 }
-  },
-  headerTitleBlock: {
-    flex: 1,
-    flexShrink: 1,
-    marginRight: 8,
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  headerSubtitle: {
-    color: '#E3F2FD',
-    fontSize: 11,
-    marginTop: 1
-  },
-  headerActions: {
-    flexDirection: 'row',
-    flexShrink: 0,
-  },
-  iconButton: {
-    marginLeft: 14,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 14,
@@ -274,23 +232,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#424242',
+    color: colors.textSecondary,
     marginLeft: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 }
-  },
+  card: {},
   headerStatsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -299,16 +246,16 @@ const styles = StyleSheet.create({
   totalAgentsText: {
     fontWeight: 'bold',
     fontSize: 14,
-    color: '#333'
+    color: colors.textPrimary
   },
   presentText: {
     fontWeight: 'bold',
     fontSize: 14,
-    color: '#4CAF50'
+    color: colors.successDark
   },
   divider: {
     height: 1,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: colors.divider,
     marginVertical: 8
   },
   statsRow: {
@@ -326,7 +273,7 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 11,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 2
   },
   complianceItem: {
@@ -344,17 +291,17 @@ const styles = StyleSheet.create({
   complianceTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#424242',
+    color: colors.textSecondary,
     marginLeft: 5,
   },
   complianceCount: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#333'
+    color: colors.textPrimary
   },
   progressTrack: {
     height: 8,
-    backgroundColor: '#ECEFF1',
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 4,
     width: '100%',
     overflow: 'hidden'
@@ -363,25 +310,18 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4
   },
-  tableCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    padding: 12,
-    elevation: 2
-  },
+  tableCard: {},
   tableHeader: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
+    borderBottomColor: colors.divider,
     paddingBottom: 6,
     marginBottom: 4
   },
   tableCol: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#757575',
+    color: colors.textSecondary,
     textTransform: 'uppercase'
   },
   tableRow: {
@@ -389,43 +329,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5'
+    borderBottomColor: colors.divider
   },
   tableNameCell: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#212121'
+    color: colors.textPrimary
   },
   tableCell: {
     fontSize: 12,
-    color: '#333'
+    color: colors.textPrimary
   },
   emptyText: {
-    color: '#757575',
+    color: colors.textSecondary,
     fontSize: 12,
     textAlign: 'center',
     paddingVertical: 16
   },
-  leaderboardCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    elevation: 2
-  },
+  leaderboardCard: {},
   leaderboardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5'
+    borderBottomColor: colors.divider
   },
   leaderRank: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#757575',
+    color: colors.textSecondary,
     width: 24
   },
   leaderDetails: {
@@ -434,11 +366,11 @@ const styles = StyleSheet.create({
   leaderName: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#212121'
+    color: colors.textPrimary
   },
   leaderSub: {
     fontSize: 10,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 2
   },
   leaderStats: {
@@ -447,11 +379,11 @@ const styles = StyleSheet.create({
   leaderUnits: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#1976D2'
+    color: colors.secondary
   },
   leaderRevenue: {
     fontSize: 11,
-    color: '#2E7D32',
+    color: colors.successDark,
     fontWeight: '600',
     marginTop: 2
   }

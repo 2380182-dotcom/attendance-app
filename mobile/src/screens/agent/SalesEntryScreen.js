@@ -15,8 +15,14 @@ import { apiService } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import ProductThumbnail from '../../components/ProductThumbnail';
+import SearchBar from '../../components/SearchBar';
+import AppButton from '../../components/AppButton';
+import EmptyState from '../../components/EmptyState';
+import { useTheme } from '../../theme';
 
 export default function SalesEntryScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { user } = useContext(AuthContext);
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -161,21 +167,12 @@ export default function SalesEntryScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.searchSection}>
-        <MaterialIcons name="search" size={20} color="#757575" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search products (e.g. Bread, Muffin)..."
-          placeholderTextColor="#9E9E9E"
-          value={searchQuery}
-          onChangeText={handleSearch}
-        />
-        {searchQuery !== '' && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <MaterialIcons name="close" size={20} color="#757575" />
-          </TouchableOpacity>
-        )}
-      </View>
+      <SearchBar
+        value={searchQuery}
+        onChangeText={handleSearch}
+        placeholder="Search products (e.g. Bread, Muffin)..."
+        style={styles.searchSection}
+      />
 
       <Text style={styles.sectionHeader}>Available Products</Text>
       <View style={styles.listContainer}>
@@ -197,8 +194,8 @@ export default function SalesEntryScreen({ navigation }) {
                   onChangeText={(val) => handleQtyChange(item.id, val)}
                   maxLength={3}
                 />
-                <TouchableOpacity 
-                  style={styles.addButton} 
+                <TouchableOpacity
+                  style={styles.addButton}
                   onPress={() => handleAddToCart(item)}
                 >
                   <Text style={styles.addButtonText}>+ Add</Text>
@@ -207,10 +204,11 @@ export default function SalesEntryScreen({ navigation }) {
             </View>
           )}
           ListEmptyComponent={
-            <View style={styles.emptySearch}>
-              <MaterialIcons name="search-off" size={40} color="#B0BEC5" />
-              <Text style={styles.emptySearchText}>No products match your search query</Text>
-            </View>
+            <EmptyState
+              icon="search-off"
+              title="No products found"
+              message="No products match your search query."
+            />
           }
         />
       </View>
@@ -220,7 +218,7 @@ export default function SalesEntryScreen({ navigation }) {
         <View style={styles.cartHeader}>
           <Text style={styles.cartTitle}>Current Cart ({cart.length} unique items)</Text>
           <TouchableOpacity onPress={() => setCart([])} disabled={cart.length === 0}>
-            <Text style={[styles.clearCartText, cart.length === 0 && { color: '#B0BEC5' }]}>Clear Cart</Text>
+            <Text style={[styles.clearCartText, cart.length === 0 && { color: colors.textMuted }]}>Clear Cart</Text>
           </TouchableOpacity>
         </View>
 
@@ -235,17 +233,17 @@ export default function SalesEntryScreen({ navigation }) {
                   <Text style={styles.cartItemSub}>Qty: {item.quantity} x PKR {item.product.price}</Text>
                 </View>
                 <Text style={styles.cartItemTotal}>PKR {item.totalPrice}</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => handleRemoveFromCart(item.product.id)}
                   style={styles.removeBtn}
                 >
-                  <MaterialIcons name="cancel" size={20} color="#D32F2F" />
+                  <MaterialIcons name="cancel" size={20} color={colors.error} />
                 </TouchableOpacity>
               </View>
             )}
             ListEmptyComponent={
               <View style={styles.emptyCart}>
-                <MaterialIcons name="shopping-cart" size={32} color="#CFD8DC" />
+                <MaterialIcons name="shopping-cart" size={32} color={colors.textMuted} />
                 <Text style={styles.emptyCartText}>Your cart is empty. Add products above.</Text>
               </View>
             }
@@ -264,58 +262,37 @@ export default function SalesEntryScreen({ navigation }) {
         </View>
 
         <View style={styles.buttonGroup}>
-          <TouchableOpacity 
-            style={styles.cancelBtn} 
+          <AppButton
+            title="Cancel"
             onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.submitBtn, cart.length === 0 && styles.submitBtnDisabled]} 
+            variant="ghost"
+            style={{ flex: 1, marginRight: 8 }}
+          />
+          <AppButton
+            title="Submit Sales"
             onPress={handleSubmitSales}
+            variant="success"
             disabled={cart.length === 0}
-          >
-            <Text style={styles.submitBtnText}>Submit Sales</Text>
-          </TouchableOpacity>
+            style={{ flex: 1.5, marginLeft: 8 }}
+          />
         </View>
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   searchSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
     margin: 12,
-    paddingHorizontal: 12,
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 }
-  },
-  searchIcon: {
-    marginRight: 8
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#333'
   },
   sectionHeader: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#555',
+    color: colors.textSecondary,
     marginLeft: 14,
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -323,11 +300,11 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     flex: 1.2,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     marginHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     overflow: 'hidden'
   },
   productRow: {
@@ -335,13 +312,13 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE'
+    borderBottomColor: colors.divider
   },
   productImage: {
     width: 44,
     height: 44,
     borderRadius: 6,
-    backgroundColor: '#EEEEEE'
+    backgroundColor: colors.surfaceMuted
   },
   productInfo: {
     flex: 1,
@@ -350,11 +327,11 @@ const styles = StyleSheet.create({
   productName: {
     fontWeight: 'bold',
     fontSize: 14,
-    color: '#333'
+    color: colors.textPrimary
   },
   productPrice: {
     fontSize: 12,
-    color: '#1976D2',
+    color: colors.secondary,
     fontWeight: '600',
     marginTop: 2
   },
@@ -364,50 +341,40 @@ const styles = StyleSheet.create({
   },
   qtyInput: {
     borderWidth: 1,
-    borderColor: '#CFD8DC',
+    borderColor: colors.border,
     borderRadius: 6,
     width: 42,
     height: 36,
     textAlign: 'center',
     fontSize: 13,
-    color: '#333',
-    backgroundColor: '#FAFAFA',
+    color: colors.textPrimary,
+    backgroundColor: colors.inputBackground,
     marginRight: 8
   },
   addButton: {
-    backgroundColor: '#1976D2',
+    backgroundColor: colors.secondary,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
   },
   addButtonText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontWeight: 'bold',
     fontSize: 13
   },
-  emptySearch: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40
-  },
-  emptySearchText: {
-    color: '#757575',
-    fontSize: 13,
-    marginTop: 8
-  },
   cartSection: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 16,
     elevation: 8,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOpacity: 0.15,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: -3 },
     borderWidth: 1,
-    borderColor: '#EEEEEE'
+    borderColor: colors.divider
   },
   cartHeader: {
     flexDirection: 'row',
@@ -418,27 +385,27 @@ const styles = StyleSheet.create({
   cartTitle: {
     fontWeight: 'bold',
     fontSize: 15,
-    color: '#333'
+    color: colors.textPrimary
   },
   clearCartText: {
-    color: '#D32F2F',
+    color: colors.error,
     fontWeight: '600',
     fontSize: 13
   },
   cartListContainer: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#EEEEEE',
+    borderColor: colors.divider,
     borderRadius: 8,
     paddingHorizontal: 8,
-    backgroundColor: '#FAFAFA'
+    backgroundColor: colors.inputBackground
   },
   cartItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE'
+    borderBottomColor: colors.divider
   },
   cartItemDetails: {
     flex: 1
@@ -446,17 +413,17 @@ const styles = StyleSheet.create({
   cartItemName: {
     fontWeight: '600',
     fontSize: 13,
-    color: '#333'
+    color: colors.textPrimary
   },
   cartItemSub: {
     fontSize: 11,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 2
   },
   cartItemTotal: {
     fontWeight: 'bold',
     fontSize: 13,
-    color: '#333',
+    color: colors.textPrimary,
     marginRight: 8
   },
   removeBtn: {
@@ -468,14 +435,14 @@ const styles = StyleSheet.create({
     paddingVertical: 30
   },
   emptyCartText: {
-    color: '#9E9E9E',
+    color: colors.textMuted,
     fontSize: 12,
     marginTop: 6
   },
   summaryContainer: {
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
+    borderTopColor: colors.divider,
     marginTop: 10
   },
   summaryRow: {
@@ -486,52 +453,21 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     fontSize: 13,
-    color: '#555'
+    color: colors.textSecondary
   },
   summaryValue: {
     fontWeight: '600',
     fontSize: 13,
-    color: '#333'
+    color: colors.textPrimary
   },
   summaryTotal: {
     fontWeight: 'bold',
     fontSize: 16,
-    color: '#1976D2'
+    color: colors.secondary
   },
   buttonGroup: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 10
   },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: '#ECEFF1',
-    height: 44,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8
-  },
-  cancelBtnText: {
-    fontWeight: 'bold',
-    color: '#607D8B',
-    fontSize: 14
-  },
-  submitBtn: {
-    flex: 1.5,
-    backgroundColor: '#4CAF50',
-    height: 44,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8
-  },
-  submitBtnDisabled: {
-    backgroundColor: '#A5D6A7'
-  },
-  submitBtnText: {
-    fontWeight: 'bold',
-    color: '#fff',
-    fontSize: 14
-  }
 });

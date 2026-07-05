@@ -16,8 +16,14 @@ import RNPickerSelect from 'react-native-picker-select';
 import { AuthContext } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
+import AppCard from '../../components/AppCard';
+import AppButton from '../../components/AppButton';
+import { useTheme } from '../../theme';
 
 export default function RegisterScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+  const pickerStyles = createPickerStyles(colors);
   const { register } = useContext(AuthContext);
   const [agentId, setAgentId] = useState('');
   const [name, setName] = useState('');
@@ -105,17 +111,17 @@ export default function RegisterScreen({ navigation }) {
         style={styles.keyboardView}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.formCard}>
+          <AppCard style={styles.formCard}>
             <Text style={styles.titleText}>Register Agent</Text>
             <Text style={styles.subtitleText}>Enter credentials to onboard onto the platform</Text>
 
             <Text style={styles.label}>Agent ID</Text>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="badge" size={20} color="#757575" style={styles.inputIcon} />
+              <MaterialIcons name="badge" size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Agent ID (e.g. AGENT001)"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.textMuted}
                 value={agentId}
                 onChangeText={setAgentId}
                 autoCapitalize="characters"
@@ -125,11 +131,11 @@ export default function RegisterScreen({ navigation }) {
 
             <Text style={styles.label}>Full Name</Text>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="person" size={20} color="#757575" style={styles.inputIcon} />
+              <MaterialIcons name="person" size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter Full Name"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.textMuted}
                 value={name}
                 onChangeText={setName}
               />
@@ -137,11 +143,11 @@ export default function RegisterScreen({ navigation }) {
 
             <Text style={styles.label}>Email Address</Text>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="email" size={20} color="#757575" style={styles.inputIcon} />
+              <MaterialIcons name="email" size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter Email Address"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={email}
@@ -151,11 +157,11 @@ export default function RegisterScreen({ navigation }) {
 
             <Text style={styles.label}>Phone Number</Text>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="phone" size={20} color="#757575" style={styles.inputIcon} />
+              <MaterialIcons name="phone" size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter Phone Number"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
                 value={phone}
                 onChangeText={setPhone}
@@ -196,11 +202,11 @@ export default function RegisterScreen({ navigation }) {
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="lock" size={20} color="#757575" style={styles.inputIcon} />
+              <MaterialIcons name="lock" size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Create Password"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
@@ -213,41 +219,40 @@ export default function RegisterScreen({ navigation }) {
                 <MaterialIcons
                   name={showPassword ? 'visibility' : 'visibility-off'}
                   size={20}
-                  color="#757575"
+                  color={colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
 
             {role === 'AGENT' && (
-              <View style={styles.policyContainer}>
+              <AppCard style={styles.policyContainer} padding={14}>
                 <Text style={styles.policyTitle}>Face Verification Policy Settings</Text>
                 <Text style={styles.policyDesc}>Determine when you are required to submit face biometric verification during duty hours:</Text>
-                
+
                 <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyOnCheckIn(!faceVerifyOnCheckIn)}>
-                  <MaterialIcons name={faceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={22} color="#1976D2" />
+                  <MaterialIcons name={faceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={22} color={colors.secondary} />
                   <Text style={styles.checkboxLabel}>Verify on Start Duty (Check-In)</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyOnCheckOut(!faceVerifyOnCheckOut)}>
-                  <MaterialIcons name={faceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={22} color="#1976D2" />
+                  <MaterialIcons name={faceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={22} color={colors.secondary} />
                   <Text style={styles.checkboxLabel}>Verify on Off Duty (Check-Out)</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyAnytime(!faceVerifyAnytime)}>
-                  <MaterialIcons name={faceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={22} color="#1976D2" />
+                  <MaterialIcons name={faceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={22} color={colors.secondary} />
                   <Text style={styles.checkboxLabel}>Verify Anytime in the Day (Duty Checks)</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={[styles.faceRegisterBtn, faceRegistered && styles.faceRegisterBtnSuccess]} 
+                <AppButton
+                  title={faceRegistered ? 'Face Registered' : 'Register Face Verification'}
                   onPress={() => setFaceModalVisible(true)}
-                >
-                  <MaterialIcons name={faceRegistered ? "face" : "add-a-photo"} size={20} color="#fff" style={{ marginRight: 6 }} />
-                  <Text style={styles.faceRegisterBtnText}>
-                    {faceRegistered ? "Face Registered" : "Register Face Verification"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                  variant={faceRegistered ? 'success' : 'danger'}
+                  icon={faceRegistered ? 'face' : 'add-a-photo'}
+                  size="sm"
+                  style={{ marginTop: 12 }}
+                />
+              </AppCard>
             )}
 
             <FaceVerificationModal
@@ -262,21 +267,25 @@ export default function RegisterScreen({ navigation }) {
               agentName={name || 'New Agent'}
             />
 
-            <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
-              <Text style={styles.registerButtonText}>REGISTER</Text>
-              <MaterialIcons name="person-add" size={18} color="#fff" style={{ marginLeft: 6 }} />
-            </TouchableOpacity>
-          </View>
+            <AppButton
+              title="REGISTER"
+              onPress={handleRegister}
+              variant="secondary"
+              icon="person-add"
+              iconPosition="right"
+              style={{ marginTop: 10 }}
+            />
+          </AppCard>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   keyboardView: {
     flex: 1,
@@ -287,32 +296,23 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   formCard: {
-    backgroundColor: '#fff',
     marginHorizontal: 20,
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
   },
   titleText: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#212121',
+    color: colors.textPrimary,
   },
   subtitleText: {
     fontSize: 13,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 4,
     marginBottom: 20,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#424242',
+    color: colors.textSecondary,
     marginBottom: 6,
     textTransform: 'uppercase',
   },
@@ -320,18 +320,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 10,
     marginBottom: 16,
     paddingHorizontal: 12,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 10,
     marginBottom: 16,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     justifyContent: 'center',
   },
   inputIcon: {
@@ -340,44 +340,24 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: 44,
-    color: '#212121',
+    color: colors.textPrimary,
     fontSize: 14,
   },
   eyeIcon: {
     padding: 8,
   },
-  registerButton: {
-    backgroundColor: '#2196F3',
-    height: 48,
-    borderRadius: 10,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  registerButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
   policyContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    padding: 14,
     marginVertical: 12,
   },
   policyTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   policyDesc: {
     fontSize: 11,
-    color: '#757575',
+    color: colors.textSecondary,
     lineHeight: 15,
     marginBottom: 10,
   },
@@ -388,41 +368,24 @@ const styles = StyleSheet.create({
   },
   checkboxLabel: {
     fontSize: 12,
-    color: '#424242',
+    color: colors.textPrimary,
     marginLeft: 8,
-  },
-  faceRegisterBtn: {
-    backgroundColor: '#E53935',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 40,
-    borderRadius: 8,
-    marginTop: 12,
-  },
-  faceRegisterBtnSuccess: {
-    backgroundColor: '#2E7D32',
-  },
-  faceRegisterBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 13,
   },
 });
 
-const pickerStyles = {
+const createPickerStyles = (colors) => ({
   inputIOS: {
     fontSize: 14,
     paddingVertical: 12,
     paddingHorizontal: 12,
-    color: '#212121',
+    color: colors.textPrimary,
     paddingRight: 30,
   },
   inputAndroid: {
     fontSize: 14,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    color: '#212121',
+    color: colors.textPrimary,
     paddingRight: 30,
   },
-};
+});

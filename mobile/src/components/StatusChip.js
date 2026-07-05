@@ -13,16 +13,16 @@ function resolveStatus(status, colors) {
   const s = String(status || '').toUpperCase();
 
   if (['IN', 'PRESENT', 'ENTERED', 'CHECK_IN', 'ACTIVE', 'CHECKED_IN'].includes(s)) {
-    return { bg: colors.successLight, fg: colors.success, label: 'ACTIVE' };
+    return { bg: colors.successLight, fg: colors.successDark, label: 'ACTIVE' };
   }
   if (['OUT', 'EXITED', 'CHECK_OUT', 'AUTO_CHECKOUT', 'CHECKED_OUT'].includes(s)) {
     return { bg: colors.secondaryLight, fg: colors.secondary, label: 'CHECKED OUT' };
   }
   if (s === 'LATE') {
-    return { bg: colors.warningLight, fg: colors.warning, label: 'LATE' };
+    return { bg: colors.warningLight, fg: colors.warningDark, label: 'LATE' };
   }
   if (s === 'PENDING') {
-    return { bg: colors.warningLight, fg: colors.warning, label: 'PENDING' };
+    return { bg: colors.warningLight, fg: colors.warningDark, label: 'PENDING' };
   }
   if (['ABSENT', 'FAILED', 'MISSING', 'ERROR'].includes(s)) {
     return { bg: colors.errorLight, fg: colors.error, label: s === 'ABSENT' ? 'ABSENT' : 'FAILED' };

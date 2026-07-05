@@ -15,8 +15,13 @@ import { apiService } from '../../services/api';
 import LocationService from '../../services/LocationService';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
+import AppCard from '../../components/AppCard';
+import AppButton from '../../components/AppButton';
+import { useTheme } from '../../theme';
 
 export default function CheckoutScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { user } = useContext(AuthContext);
   const [location, setLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(true);
@@ -176,9 +181,9 @@ export default function CheckoutScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.card}>
+      <AppCard style={styles.card}>
         <View style={styles.header}>
-          <MaterialIcons name="store" size={28} color="#FF9800" />
+          <MaterialIcons name="store" size={28} color={colors.warning} />
           <Text style={styles.martName}>
             {currentCheckIn?.martName || 'Active Mart'}
           </Text>
@@ -219,17 +224,17 @@ export default function CheckoutScreen({ navigation }) {
             </Text>
           </View>
         </View>
-      </View>
+      </AppCard>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Your GPS Checkout Location</Text>
         <TouchableOpacity style={styles.refreshLoc} onPress={getGPSLocation} disabled={locationLoading}>
-          <MaterialIcons name="refresh" size={18} color="#2196F3" />
+          <MaterialIcons name="refresh" size={18} color={colors.secondary} />
           <Text style={styles.refreshLocText}>Refresh GPS</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.locationCard}>
+      <AppCard style={styles.locationCard} padding={16}>
         {locationLoading ? (
           <Loading message="Locating coordinates..." />
         ) : location ? (
@@ -243,25 +248,22 @@ export default function CheckoutScreen({ navigation }) {
               <Text style={styles.coordVal}>{location.longitude.toFixed(6)}</Text>
             </View>
             <View style={styles.gpsBadge}>
-              <MaterialIcons name="gps-fixed" size={16} color="#4CAF50" />
+              <MaterialIcons name="gps-fixed" size={16} color={colors.success} />
               <Text style={styles.gpsText}>Active</Text>
             </View>
           </View>
         ) : (
           <Text style={styles.errorText}>No GPS coordinates found.</Text>
         )}
-      </View>
+      </AppCard>
 
       <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.checkoutButton, (!location || !locationPermissionGranted) && styles.disabledButton]}
+        <AppButton
+          title={locationPermissionGranted ? 'CONFIRM CHECK-OUT' : 'LOCATION PERMISSION REQUIRED'}
           onPress={handleCheckOut}
+          variant="warning"
           disabled={!location || checkingOut || !locationPermissionGranted}
-        >
-          <Text style={styles.checkoutButtonText}>
-            {locationPermissionGranted ? 'CONFIRM CHECK-OUT' : 'LOCATION PERMISSION REQUIRED'}
-          </Text>
-        </TouchableOpacity>
+        />
       </View>
 
       <FaceVerificationModal
@@ -286,21 +288,13 @@ export default function CheckoutScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
     margin: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
   },
   header: {
     flexDirection: 'row',
@@ -310,12 +304,12 @@ const styles = StyleSheet.create({
   martName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#212121',
+    color: colors.textPrimary,
     marginLeft: 10,
   },
   divider: {
     height: 1,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: colors.divider,
     marginBottom: 16,
   },
   infoRow: {
@@ -327,12 +321,12 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#9E9E9E',
+    color: colors.textMuted,
     letterSpacing: 0.5,
   },
   infoValue: {
     fontSize: 14,
-    color: '#424242',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   badge: {
@@ -341,20 +335,20 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeIn: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: colors.successLight,
   },
   badgeLate: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: colors.warningLight,
   },
   badgeText: {
     fontSize: 11,
     fontWeight: 'bold',
   },
   badgeTextIn: {
-    color: '#2E7D32',
+    color: colors.successDark,
   },
   badgeTextLate: {
-    color: '#EF6C00',
+    color: colors.warningDark,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -367,7 +361,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#424242',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -377,17 +371,12 @@ const styles = StyleSheet.create({
   },
   refreshLocText: {
     fontSize: 13,
-    color: '#2196F3',
+    color: colors.secondary,
     fontWeight: '600',
     marginLeft: 4,
   },
   locationCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
     marginHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
   },
   coordsRow: {
     flexDirection: 'row',
@@ -399,13 +388,13 @@ const styles = StyleSheet.create({
   },
   coordLabel: {
     fontSize: 10,
-    color: '#9E9E9E',
+    color: colors.textMuted,
     fontWeight: 'bold',
   },
   coordVal: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#212121',
+    color: colors.textPrimary,
     marginTop: 4,
   },
   gpsBadge: {
@@ -413,7 +402,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#E8F5E9',
+    backgroundColor: colors.successLight,
     paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 8,
@@ -422,10 +411,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#2E7D32',
+    color: colors.successDark,
   },
   errorText: {
-    color: '#D32F2F',
+    color: colors.error,
     textAlign: 'center',
     fontSize: 14,
   },
@@ -434,25 +423,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  checkoutButton: {
-    backgroundColor: '#FF9800',
-    height: 48,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  disabledButton: {
-    backgroundColor: '#BDBDBD',
-  },
-  checkoutButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold',
-    letterSpacing: 1,
+    borderTopColor: colors.border,
   },
 });

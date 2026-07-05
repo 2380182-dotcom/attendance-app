@@ -15,11 +15,14 @@ export default function MetricCard({ icon, label, value, color = 'primary', tren
   const { colors } = useTheme();
   const tint = colors[color] || colors.primary;
   const tintLight = colors[`${color}Light`] || colors.primaryLight;
+  // success/warning/accent fail WCAG contrast as icon color on their own *Light
+  // chip background — use the darker "Dark" variant when one exists (see theme.js).
+  const iconTint = colors[`${color}Dark`] || tint;
 
   return (
     <AppCard style={[styles.card, style]} padding={spacing.md}>
       <View style={[styles.iconChip, { backgroundColor: tintLight }]}>
-        <MaterialIcons name={icon} size={20} color={tint} />
+        <MaterialIcons name={icon} size={20} color={iconTint} />
       </View>
       <Text style={[typography.h2, { color: colors.textPrimary, marginTop: spacing.sm }]}>
         {value}

@@ -12,8 +12,12 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { apiService } from '../../services/api';
 import NotificationCard from '../../components/NotificationCard';
 import Loading from '../../components/Loading';
+import EmptyState from '../../components/EmptyState';
+import { useTheme } from '../../theme';
 
 export default function HRReportScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -75,14 +79,15 @@ export default function HRReportScreen() {
           />
         )}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} color="#2196F3" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <MaterialIcons name="notifications-off" size={48} color="#9E9E9E" />
-            <Text style={styles.emptyTitle}>No HR Logs Found</Text>
-            <Text style={styles.emptyText}>There are no warnings in the HR notifications system yet.</Text>
-          </View>
+          <EmptyState
+            icon="notifications-off"
+            title="No HR Logs Found"
+            message="There are no warnings in the HR notifications system yet."
+            style={styles.emptyContainer}
+          />
         }
         contentContainerStyle={styles.listScroll}
       />
@@ -90,31 +95,15 @@ export default function HRReportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   listScroll: {
     padding: 16,
   },
   emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingTop: 100,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#424242',
-    marginTop: 12,
-  },
-  emptyText: {
-    fontSize: 13,
-    color: '#757575',
-    textAlign: 'center',
-    marginTop: 6,
-    paddingHorizontal: 32,
   },
 });

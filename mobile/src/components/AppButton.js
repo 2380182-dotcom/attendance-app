@@ -22,7 +22,7 @@ const SIZES = {
  * Primary button component with an elastic press animation (scales down slightly
  * on press-in, springs back on release). Respects the OS reduce-motion setting.
  *
- * variant: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
+ * variant: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success' | 'accent' | 'warning'
  * size: 'sm' | 'md' | 'lg'
  */
 export default function AppButton({
@@ -50,8 +50,9 @@ export default function AppButton({
     outline: { backgroundColor: 'transparent', textColor: colors.primary, borderColor: colors.primary },
     ghost: { backgroundColor: colors.surfaceMuted, textColor: colors.textPrimary, borderColor: 'transparent' },
     danger: { backgroundColor: colors.error, textColor: colors.textOnPrimary, borderColor: 'transparent' },
-    success: { backgroundColor: colors.success, textColor: colors.textOnPrimary, borderColor: 'transparent' },
+    success: { backgroundColor: colors.success, textColor: colors.textPrimary, borderColor: 'transparent' },
     accent: { backgroundColor: colors.accent, textColor: colors.textPrimary, borderColor: 'transparent' },
+    warning: { backgroundColor: colors.warning, textColor: colors.textPrimary, borderColor: 'transparent' },
   };
   const v = variantStyles[variant] || variantStyles.primary;
 

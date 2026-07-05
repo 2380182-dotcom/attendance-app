@@ -16,9 +16,14 @@ import { AuthContext } from '../../context/AuthContext';
 import { apiService } from '../../services/api';
 import AttendanceCard from '../../components/AttendanceCard';
 import Loading from '../../components/Loading';
+import AppButton from '../../components/AppButton';
+import EmptyState from '../../components/EmptyState';
 import { downloadAndShareFile } from '../../utils/downloadAndShareFile';
+import { useTheme } from '../../theme';
 
 export default function HistoryScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { user } = useContext(AuthContext);
   const [history, setHistory] = useState([]);
   const [filteredHistory, setFilteredHistory] = useState([]);
@@ -115,6 +120,8 @@ export default function HistoryScreen() {
     ...marts.map(m => ({ label: m.name, value: m.id }))
   ];
 
+  const pickerSelectStyles = createPickerStyles(colors);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.filterCard}>
@@ -153,13 +160,13 @@ export default function HistoryScreen() {
 
         <View style={styles.filterRow}>
           <TouchableOpacity onPress={() => setShowStartPicker(true)} style={styles.dateSelector}>
-            <MaterialIcons name="date-range" size={18} color="#1976D2" />
+            <MaterialIcons name="date-range" size={18} color={colors.secondary} />
             <Text style={styles.dateSelectorText}>
               Start: {startDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowEndPicker(true)} style={styles.dateSelector}>
-            <MaterialIcons name="date-range" size={18} color="#1976D2" />
+            <MaterialIcons name="date-range" size={18} color={colors.secondary} />
             <Text style={styles.dateSelectorText}>
               End: {endDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}
             </Text>
@@ -183,10 +190,14 @@ export default function HistoryScreen() {
           />
         )}
 
-        <TouchableOpacity onPress={handleExport} style={styles.exportButton}>
-          <MaterialIcons name="file-download" size={18} color="#fff" />
-          <Text style={styles.exportButtonText}>Export to Excel</Text>
-        </TouchableOpacity>
+        <AppButton
+          title="Export to Excel"
+          onPress={handleExport}
+          variant="secondary"
+          size="sm"
+          icon="file-download"
+          style={{ marginTop: 4 }}
+        />
       </View>
 
       <FlatList
@@ -204,18 +215,14 @@ export default function HistoryScreen() {
           />
         )}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} color="#2196F3" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconContainer}>
-              <MaterialIcons name="event-busy" size={48} color="#9E9E9E" />
-            </View>
-            <Text style={styles.emptyTitle}>No Matching Records</Text>
-            <Text style={styles.emptyText}>
-              No attendance records match your filter criteria. Try adjusting the dates or filter settings.
-            </Text>
-          </View>
+          <EmptyState
+            icon="event-busy"
+            title="No Matching Records"
+            message="No attendance records match your filter criteria. Try adjusting the dates or filter settings."
+          />
         }
         contentContainerStyle={filteredHistory.length === 0 ? styles.emptyScroll : styles.listScroll}
       />
@@ -223,17 +230,17 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   filterCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    shadowColor: '#000',
+    borderBottomColor: colors.border,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 2,
     shadowOffset: { width: 0, height: 1 },
@@ -250,45 +257,30 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#757575',
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 6,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
   },
   dateSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 6,
     padding: 8,
     width: '48%',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     justifyContent: 'center',
   },
   dateSelectorText: {
     fontSize: 13,
     marginLeft: 6,
-    color: '#333',
-  },
-  exportButton: {
-    backgroundColor: '#1976D2',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  exportButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 6,
-    fontSize: 13,
+    color: colors.textPrimary,
   },
   listScroll: {
     paddingVertical: 12,
@@ -297,44 +289,19 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#EEEEEE',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#424242',
-  },
-  emptyText: {
-    fontSize: 13,
-    color: '#757575',
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
-  },
 });
 
-const pickerSelectStyles = {
+const createPickerStyles = (colors) => ({
   inputIOS: {
     fontSize: 13,
     paddingVertical: 8,
     paddingHorizontal: 8,
-    color: '#333',
+    color: colors.textPrimary,
   },
   inputAndroid: {
     fontSize: 13,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    color: '#333',
+    color: colors.textPrimary,
   },
-};
+});

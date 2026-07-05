@@ -12,9 +12,15 @@ import RNPickerSelect from 'react-native-picker-select';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
+import AppCard from '../../components/AppCard';
+import AppButton from '../../components/AppButton';
 import { downloadAndShareFile } from '../../utils/downloadAndShareFile';
+import { useTheme } from '../../theme';
 
 export default function ReportGeneratorScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+  const pickerStyles = createPickerStyles(colors);
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -93,7 +99,7 @@ export default function ReportGeneratorScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.card}>
+      <AppCard style={styles.card}>
         <Text style={styles.cardTitle}>Export System Excel Reports</Text>
         <Text style={styles.cardDesc}>Download daily and monthly attendance worksheets, late arrivals list, and geofence logs in one workbook.</Text>
 
@@ -105,14 +111,14 @@ export default function ReportGeneratorScreen() {
             <MaterialIcons
               name={useDate ? 'check-box' : 'check-box-outline-blank'}
               size={24}
-              color={useDate ? '#1976D2' : '#757575'}
+              color={useDate ? colors.secondary : colors.textSecondary}
             />
           </TouchableOpacity>
         </View>
 
         {useDate && (
           <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateBtn}>
-            <MaterialIcons name="date-range" size={20} color="#1976D2" />
+            <MaterialIcons name="date-range" size={20} color={colors.secondary} />
             <Text style={styles.dateBtnText}>Selected: {date.toLocaleDateString()}</Text>
           </TouchableOpacity>
         )}
@@ -165,48 +171,42 @@ export default function ReportGeneratorScreen() {
           </View>
         </View>
 
-        <TouchableOpacity onPress={handleExport} style={styles.exportButton}>
-          <MaterialIcons name="file-download" size={22} color="#fff" />
-          <Text style={styles.exportButtonText}>Export Excel File</Text>
-        </TouchableOpacity>
-      </View>
+        <AppButton
+          title="Export Excel File"
+          onPress={handleExport}
+          variant="success"
+          icon="file-download"
+          style={{ marginTop: 10 }}
+        />
+      </AppCard>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
     padding: 16,
     justifyContent: 'center',
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
+  card: {},
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   cardDesc: {
     fontSize: 12,
-    color: '#757575',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18,
   },
   divider: {
     height: 1,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: colors.divider,
     marginVertical: 16,
   },
   row: {
@@ -226,59 +226,44 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 6,
   },
   dateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 10,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     marginBottom: 16,
   },
   dateBtnText: {
     fontSize: 14,
-    color: '#333',
+    color: colors.textPrimary,
     marginLeft: 8,
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     marginBottom: 16,
-  },
-  exportButton: {
-    backgroundColor: '#4CAF50',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 48,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  exportButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 15,
-    marginLeft: 8,
   },
 });
 
-const pickerStyles = {
+const createPickerStyles = (colors) => ({
   inputIOS: {
     fontSize: 14,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    color: '#333',
+    color: colors.textPrimary,
   },
   inputAndroid: {
     fontSize: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    color: '#333',
+    color: colors.textPrimary,
   },
-};
+});

@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  TouchableOpacity,
   TextInput,
   Alert,
   SafeAreaView
@@ -13,8 +12,13 @@ import MapView, { Marker, Circle } from 'react-native-maps';
 import RNPickerSelect from 'react-native-picker-select';
 import { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
+import AppButton from '../../components/AppButton';
+import { useTheme } from '../../theme';
 
 export default function AdminGeoFenceScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+  const pickerStyles = createPickerStyles(colors);
   const mapRef = useRef(null);
   const [marts, setMarts] = useState([]);
   const [selectedMartId, setSelectedMartId] = useState(null);
@@ -136,10 +140,15 @@ export default function AdminGeoFenceScreen() {
                 keyboardType="numeric"
               />
             </View>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveRadius} disabled={saving}>
-              <MaterialIcons name="save" size={20} color="#fff" />
-              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save'}</Text>
-            </TouchableOpacity>
+            <AppButton
+              title={saving ? 'Saving...' : 'Save'}
+              onPress={handleSaveRadius}
+              disabled={saving}
+              variant="secondary"
+              icon="save"
+              fullWidth={false}
+              style={{ height: 40 }}
+            />
           </View>
         )}
       </View>
@@ -155,8 +164,8 @@ export default function AdminGeoFenceScreen() {
             <Circle
               center={{ latitude: parseFloat(selectedMart.latitude), longitude: parseFloat(selectedMart.longitude) }}
               radius={parseFloat(radius) || 100}
-              fillColor="rgba(25, 118, 210, 0.15)"
-              strokeColor="#1976D2"
+              fillColor={`${colors.secondary}26`}
+              strokeColor={colors.secondary}
               strokeWidth={2}
             />
           </MapView>
@@ -166,18 +175,18 @@ export default function AdminGeoFenceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   selectorCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: colors.border,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 2 },
@@ -185,15 +194,15 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#757575',
+    color: colors.textSecondary,
     marginBottom: 6,
     textTransform: 'uppercase',
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     marginBottom: 12,
   },
   radiusRow: {
@@ -207,32 +216,18 @@ const styles = StyleSheet.create({
   },
   radiusLabel: {
     fontSize: 11,
-    color: '#757575',
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   radiusInput: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 40,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     fontSize: 14,
-    color: '#333',
-  },
-  saveBtn: {
-    backgroundColor: '#1976D2',
-    height: 40,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  saveBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 6,
-    fontSize: 14,
+    color: colors.textPrimary,
   },
   mapWrapper: {
     flex: 1,
@@ -242,17 +237,17 @@ const styles = StyleSheet.create({
   },
 });
 
-const pickerStyles = {
+const createPickerStyles = (colors) => ({
   inputIOS: {
     fontSize: 14,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    color: '#333',
+    color: colors.textPrimary,
   },
   inputAndroid: {
     fontSize: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    color: '#333',
+    color: colors.textPrimary,
   },
-};
+});

@@ -17,6 +17,10 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
+import AppCard from '../../components/AppCard';
+import AppButton from '../../components/AppButton';
+import AnimatedFAB from '../../components/AnimatedFAB';
+import { useTheme } from '../../theme';
 
 const WORKING_DAYS_OPTIONS = [
   { code: 'MON', label: 'Mon' },
@@ -62,6 +66,9 @@ function formatTimeDisplay(date) {
 }
 
 export default function AdminUsersScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+  const pickerStyles = createPickerStyles(colors);
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -305,46 +312,47 @@ export default function AdminUsersScreen() {
         data={agents}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <View style={styles.userCard}>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{item.name}</Text>
-              <Text style={styles.userDetail}>ID: {item.agentId} | Phone: {item.phone || 'N/A'}</Text>
-              <Text style={styles.userDetail}>Email: {item.email}</Text>
-              
-              <View style={styles.tagRow}>
-                <Text style={styles.roleTag}>{item.role || 'AGENT'}</Text>
-                <Text style={styles.deptTag}>{item.department || 'SALES'}</Text>
+          <AppCard style={styles.userCard} padding={14}>
+            <View style={styles.userCardRow}>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{item.name}</Text>
+                <Text style={styles.userDetail}>ID: {item.agentId} | Phone: {item.phone || 'N/A'}</Text>
+                <Text style={styles.userDetail}>Email: {item.email}</Text>
+
+                <View style={styles.tagRow}>
+                  <Text style={styles.roleTag}>{item.role || 'AGENT'}</Text>
+                  <Text style={styles.deptTag}>{item.department || 'SALES'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.cardActionsCol}>
+                <TouchableOpacity style={styles.editBtn} onPress={() => handleOpenEdit(item)}>
+                  <MaterialIcons name="edit" size={20} color={colors.secondary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.editBtn, styles.deleteBtn]} onPress={() => handleDeleteUser(item)}>
+                  <MaterialIcons name="delete" size={20} color={colors.error} />
+                </TouchableOpacity>
               </View>
             </View>
-
-            <View style={{ flexDirection: 'column', justifyContent: 'space-between', height: 75, alignItems: 'center' }}>
-              <TouchableOpacity style={styles.editBtn} onPress={() => handleOpenEdit(item)}>
-                <MaterialIcons name="edit" size={20} color="#1976D2" />
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.editBtn, { backgroundColor: '#FFEBEE', marginTop: 8 }]} onPress={() => handleDeleteUser(item)}>
-                <MaterialIcons name="delete" size={20} color="#D32F2F" />
-              </TouchableOpacity>
-            </View>
-          </View>
+          </AppCard>
         )}
         contentContainerStyle={styles.list}
       />
 
       {/* Floating Action Button for Adding Users */}
-      <TouchableOpacity
-        style={styles.fab}
+      <AnimatedFAB
+        icon="add"
+        accessibilityLabel="Add user"
         onPress={() => {
           resetCreateForm();
           setCreateModalVisible(true);
         }}
-      >
-        <MaterialIcons name="add" size={24} color="#fff" />
-      </TouchableOpacity>
+      />
 
       {/* Create User Modal */}
       <Modal visible={createModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <AppCard style={styles.modalContent}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
               <Text style={styles.modalTitle}>Onboard New User</Text>
 
@@ -352,6 +360,7 @@ export default function AdminUsersScreen() {
               <TextInput
                 style={styles.textInput}
                 placeholder="Full Name"
+                placeholderTextColor={colors.textMuted}
                 value={newName}
                 onChangeText={setNewName}
               />
@@ -360,6 +369,7 @@ export default function AdminUsersScreen() {
               <TextInput
                 style={styles.textInput}
                 placeholder="Email Address"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={newEmail}
@@ -370,6 +380,7 @@ export default function AdminUsersScreen() {
               <TextInput
                 style={styles.textInput}
                 placeholder="Phone Number"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
                 value={newPhone}
                 onChangeText={setNewPhone}
@@ -379,6 +390,7 @@ export default function AdminUsersScreen() {
               <TextInput
                 style={styles.textInput}
                 placeholder="Agent ID (e.g. AGENT001)"
+                placeholderTextColor={colors.textMuted}
                 autoCapitalize="characters"
                 value={newAgentId}
                 onChangeText={setNewAgentId}
@@ -388,6 +400,7 @@ export default function AdminUsersScreen() {
               <TextInput
                 style={styles.textInput}
                 placeholder="Password"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry
                 value={newPassword}
                 onChangeText={setNewPassword}
@@ -431,11 +444,11 @@ export default function AdminUsersScreen() {
 
                   <View style={styles.timeRow}>
                     <TouchableOpacity style={styles.timeBtn} onPress={() => setShowNewShiftStartPicker(true)}>
-                      <MaterialIcons name="schedule" size={16} color="#1976D2" />
+                      <MaterialIcons name="schedule" size={16} color={colors.secondary} />
                       <Text style={styles.timeBtnText}>Start: {formatTimeDisplay(newShiftStartTime)}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.timeBtn} onPress={() => setShowNewShiftEndPicker(true)}>
-                      <MaterialIcons name="schedule" size={16} color="#1976D2" />
+                      <MaterialIcons name="schedule" size={16} color={colors.secondary} />
                       <Text style={styles.timeBtnText}>End: {formatTimeDisplay(newShiftEndTime)}</Text>
                     </TouchableOpacity>
                   </View>
@@ -495,29 +508,28 @@ export default function AdminUsersScreen() {
                   <Text style={styles.policyTitle}>Face Verification Policy Settings</Text>
 
                   <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyOnCheckIn(!newFaceVerifyOnCheckIn)}>
-                    <MaterialIcons name={newFaceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color="#1976D2" />
+                    <MaterialIcons name={newFaceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
                     <Text style={styles.checkboxLabel}>Verify on Check-In</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyOnCheckOut(!newFaceVerifyOnCheckOut)}>
-                    <MaterialIcons name={newFaceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={20} color="#1976D2" />
+                    <MaterialIcons name={newFaceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
                     <Text style={styles.checkboxLabel}>Verify on Check-Out</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyAnytime(!newFaceVerifyAnytime)}>
-                    <MaterialIcons name={newFaceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={20} color="#1976D2" />
+                    <MaterialIcons name={newFaceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
                     <Text style={styles.checkboxLabel}>Verify Anytime (Duty Checks)</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity 
-                    style={[styles.faceRegisterBtn, newFaceRegistered && styles.faceRegisterBtnSuccess]} 
+                  <AppButton
+                    title={newFaceRegistered ? 'Face Registered' : 'Register Agent Face'}
                     onPress={() => setNewFaceModalVisible(true)}
-                  >
-                    <MaterialIcons name={newFaceRegistered ? "face" : "add-a-photo"} size={18} color="#fff" style={{ marginRight: 6 }} />
-                    <Text style={styles.faceRegisterBtnText}>
-                      {newFaceRegistered ? "Face Registered" : "Register Agent Face"}
-                    </Text>
-                  </TouchableOpacity>
+                    variant={newFaceRegistered ? 'success' : 'danger'}
+                    icon={newFaceRegistered ? 'face' : 'add-a-photo'}
+                    size="sm"
+                    style={{ marginTop: 10 }}
+                  />
                 </View>
               )}
 
@@ -534,22 +546,28 @@ export default function AdminUsersScreen() {
               />
 
               <View style={styles.modalButtons}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setCreateModalVisible(false)}>
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveBtn} onPress={handleCreateUser}>
-                  <Text style={styles.saveBtnText}>Create</Text>
-                </TouchableOpacity>
+                <AppButton
+                  title="Cancel"
+                  onPress={() => setCreateModalVisible(false)}
+                  variant="ghost"
+                  style={{ flex: 1, marginRight: 10 }}
+                />
+                <AppButton
+                  title="Create"
+                  onPress={handleCreateUser}
+                  variant="secondary"
+                  style={{ flex: 1, marginLeft: 10 }}
+                />
               </View>
             </ScrollView>
-          </View>
+          </AppCard>
         </View>
       </Modal>
 
       {/* Edit Role/Department Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <AppCard style={styles.modalContent}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>Manage Authorization</Text>
               {selectedAgent && (
@@ -594,11 +612,11 @@ export default function AdminUsersScreen() {
 
                   <View style={styles.timeRow}>
                     <TouchableOpacity style={styles.timeBtn} onPress={() => setShowShiftStartPicker(true)}>
-                      <MaterialIcons name="schedule" size={16} color="#1976D2" />
+                      <MaterialIcons name="schedule" size={16} color={colors.secondary} />
                       <Text style={styles.timeBtnText}>Start: {formatTimeDisplay(shiftStartTime)}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.timeBtn} onPress={() => setShowShiftEndPicker(true)}>
-                      <MaterialIcons name="schedule" size={16} color="#1976D2" />
+                      <MaterialIcons name="schedule" size={16} color={colors.secondary} />
                       <Text style={styles.timeBtnText}>End: {formatTimeDisplay(shiftEndTime)}</Text>
                     </TouchableOpacity>
                   </View>
@@ -658,29 +676,28 @@ export default function AdminUsersScreen() {
                   <Text style={styles.policyTitle}>Face Verification Policy Settings</Text>
 
                   <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyOnCheckIn(!faceVerifyOnCheckIn)}>
-                    <MaterialIcons name={faceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color="#1976D2" />
+                    <MaterialIcons name={faceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
                     <Text style={styles.checkboxLabel}>Verify on Check-In</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyOnCheckOut(!faceVerifyOnCheckOut)}>
-                    <MaterialIcons name={faceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={20} color="#1976D2" />
+                    <MaterialIcons name={faceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
                     <Text style={styles.checkboxLabel}>Verify on Check-Out</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyAnytime(!faceVerifyAnytime)}>
-                    <MaterialIcons name={faceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={20} color="#1976D2" />
+                    <MaterialIcons name={faceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
                     <Text style={styles.checkboxLabel}>Verify Anytime (Duty Checks)</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity 
-                    style={[styles.faceRegisterBtn, faceRegistered && styles.faceRegisterBtnSuccess]} 
+                  <AppButton
+                    title={faceRegistered ? 'Face Registered' : 'Register Face Verification'}
                     onPress={() => setFaceModalVisible(true)}
-                  >
-                    <MaterialIcons name={faceRegistered ? "face" : "add-a-photo"} size={18} color="#fff" style={{ marginRight: 6 }} />
-                    <Text style={styles.faceRegisterBtnText}>
-                      {faceRegistered ? "Face Registered" : "Register Face Verification"}
-                    </Text>
-                  </TouchableOpacity>
+                    variant={faceRegistered ? 'success' : 'danger'}
+                    icon={faceRegistered ? 'face' : 'add-a-photo'}
+                    size="sm"
+                    style={{ marginTop: 10 }}
+                  />
                 </View>
               )}
 
@@ -702,44 +719,43 @@ export default function AdminUsersScreen() {
               />
 
               <View style={styles.modalButtons}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                  <Text style={styles.saveBtnText}>Save</Text>
-                </TouchableOpacity>
+                <AppButton
+                  title="Cancel"
+                  onPress={() => setModalVisible(false)}
+                  variant="ghost"
+                  style={{ flex: 1, marginRight: 10 }}
+                />
+                <AppButton
+                  title="Save"
+                  onPress={handleSave}
+                  variant="secondary"
+                  style={{ flex: 1, marginLeft: 10 }}
+                />
               </View>
             </ScrollView>
-          </View>
+          </AppCard>
         </View>
       </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   list: {
     padding: 16,
     paddingBottom: 88, // Extra padding to not hide behind FAB
   },
   userCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
     marginBottom: 12,
+  },
+  userCardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
   },
   userInfo: {
     flex: 1,
@@ -747,11 +763,11 @@ const styles = StyleSheet.create({
   userName: {
     fontWeight: 'bold',
     fontSize: 15,
-    color: '#333',
+    color: colors.textPrimary,
   },
   userDetail: {
     fontSize: 12,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   tagRow: {
@@ -761,8 +777,8 @@ const styles = StyleSheet.create({
   roleTag: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#1976D2',
-    backgroundColor: '#E3F2FD',
+    color: colors.secondary,
+    backgroundColor: colors.secondaryLight,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -771,27 +787,35 @@ const styles = StyleSheet.create({
   deptTag: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#37474F',
-    backgroundColor: '#ECEFF1',
+    color: colors.textSecondary,
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
+  cardActionsCol: {
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    height: 75,
+    alignItems: 'center',
+  },
   editBtn: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.secondaryLight,
+  },
+  deleteBtn: {
+    backgroundColor: colors.errorLight,
+    marginTop: 8,
   },
   modalOverlay: {
     flex: 1,
+    // Modal dimmer scrim, not a themed surface — stays dark regardless of theme.
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
     width: '85%',
     maxWidth: 400,
     maxHeight: '85%',
@@ -800,38 +824,43 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 8,
-    color: '#333',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
+  // NOTE: the pre-existing code defined `agentNameLabel` twice in this StyleSheet;
+  // the second definition silently won (duplicate object key). This keeps that
+  // effective styling rather than guessing which one was "correct" — flagged
+  // separately as a code-quality issue, not silently resolved.
   agentNameLabel: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 16,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.secondary,
+    marginBottom: 10,
     textAlign: 'center',
   },
   label: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 4,
     marginTop: 8,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 14,
-    color: '#333',
-    backgroundColor: '#FAFAFA',
+    color: colors.textPrimary,
+    backgroundColor: colors.inputBackground,
     marginBottom: 8,
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     marginBottom: 12,
   },
   modalButtons: {
@@ -839,64 +868,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 20,
   },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#ECEFF1',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  cancelBtnText: {
-    fontWeight: 'bold',
-    color: '#607D8B',
-  },
-  saveBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#1976D2',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  saveBtnText: {
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    backgroundColor: '#1976D2',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-  },
   policyContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     padding: 14,
     marginVertical: 12,
   },
   policyTitle: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
     marginBottom: 6,
   },
   subLabel: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 10,
     marginBottom: 6,
   },
@@ -910,15 +899,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
     paddingVertical: 10,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     marginHorizontal: 3,
   },
   timeBtnText: {
     fontSize: 12,
-    color: '#333',
+    color: colors.textPrimary,
     marginLeft: 6,
     fontWeight: '600',
   },
@@ -928,25 +917,25 @@ const styles = StyleSheet.create({
   },
   dayChip: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginRight: 6,
     marginBottom: 6,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
   },
   dayChipSelected: {
-    backgroundColor: '#1976D2',
-    borderColor: '#1976D2',
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
   },
   dayChipText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     fontWeight: 'bold',
   },
   dayChipTextSelected: {
-    color: '#fff',
+    color: colors.textOnPrimary,
   },
   checkboxRow: {
     flexDirection: 'row',
@@ -955,46 +944,22 @@ const styles = StyleSheet.create({
   },
   checkboxLabel: {
     fontSize: 12,
-    color: '#424242',
+    color: colors.textPrimary,
     marginLeft: 8,
-  },
-  faceRegisterBtn: {
-    backgroundColor: '#E53935',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 38,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  faceRegisterBtnSuccess: {
-    backgroundColor: '#2E7D32',
-  },
-  faceRegisterBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  agentNameLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1565C0',
-    marginBottom: 10,
-    textAlign: 'center',
   },
 });
 
-const pickerStyles = {
+const createPickerStyles = (colors) => ({
   inputIOS: {
     fontSize: 14,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    color: '#333',
+    color: colors.textPrimary,
   },
   inputAndroid: {
     fontSize: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    color: '#333',
+    color: colors.textPrimary,
   },
-};
+});

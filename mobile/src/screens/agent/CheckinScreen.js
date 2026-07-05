@@ -16,8 +16,14 @@ import { apiService } from '../../services/api';
 import LocationService from '../../services/LocationService';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
+import AppCard from '../../components/AppCard';
+import AppButton from '../../components/AppButton';
+import EmptyState from '../../components/EmptyState';
+import { useTheme } from '../../theme';
 
 export default function CheckinScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { user } = useContext(AuthContext);
   const [location, setLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(true);
@@ -205,12 +211,12 @@ export default function CheckinScreen({ navigation }) {
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Your GPS Location</Text>
         <TouchableOpacity style={styles.refreshLoc} onPress={getGPSLocation} disabled={locationLoading}>
-          <MaterialIcons name="refresh" size={18} color="#2196F3" />
+          <MaterialIcons name="refresh" size={18} color={colors.secondary} />
           <Text style={styles.refreshLocText}>Refresh GPS</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.locationCard}>
+      <AppCard style={styles.locationCard} padding={16}>
         {locationLoading ? (
           <Loading message="Locating coordinates..." />
         ) : location ? (
@@ -224,14 +230,14 @@ export default function CheckinScreen({ navigation }) {
               <Text style={styles.coordVal}>{location.longitude.toFixed(6)}</Text>
             </View>
             <View style={styles.gpsBadge}>
-              <MaterialIcons name="gps-fixed" size={16} color="#4CAF50" />
+              <MaterialIcons name="gps-fixed" size={16} color={colors.success} />
               <Text style={styles.gpsText}>Active</Text>
             </View>
           </View>
         ) : (
           <Text style={styles.errorText}>No GPS coordinates found.</Text>
         )}
-      </View>
+      </AppCard>
 
       <Text style={[styles.sectionTitle, { marginHorizontal: 16, marginTop: 12 }]}>
         Select Mart (Nearest First)
@@ -246,9 +252,11 @@ export default function CheckinScreen({ navigation }) {
           renderItem={({ item }) => {
             const isSelected = selectedMart?.id === item.id;
             return (
-              <TouchableOpacity
+              <AppCard
                 style={[styles.martItem, isSelected && styles.selectedMartItem]}
+                padding={16}
                 onPress={() => setSelectedMart(item)}
+                accessibilityLabel={`Select mart ${item.name}`}
               >
                 <View style={styles.martRow}>
                   <View style={styles.martInfo}>
@@ -265,34 +273,35 @@ export default function CheckinScreen({ navigation }) {
                     ) : (
                       <Text style={styles.distanceText}>--</Text>
                     )}
-                    <MaterialIcons 
-                      name={isSelected ? "radio-button-checked" : "radio-button-unchecked"} 
-                      size={20} 
-                      color={isSelected ? "#2196F3" : "#BDBDBD"} 
+                    <MaterialIcons
+                      name={isSelected ? "radio-button-checked" : "radio-button-unchecked"}
+                      size={20}
+                      color={isSelected ? colors.secondary : colors.textMuted}
                       style={{ marginTop: 4 }}
                     />
                   </View>
                 </View>
-              </TouchableOpacity>
+              </AppCard>
             );
           }}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No marts available to display.</Text>
+            <EmptyState
+              icon="storefront"
+              title="No marts available"
+              message="There are no marts to display right now."
+            />
           }
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 80 }}
         />
       )}
 
       <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.checkInButton, (!selectedMart || !locationPermissionGranted) && styles.disabledButton]}
+        <AppButton
+          title={locationPermissionGranted ? 'CONFIRM CHECK-IN' : 'LOCATION PERMISSION REQUIRED'}
           onPress={handleCheckIn}
+          variant="success"
           disabled={!selectedMart || checkingIn || !locationPermissionGranted}
-        >
-          <Text style={styles.checkInButtonText}>
-            {locationPermissionGranted ? 'CONFIRM CHECK-IN' : 'LOCATION PERMISSION REQUIRED'}
-          </Text>
-        </TouchableOpacity>
+        />
       </View>
 
       <FaceVerificationModal
@@ -318,10 +327,10 @@ export default function CheckinScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -334,7 +343,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#424242',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -344,18 +353,13 @@ const styles = StyleSheet.create({
   },
   refreshLocText: {
     fontSize: 13,
-    color: '#2196F3',
+    color: colors.secondary,
     fontWeight: '600',
     marginLeft: 4,
   },
   locationCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
     marginHorizontal: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
   },
   coordsRow: {
     flexDirection: 'row',
@@ -367,13 +371,13 @@ const styles = StyleSheet.create({
   },
   coordLabel: {
     fontSize: 10,
-    color: '#9E9E9E',
+    color: colors.textMuted,
     fontWeight: 'bold',
   },
   coordVal: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#212121',
+    color: colors.textPrimary,
     marginTop: 4,
   },
   gpsBadge: {
@@ -381,7 +385,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#E8F5E9',
+    backgroundColor: colors.successLight,
     paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 8,
@@ -390,24 +394,21 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#2E7D32',
+    color: colors.successDark,
   },
   errorText: {
-    color: '#D32F2F',
+    color: colors.error,
     textAlign: 'center',
     fontSize: 14,
   },
   martItem: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
     marginVertical: 6,
     borderWidth: 1.5,
-    borderColor: '#EEEEEE',
+    borderColor: colors.border,
   },
   selectedMartItem: {
-    borderColor: '#2196F3',
-    backgroundColor: '#E3F2FD',
+    borderColor: colors.secondary,
+    backgroundColor: colors.secondaryLight,
   },
   martRow: {
     flexDirection: 'row',
@@ -421,14 +422,14 @@ const styles = StyleSheet.create({
   martName: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#212121',
+    color: colors.textPrimary,
   },
   selectedText: {
-    color: '#1565C0',
+    color: colors.secondary,
   },
   martAddress: {
     fontSize: 12,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   martDistanceContainer: {
@@ -438,38 +439,16 @@ const styles = StyleSheet.create({
   distanceText: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#666',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#757575',
-    marginTop: 40,
-    fontSize: 14,
+    color: colors.textSecondary,
   },
   bottomBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  checkInButton: {
-    backgroundColor: '#2196F3',
-    height: 48,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  disabledButton: {
-    backgroundColor: '#BDBDBD',
-  },
-  checkInButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold',
-    letterSpacing: 1,
+    borderTopColor: colors.border,
   },
 });

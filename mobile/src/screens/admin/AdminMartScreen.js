@@ -15,8 +15,13 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
 import * as Location from 'expo-location';
+import AppCard from '../../components/AppCard';
+import AppButton from '../../components/AppButton';
+import { useTheme } from '../../theme';
 
 export default function AdminMartScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [marts, setMarts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -184,10 +189,14 @@ export default function AdminMartScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>All Mart Locations</Text>
-        <TouchableOpacity style={styles.addButton} onPress={handleOpenAdd}>
-          <MaterialIcons name="add" size={20} color="#fff" />
-          <Text style={styles.addButtonText}>Add Mart</Text>
-        </TouchableOpacity>
+        <AppButton
+          title="Add Mart"
+          onPress={handleOpenAdd}
+          variant="secondary"
+          size="sm"
+          icon="add"
+          fullWidth={false}
+        />
       </View>
 
       <FlatList
@@ -196,50 +205,52 @@ export default function AdminMartScreen() {
         renderItem={({ item }) => {
           const isInactive = item.isActive === false;
           return (
-            <View style={[styles.martCard, isInactive && styles.martCardInactive]}>
-              <View style={styles.martInfo}>
-                <View style={styles.martNameRow}>
-                  <Text style={styles.martName}>{item.name}</Text>
-                  {isInactive && (
-                    <View style={styles.inactiveBadge}>
-                      <Text style={styles.inactiveBadgeText}>DELETED</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.martAddress}>{item.address || 'No address'}</Text>
-                <Text style={styles.martCoords}>
-                  Lat: {item.latitude} | Lon: {item.longitude} | Radius: {item.radius}m
-                </Text>
-              </View>
-
-              <View style={styles.cardActions}>
-                <View style={styles.switchRow}>
-                  <Text style={styles.switchLabel}>Geofence</Text>
-                  <Switch
-                    value={item.geoFencingEnabled}
-                    onValueChange={(val) => handleToggleGeo(item.id, val)}
-                    trackColor={{ false: '#767577', true: '#90CAF9' }}
-                    thumbColor={item.geoFencingEnabled ? '#1976D2' : '#f4f3f4'}
-                    disabled={isInactive}
-                  />
+            <AppCard style={[styles.martCard, isInactive && styles.martCardInactive]} padding={14}>
+              <View style={styles.martCardRow}>
+                <View style={styles.martInfo}>
+                  <View style={styles.martNameRow}>
+                    <Text style={styles.martName}>{item.name}</Text>
+                    {isInactive && (
+                      <View style={styles.inactiveBadge}>
+                        <Text style={styles.inactiveBadgeText}>DELETED</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.martAddress}>{item.address || 'No address'}</Text>
+                  <Text style={styles.martCoords}>
+                    Lat: {item.latitude} | Lon: {item.longitude} | Radius: {item.radius}m
+                  </Text>
                 </View>
 
-                <View style={styles.buttonRow}>
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleOpenEdit(item)}>
-                    <MaterialIcons name="edit" size={18} color="#1976D2" />
-                  </TouchableOpacity>
-                  {isInactive ? (
-                    <TouchableOpacity style={[styles.actionBtn, styles.reactivateBtn]} onPress={() => handleReactivate(item)}>
-                      <MaterialIcons name="restore" size={18} color="#2E7D32" />
+                <View style={styles.cardActions}>
+                  <View style={styles.switchRow}>
+                    <Text style={styles.switchLabel}>Geofence</Text>
+                    <Switch
+                      value={item.geoFencingEnabled}
+                      onValueChange={(val) => handleToggleGeo(item.id, val)}
+                      trackColor={{ false: colors.border, true: colors.secondaryLight }}
+                      thumbColor={item.geoFencingEnabled ? colors.secondary : colors.surface}
+                      disabled={isInactive}
+                    />
+                  </View>
+
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => handleOpenEdit(item)}>
+                      <MaterialIcons name="edit" size={18} color={colors.secondary} />
                     </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDelete(item)}>
-                      <MaterialIcons name="delete" size={18} color="#D32F2F" />
-                    </TouchableOpacity>
-                  )}
+                    {isInactive ? (
+                      <TouchableOpacity style={[styles.actionBtn, styles.reactivateBtn]} onPress={() => handleReactivate(item)}>
+                        <MaterialIcons name="restore" size={18} color={colors.successDark} />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDelete(item)}>
+                        <MaterialIcons name="delete" size={18} color={colors.error} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               </View>
-            </View>
+            </AppCard>
           );
         }}
         contentContainerStyle={styles.list}
@@ -247,103 +258,85 @@ export default function AdminMartScreen() {
 
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <AppCard style={styles.modalContent}>
             <Text style={styles.modalTitle}>{editingMart ? 'Edit Mart' : 'Add New Mart'}</Text>
 
             <Text style={styles.label}>Name *</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Metro Mart" />
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Metro Mart" placeholderTextColor={colors.textMuted} />
 
             <Text style={styles.label}>Address</Text>
-            <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="e.g. 5th Avenue" />
+            <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="e.g. 5th Avenue" placeholderTextColor={colors.textMuted} />
 
-            <TouchableOpacity 
-              style={[styles.locationBtn, fetchingLocation && { opacity: 0.7 }]} 
+            <AppButton
+              title={fetchingLocation ? 'Fetching Location...' : 'Use Current GPS Location'}
               onPress={handleGetCurrentLocation}
               disabled={fetchingLocation}
-            >
-              <MaterialIcons name="my-location" size={16} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles.locationBtnText}>
-                {fetchingLocation ? 'Fetching Location...' : 'Use Current GPS Location'}
-              </Text>
-            </TouchableOpacity>
+              variant="success"
+              icon="my-location"
+              style={{ marginTop: 12, marginBottom: 4 }}
+            />
 
             <Text style={styles.label}>Latitude *</Text>
-            <TextInput style={styles.input} value={latitude} onChangeText={setLatitude} keyboardType="numeric" placeholder="e.g. 31.5204" />
+            <TextInput style={styles.input} value={latitude} onChangeText={setLatitude} keyboardType="numeric" placeholder="e.g. 31.5204" placeholderTextColor={colors.textMuted} />
 
             <Text style={styles.label}>Longitude *</Text>
-            <TextInput style={styles.input} value={longitude} onChangeText={setLongitude} keyboardType="numeric" placeholder="e.g. 74.3587" />
+            <TextInput style={styles.input} value={longitude} onChangeText={setLongitude} keyboardType="numeric" placeholder="e.g. 74.3587" placeholderTextColor={colors.textMuted} />
 
             <Text style={styles.label}>Radius (meters) *</Text>
-            <TextInput style={styles.input} value={radius} onChangeText={setRadius} keyboardType="numeric" placeholder="e.g. 100" />
+            <TextInput style={styles.input} value={radius} onChangeText={setRadius} keyboardType="numeric" placeholder="e.g. 100" placeholderTextColor={colors.textMuted} />
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                <Text style={styles.saveBtnText}>Save</Text>
-              </TouchableOpacity>
+              <AppButton
+                title="Cancel"
+                onPress={() => setModalVisible(false)}
+                variant="ghost"
+                style={{ flex: 1, marginRight: 10 }}
+              />
+              <AppButton
+                title="Save"
+                onPress={handleSave}
+                variant="secondary"
+                style={{ flex: 1, marginLeft: 10 }}
+              />
             </View>
-          </View>
+          </AppCard>
         </View>
       </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: colors.border,
   },
   title: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
-  },
-  addButton: {
-    backgroundColor: '#1976D2',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  addButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 4,
-    fontSize: 12,
+    color: colors.textPrimary,
   },
   list: {
     padding: 16,
   },
   martCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
     marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
   },
   martCardInactive: {
-    backgroundColor: '#FAFAFA',
     opacity: 0.7,
+  },
+  martCardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   martInfo: {
     flex: 1,
@@ -356,29 +349,29 @@ const styles = StyleSheet.create({
   martName: {
     fontWeight: 'bold',
     fontSize: 15,
-    color: '#333',
+    color: colors.textPrimary,
   },
   inactiveBadge: {
-    backgroundColor: '#D32F2F',
+    backgroundColor: colors.error,
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 8,
   },
   inactiveBadgeText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 9,
     fontWeight: 'bold',
     letterSpacing: 0.5,
   },
   martAddress: {
     fontSize: 12,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   martCoords: {
     fontSize: 11,
-    color: '#9E9E9E',
+    color: colors.textMuted,
     marginTop: 6,
   },
   cardActions: {
@@ -391,7 +384,7 @@ const styles = StyleSheet.create({
   },
   switchLabel: {
     fontSize: 10,
-    color: '#757575',
+    color: colors.textSecondary,
     marginRight: 6,
   },
   buttonRow: {
@@ -401,25 +394,23 @@ const styles = StyleSheet.create({
   actionBtn: {
     padding: 6,
     borderRadius: 6,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.secondaryLight,
     marginLeft: 8,
   },
   deleteBtn: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: colors.errorLight,
   },
   reactivateBtn: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: colors.successLight,
   },
   modalOverlay: {
     flex: 1,
+    // Modal dimmer scrim, not a themed surface — stays dark regardless of theme.
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
     width: '85%',
     maxWidth: 400,
   },
@@ -427,69 +418,29 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 16,
-    color: '#333',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   label: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 4,
     marginTop: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 40,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     fontSize: 14,
-    color: '#333',
+    color: colors.textPrimary,
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 20,
-  },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#ECEFF1',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  cancelBtnText: {
-    fontWeight: 'bold',
-    color: '#607D8B',
-  },
-  saveBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#1976D2',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  saveBtnText: {
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  locationBtn: {
-    backgroundColor: '#2E7D32',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 12,
-    marginBottom: 4,
-    elevation: 1,
-  },
-  locationBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 13,
   },
 });

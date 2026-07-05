@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   FlatList,
   Alert,
@@ -13,10 +12,16 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
+import AppCard from '../../components/AppCard';
+import AppButton from '../../components/AppButton';
+import SearchBar from '../../components/SearchBar';
 import { DATE_PRESETS, PRESET_LABELS, computeDateRange } from '../../utils/dateRangePresets';
 import { downloadAndShareFile } from '../../utils/downloadAndShareFile';
+import { useTheme } from '../../theme';
 
 export default function SalesAgentReportScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,7 +95,7 @@ export default function SalesAgentReportScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.card}>
+      <AppCard style={styles.card}>
         <Text style={styles.cardTitle}>Agent Sales CSV Report</Text>
         <Text style={styles.cardDesc}>
           Search an agent, choose a date range, and export their sales history only —
@@ -112,12 +117,11 @@ export default function SalesAgentReportScreen() {
           </View>
         ) : (
           <>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. RAFAY001 or Rafay"
+            <SearchBar
               value={searchQuery}
               onChangeText={setSearchQuery}
-              autoCapitalize="none"
+              placeholder="e.g. RAFAY001 or Rafay"
+              autoFocus={false}
             />
             {filteredAgents.length > 0 && (
               <FlatList
@@ -126,7 +130,7 @@ export default function SalesAgentReportScreen() {
                 style={styles.resultsList}
                 renderItem={({ item }) => (
                   <TouchableOpacity style={styles.resultRow} onPress={() => handleSelectAgent(item)}>
-                    <MaterialIcons name="person" size={18} color="#1976D2" />
+                    <MaterialIcons name="person" size={18} color={colors.secondary} />
                     <Text style={styles.resultText}>{item.name} ({item.agentId})</Text>
                   </TouchableOpacity>
                 )}
@@ -153,11 +157,11 @@ export default function SalesAgentReportScreen() {
         {preset === 'CUSTOM' && (
           <View style={styles.customDateRow}>
             <TouchableOpacity onPress={() => setShowFromPicker(true)} style={styles.dateBtn}>
-              <MaterialIcons name="date-range" size={18} color="#1976D2" />
+              <MaterialIcons name="date-range" size={18} color={colors.secondary} />
               <Text style={styles.dateBtnText}>From: {customFrom.toLocaleDateString()}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowToPicker(true)} style={styles.dateBtn}>
-              <MaterialIcons name="date-range" size={18} color="#1976D2" />
+              <MaterialIcons name="date-range" size={18} color={colors.secondary} />
               <Text style={styles.dateBtnText}>To: {customTo.toLocaleDateString()}</Text>
             </TouchableOpacity>
           </View>
@@ -170,69 +174,53 @@ export default function SalesAgentReportScreen() {
           <DateTimePicker value={customTo} mode="date" display="default" onChange={onToChange} />
         )}
 
-        <TouchableOpacity style={styles.exportButton} onPress={handleGenerate}>
-          <MaterialIcons name="file-download" size={22} color="#fff" />
-          <Text style={styles.exportButtonText}>Generate Sales CSV</Text>
-        </TouchableOpacity>
-      </View>
+        <AppButton
+          title="Generate Sales CSV"
+          onPress={handleGenerate}
+          variant="warning"
+          icon="file-download"
+          style={{ marginTop: 20 }}
+        />
+      </AppCard>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
     padding: 16,
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
+  card: {},
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   cardDesc: {
     fontSize: 12,
-    color: '#757575',
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18,
   },
   divider: {
     height: 1,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: colors.divider,
     marginVertical: 16,
   },
   label: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 44,
-    backgroundColor: '#FAFAFA',
-    fontSize: 14,
-    color: '#333',
   },
   resultsList: {
     maxHeight: 180,
     borderWidth: 1,
-    borderColor: '#EEEEEE',
+    borderColor: colors.border,
     borderRadius: 8,
     marginTop: 6,
   },
@@ -242,39 +230,39 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
+    borderBottomColor: colors.divider,
   },
   resultText: {
     marginLeft: 8,
     fontSize: 13,
-    color: '#333',
+    color: colors.textPrimary,
   },
   selectedAgentRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#E3F2FD',
+    backgroundColor: colors.secondaryLight,
     borderRadius: 8,
     padding: 12,
   },
   selectedAgentName: {
     fontWeight: 'bold',
     fontSize: 14,
-    color: '#1565C0',
+    color: colors.secondary,
   },
   selectedAgentId: {
     fontSize: 11,
-    color: '#1976D2',
+    color: colors.secondary,
     marginTop: 2,
   },
   changeBtn: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#1976D2',
+    backgroundColor: colors.secondary,
     borderRadius: 6,
   },
   changeBtnText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 11,
     fontWeight: 'bold',
   },
@@ -288,21 +276,21 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     alignItems: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
   },
   presetBtnActive: {
-    backgroundColor: '#1976D2',
-    borderColor: '#1976D2',
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
   },
   presetBtnText: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#666',
+    color: colors.textSecondary,
   },
   presetBtnTextActive: {
-    color: '#fff',
+    color: colors.textOnPrimary,
   },
   customDateRow: {
     flexDirection: 'row',
@@ -314,30 +302,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 10,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
     marginHorizontal: 2,
   },
   dateBtnText: {
     fontSize: 12,
-    color: '#333',
+    color: colors.textPrimary,
     marginLeft: 6,
-  },
-  exportButton: {
-    backgroundColor: '#FF9800',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 48,
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  exportButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 15,
-    marginLeft: 8,
   },
 });

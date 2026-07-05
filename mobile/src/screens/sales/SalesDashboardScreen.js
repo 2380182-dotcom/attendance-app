@@ -6,7 +6,6 @@ import {
   RefreshControl,
   Alert,
   SafeAreaView,
-  TouchableOpacity,
   ScrollView
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -14,12 +13,19 @@ import api, { apiService } from '../../services/api';
 import CustomMapView from '../../components/MapView';
 import Loading from '../../components/Loading';
 import ProductThumbnail from '../../components/ProductThumbnail';
+import AppTopBar from '../../components/AppTopBar';
+import AppCard from '../../components/AppCard';
+import MetricCard from '../../components/MetricCard';
+import StatusChip from '../../components/StatusChip';
 import { AuthContext } from '../../context/AuthContext';
 import { storage } from '../../utils/storage';
 import config from '../../config';
 import { connectSalesWebSocket } from '../../services/WebSocketService';
+import { useTheme } from '../../theme';
 
 export default function SalesDashboardScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { logout } = useContext(AuthContext);
   const [activeAgents, setActiveAgents] = useState([]);
   const [marts, setMarts] = useState([]);
@@ -108,53 +114,50 @@ export default function SalesDashboardScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Dawn Bread Sales</Text>
-          <Text style={styles.headerSubtitle}>Sales Department Console</Text>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={() => navigation.navigate('SalesReport')} style={styles.iconButton}>
-            <MaterialIcons name="assessment" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('SalesAgentReport')} style={styles.iconButton}>
-            <MaterialIcons name="file-download" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout} style={styles.iconButton}>
-            <MaterialIcons name="exit-to-app" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppTopBar
+        title="Dawn Bread Sales"
+        subtitle="Sales Department Console"
+        actions={[
+          { icon: 'assessment', onPress: () => navigation.navigate('SalesReport'), accessibilityLabel: 'Sales report' },
+          { icon: 'file-download', onPress: () => navigation.navigate('SalesAgentReport'), accessibilityLabel: 'Agent report' },
+          { icon: 'exit-to-app', onPress: handleLogout, accessibilityLabel: 'Log out' },
+        ]}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} color="#1976D2" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
         }
       >
         {/* Revenue / Units Summary */}
         <View style={styles.summaryGrid}>
-          <View style={[styles.summaryCard, { borderLeftColor: '#4CAF50' }]}>
-            <MaterialIcons name="monetization-on" size={20} color="#4CAF50" />
-            <Text style={styles.summaryVal}>PKR {dashboardData?.todayTotalRevenue?.toLocaleString() || 0}</Text>
-            <Text style={styles.summaryLabel}>Revenue Today</Text>
-          </View>
-          <View style={[styles.summaryCard, { borderLeftColor: '#2196F3' }]}>
-            <MaterialIcons name="local-shipping" size={20} color="#2196F3" />
-            <Text style={styles.summaryVal}>{dashboardData?.todayTotalUnits || 0}</Text>
-            <Text style={styles.summaryLabel}>Units Dispatched</Text>
-          </View>
-          <View style={[styles.summaryCard, { borderLeftColor: '#E91E63' }]}>
-            <MaterialIcons name="people" size={20} color="#E91E63" />
-            <Text style={styles.summaryVal}>{dashboardData?.activeAgentsCount || 0}</Text>
-            <Text style={styles.summaryLabel}>Checked In Today</Text>
-          </View>
+          <MetricCard
+            icon="monetization-on"
+            color="success"
+            value={`PKR ${dashboardData?.todayTotalRevenue?.toLocaleString() || 0}`}
+            label="Revenue Today"
+            style={styles.summaryCard}
+          />
+          <MetricCard
+            icon="local-shipping"
+            color="secondary"
+            value={dashboardData?.todayTotalUnits || 0}
+            label="Units Dispatched"
+            style={styles.summaryCard}
+          />
+          <MetricCard
+            icon="people"
+            color="primary"
+            value={dashboardData?.activeAgentsCount || 0}
+            label="Checked In Today"
+            style={styles.summaryCard}
+          />
         </View>
 
         {/* Real-time Alerts */}
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="notifications-active" size={16} color="#E53935" />
+          <MaterialIcons name="notifications-active" size={16} color={colors.error} />
           <Text style={styles.sectionTitle}>Real-time Alerts</Text>
         </View>
         <View style={styles.alertsCard}>
@@ -169,7 +172,7 @@ export default function SalesDashboardScreen({ navigation }) {
 
         {/* Map View */}
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="map" size={16} color="#424242" />
+          <MaterialIcons name="map" size={16} color={colors.textSecondary} />
           <Text style={styles.sectionTitle}>Live Agent Map</Text>
         </View>
         <View style={styles.mapContainer}>
@@ -178,10 +181,10 @@ export default function SalesDashboardScreen({ navigation }) {
 
         {/* Sales by Agent Table */}
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="bar-chart" size={16} color="#424242" />
+          <MaterialIcons name="bar-chart" size={16} color={colors.textSecondary} />
           <Text style={styles.sectionTitle}>Sales by Agent (Today)</Text>
         </View>
-        <View style={styles.tableCard}>
+        <AppCard padding={10}>
           <View style={styles.tableHeader}>
             <Text style={[styles.tableCol, { flex: 2 }]}>Agent</Text>
             <Text style={[styles.tableCol, { flex: 0.8, textAlign: 'center' }]}>Units</Text>
@@ -193,25 +196,25 @@ export default function SalesDashboardScreen({ navigation }) {
               <View key={idx} style={styles.tableRow}>
                 <Text style={[styles.tableCellName, { flex: 2 }]}>{agent.agentName}</Text>
                 <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'center', fontWeight: '600' }]}>{agent.unitsSold}</Text>
-                <Text style={[styles.tableCell, { flex: 1.2, textAlign: 'right', fontWeight: 'bold', color: '#2E7D32' }]}>
+                <Text style={[styles.tableCell, { flex: 1.2, textAlign: 'right', fontWeight: 'bold', color: colors.successDark }]}>
                   PKR {(agent.revenue || 0).toLocaleString()}
                 </Text>
-                <Text style={[styles.tableCellStatus, { flex: 1.2, textAlign: 'center' }]}>
-                  {agent.status}
-                </Text>
+                <View style={{ flex: 1.2, alignItems: 'center' }}>
+                  <StatusChip status={agent.status} size="sm" />
+                </View>
               </View>
             ))
           ) : (
             <Text style={styles.emptyTableText}>No active agent records.</Text>
           )}
-        </View>
+        </AppCard>
 
         {/* Top Selling Products Table */}
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="bakery-dining" size={16} color="#424242" />
+          <MaterialIcons name="bakery-dining" size={16} color={colors.textSecondary} />
           <Text style={styles.sectionTitle}>Top Selling Products (Today)</Text>
         </View>
-        <View style={styles.tableCard}>
+        <AppCard padding={10}>
           <View style={styles.tableHeader}>
             <Text style={[styles.tableCol, { flex: 2.2 }]}>Product</Text>
             <Text style={[styles.tableCol, { flex: 0.8, textAlign: 'center' }]}>Units</Text>
@@ -229,7 +232,7 @@ export default function SalesDashboardScreen({ navigation }) {
                 <Text style={[styles.tableCell, { flex: 1.2, textAlign: 'right', fontWeight: 'bold' }]}>
                   PKR {(p.revenue || 0).toLocaleString()}
                 </Text>
-                <Text style={[styles.trendText, { flex: 1, textAlign: 'center', color: (p.trend || '').includes('+') ? '#4CAF50' : '#F44336' }]}>
+                <Text style={[styles.trendText, { flex: 1, textAlign: 'center', color: (p.trend || '').includes('+') ? colors.successDark : colors.error }]}>
                   {p.trend || 'N/A'}
                 </Text>
               </View>
@@ -237,14 +240,14 @@ export default function SalesDashboardScreen({ navigation }) {
           ) : (
             <Text style={styles.emptyTableText}>No product sales catalog data.</Text>
           )}
-        </View>
+        </AppCard>
 
         {/* 7 Days Sales Trend Graph */}
         <View style={styles.sectionTitleRow}>
-          <MaterialIcons name="trending-up" size={16} color="#424242" />
+          <MaterialIcons name="trending-up" size={16} color={colors.textSecondary} />
           <Text style={styles.sectionTitle}>Sales Trend (Last 7 Days)</Text>
         </View>
-        <View style={styles.chartCard}>
+        <AppCard>
           <View style={styles.chartContainer}>
             {dashboardData?.salesTrend && dashboardData.salesTrend.length > 0 ? (
               dashboardData.salesTrend.map((day, idx) => {
@@ -264,45 +267,16 @@ export default function SalesDashboardScreen({ navigation }) {
               <Text style={styles.emptyTableText}>No trend history available.</Text>
             )}
           </View>
-        </View>
+        </AppCard>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  header: {
-    backgroundColor: '#1976D2',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 }
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  headerSubtitle: {
-    color: '#E3F2FD',
-    fontSize: 11,
-    marginTop: 1
-  },
-  headerActions: {
-    flexDirection: 'row',
-  },
-  iconButton: {
-    marginLeft: 18,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 14,
@@ -317,7 +291,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#424242',
+    color: colors.textSecondary,
     marginLeft: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5
@@ -328,29 +302,12 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   summaryCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 12,
     width: '31%',
-    borderLeftWidth: 4,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 }
-  },
-  summaryVal: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#212121',
-    marginTop: 6
-  },
-  summaryLabel: {
-    fontSize: 9,
-    color: '#757575',
-    marginTop: 2
+    minWidth: 0,
   },
   alertsCard: {
+    // Deliberately a dark "log/terminal" panel for real-time alerts, distinct
+    // from the app's themed surfaces — stays dark in both light and dark mode.
     backgroundColor: '#37474F',
     borderRadius: 10,
     padding: 12,
@@ -374,27 +331,19 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E0E0E0'
-  },
-  tableCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    padding: 10,
-    elevation: 2
+    borderColor: colors.border
   },
   tableHeader: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
+    borderBottomColor: colors.divider,
     paddingBottom: 6,
     marginBottom: 4
   },
   tableCol: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#757575',
+    color: colors.textSecondary,
     textTransform: 'uppercase'
   },
   tableRow: {
@@ -402,29 +351,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5'
+    borderBottomColor: colors.divider
   },
   tableCellName: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#212121'
+    color: colors.textPrimary
   },
   tableCell: {
     fontSize: 12,
-    color: '#212121'
-  },
-  tableCellStatus: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#1565C0',
-    backgroundColor: '#E3F2FD',
-    borderRadius: 6,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    overflow: 'hidden'
+    color: colors.textPrimary
   },
   emptyTableText: {
-    color: '#757575',
+    color: colors.textSecondary,
     fontSize: 12,
     textAlign: 'center',
     paddingVertical: 16
@@ -437,26 +376,18 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 4,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: colors.surfaceMuted,
     marginRight: 6
   },
   productCellText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#212121',
+    color: colors.textPrimary,
     flex: 1
   },
   trendText: {
     fontSize: 11,
     fontWeight: 'bold'
-  },
-  chartCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 16,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#EEEEEE'
   },
   chartContainer: {
     flexDirection: 'row',
@@ -472,24 +403,24 @@ const styles = StyleSheet.create({
   barOuter: {
     height: 90,
     width: 14,
-    backgroundColor: '#ECEFF1',
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 7,
     justifyContent: 'flex-end'
   },
   barInner: {
-    backgroundColor: '#FF9800',
+    backgroundColor: colors.warning,
     borderRadius: 7,
     width: '100%'
   },
   barLabel: {
     fontSize: 9,
     fontWeight: 'bold',
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 6
   },
   barValue: {
     fontSize: 8,
-    color: '#333',
+    color: colors.textPrimary,
     fontWeight: '600',
     marginTop: 1
   }

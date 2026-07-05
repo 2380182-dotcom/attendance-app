@@ -18,6 +18,15 @@ const lightColors = {
   error: '#C62828',      // kept distinct from primary red so "submit" and "failed" never look identical
   background: '#F8F9FA',
 
+  // Text/icon-safe variants of success/warning/accent — the base tones above are
+  // calibrated for buttons/large chips and fail WCAG contrast (~2:1, and accent
+  // fails as badly as ~1.6:1) as text or icons on top of their own *Light tint.
+  // Use these instead whenever success/warning/accent renders as text or an icon
+  // on a tinted background (e.g. MetricCard, StatusChip).
+  successDark: '#166534',
+  warningDark: '#92400E',
+  accentDark: '#854D0E',
+
   // Light tint variants — badge/chip/status-container backgrounds
   primaryLight: '#FCE4E6',
   secondaryLight: '#E1EDFB',
@@ -45,6 +54,13 @@ const lightColors = {
   chart2: '#00ACC1',
   chart3: '#1E88E5',
   chart4: '#E91E63',
+
+  // Light-tint chip background for MetricCard when color="chart1"/"chart2", plus
+  // an icon-safe dark variant for chart2 (the base tone fails contrast on its own
+  // tint, same issue as success/warning/accent above).
+  chart1Light: '#EDE7F6',
+  chart2Light: '#E0F7FA',
+  chart2Dark: '#00707F',
 };
 
 const darkColors = {
@@ -55,6 +71,14 @@ const darkColors = {
   warning: '#FBBF24',
   error: '#EF5350',
   background: '#121417',
+
+  // Already high-contrast against successLight/warningLight/accentLight in dark
+  // mode (~7-8:1), so these text/icon-safe variants just alias the base tones.
+  // Kept as separate keys for parity with lightColors and so call sites don't
+  // need a light/dark branch.
+  successDark: '#3DDC84',
+  warningDark: '#FBBF24',
+  accentDark: '#FDB913',
 
   primaryLight: '#3A1518',
   secondaryLight: '#132A42',
@@ -79,6 +103,11 @@ const darkColors = {
   chart2: '#4DD0E1',
   chart3: '#64B5F6',
   chart4: '#F06292',
+
+  // Already high-contrast in dark mode — see lightColors for why these exist.
+  chart1Light: '#2A2438',
+  chart2Light: '#0F2E33',
+  chart2Dark: '#4DD0E1',
 };
 
 // Static export for call sites that can't use the hook (e.g. outside components).

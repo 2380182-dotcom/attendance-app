@@ -4,7 +4,6 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   RefreshControl,
   Alert,
   SafeAreaView
@@ -13,8 +12,14 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
 import { AuthContext } from '../../context/AuthContext';
+import AppTopBar from '../../components/AppTopBar';
+import AppCard from '../../components/AppCard';
+import MetricCard from '../../components/MetricCard';
+import { useTheme } from '../../theme';
 
 export default function AdminDashboardScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { logout } = useContext(AuthContext);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -55,138 +60,128 @@ export default function AdminDashboardScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Admin Console</Text>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-          <MaterialIcons name="exit-to-app" size={24} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      <AppTopBar
+        title="Admin Console"
+        actions={[{ icon: 'exit-to-app', onPress: handleLogout, accessibilityLabel: 'Log out' }]}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} color="#1976D2" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
         }
       >
         <Text style={styles.sectionTitle}>System Statistics</Text>
         <View style={styles.grid}>
-          <View style={styles.statBox}>
-            <MaterialIcons name="people" size={28} color="#1976D2" />
-            <Text style={styles.statVal}>{stats?.totalAgents || 0}</Text>
-            <Text style={styles.statLabel}>Total Agents</Text>
-          </View>
-          <View style={styles.statBox}>
-            <MaterialIcons name="person-pin" size={28} color="#4CAF50" />
-            <Text style={styles.statVal}>{stats?.activeToday || 0}</Text>
-            <Text style={styles.statLabel}>Active Today</Text>
-          </View>
-          <View style={styles.statBox}>
-            <MaterialIcons name="login" size={28} color="#FF9800" />
-            <Text style={styles.statVal}>{stats?.checkInsToday || 0}</Text>
-            <Text style={styles.statLabel}>Check-ins Today</Text>
-          </View>
+          <MetricCard
+            icon="people"
+            color="secondary"
+            value={stats?.totalAgents || 0}
+            label="Total Agents"
+            style={styles.statBox}
+          />
+          <MetricCard
+            icon="person-pin"
+            color="success"
+            value={stats?.activeToday || 0}
+            label="Active Today"
+            style={styles.statBox}
+          />
+          <MetricCard
+            icon="login"
+            color="warning"
+            value={stats?.checkInsToday || 0}
+            label="Check-ins Today"
+            style={styles.statBox}
+          />
         </View>
 
         <View style={styles.grid}>
-          <View style={styles.statBox}>
-            <MaterialIcons name="notifications-active" size={28} color="#E53935" />
-            <Text style={styles.statVal}>{stats?.lateArrivalsToday || 0}</Text>
-            <Text style={styles.statLabel}>Late Arrivals</Text>
-          </View>
-          <View style={styles.statBox}>
-            <MaterialIcons name="track-changes" size={28} color="#00ACC1" />
-            <Text style={styles.statVal}>{stats?.activeGeoFences || 0}</Text>
-            <Text style={styles.statLabel}>Active Fences</Text>
-          </View>
-          <View style={styles.statBox}>
-            <MaterialIcons name="store" size={28} color="#5E35B1" />
-            <Text style={styles.statVal}>{stats?.totalMarts || 0}</Text>
-            <Text style={styles.statLabel}>Total Marts</Text>
-          </View>
+          <MetricCard
+            icon="notifications-active"
+            color="error"
+            value={stats?.lateArrivalsToday || 0}
+            label="Late Arrivals"
+            style={styles.statBox}
+          />
+          <MetricCard
+            icon="track-changes"
+            color="chart2"
+            value={stats?.activeGeoFences || 0}
+            label="Active Fences"
+            style={styles.statBox}
+          />
+          <MetricCard
+            icon="store"
+            color="chart1"
+            value={stats?.totalMarts || 0}
+            label="Total Marts"
+            style={styles.statBox}
+          />
         </View>
 
         <Text style={styles.sectionTitle}>Console Operations</Text>
-        
-        <TouchableOpacity
-          style={styles.toolRow}
-          onPress={() => navigation.navigate('AdminMart')}
-        >
-          <View style={styles.toolIconWrapper}>
-            <MaterialIcons name="store" size={22} color="#1976D2" />
-          </View>
-          <View style={styles.toolInfo}>
-            <Text style={styles.toolTitle}>Mart Locations Management</Text>
-            <Text style={styles.toolDesc}>Create, edit, or delete Mart stores</Text>
-          </View>
-          <MaterialIcons name="chevron-right" size={24} color="#B0BEC5" />
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.toolRow}
-          onPress={() => navigation.navigate('AdminGeoFence')}
-        >
-          <View style={[styles.toolIconWrapper, { backgroundColor: '#E0F7FA' }]}>
-            <MaterialIcons name="track-changes" size={22} color="#00ACC1" />
+        <AppCard style={styles.toolRow} onPress={() => navigation.navigate('AdminMart')} padding={14}>
+          <View style={styles.toolRowInner}>
+            <View style={[styles.toolIconWrapper, { backgroundColor: colors.secondaryLight }]}>
+              <MaterialIcons name="store" size={22} color={colors.secondary} />
+            </View>
+            <View style={styles.toolInfo}>
+              <Text style={styles.toolTitle}>Mart Locations Management</Text>
+              <Text style={styles.toolDesc}>Create, edit, or delete Mart stores</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
           </View>
-          <View style={styles.toolInfo}>
-            <Text style={styles.toolTitle}>Geo-Fence Boundaries Tuning</Text>
-            <Text style={styles.toolDesc}>Adjust radius check-in circles on the map</Text>
-          </View>
-          <MaterialIcons name="chevron-right" size={24} color="#B0BEC5" />
-        </TouchableOpacity>
+        </AppCard>
 
-        <TouchableOpacity
-          style={styles.toolRow}
-          onPress={() => navigation.navigate('AdminUsers')}
-        >
-          <View style={[styles.toolIconWrapper, { backgroundColor: '#EDE7F6' }]}>
-            <MaterialIcons name="people" size={22} color="#5E35B1" />
+        <AppCard style={styles.toolRow} onPress={() => navigation.navigate('AdminGeoFence')} padding={14}>
+          <View style={styles.toolRowInner}>
+            <View style={[styles.toolIconWrapper, { backgroundColor: colors.chart2Light }]}>
+              <MaterialIcons name="track-changes" size={22} color={colors.chart2Dark} />
+            </View>
+            <View style={styles.toolInfo}>
+              <Text style={styles.toolTitle}>Geo-Fence Boundaries Tuning</Text>
+              <Text style={styles.toolDesc}>Adjust radius check-in circles on the map</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
           </View>
-          <View style={styles.toolInfo}>
-            <Text style={styles.toolTitle}>User Roles & Authorization</Text>
-            <Text style={styles.toolDesc}>Assign roles (Admin, HR, Sales, Agent)</Text>
-          </View>
-          <MaterialIcons name="chevron-right" size={24} color="#B0BEC5" />
-        </TouchableOpacity>
+        </AppCard>
 
-        <TouchableOpacity
-          style={styles.toolRow}
-          onPress={() => navigation.navigate('ReportGenerator')}
-        >
-          <View style={[styles.toolIconWrapper, { backgroundColor: '#E8F5E9' }]}>
-            <MaterialIcons name="file-download" size={22} color="#2E7D32" />
+        <AppCard style={styles.toolRow} onPress={() => navigation.navigate('AdminUsers')} padding={14}>
+          <View style={styles.toolRowInner}>
+            <View style={[styles.toolIconWrapper, { backgroundColor: colors.chart1Light }]}>
+              <MaterialIcons name="people" size={22} color={colors.chart1} />
+            </View>
+            <View style={styles.toolInfo}>
+              <Text style={styles.toolTitle}>User Roles & Authorization</Text>
+              <Text style={styles.toolDesc}>Assign roles (Admin, HR, Sales, Agent)</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
           </View>
-          <View style={styles.toolInfo}>
-            <Text style={styles.toolTitle}>Excel Report Exporter</Text>
-            <Text style={styles.toolDesc}>Download multi-sheet attendance records</Text>
+        </AppCard>
+
+        <AppCard style={styles.toolRow} onPress={() => navigation.navigate('ReportGenerator')} padding={14}>
+          <View style={styles.toolRowInner}>
+            <View style={[styles.toolIconWrapper, { backgroundColor: colors.successLight }]}>
+              <MaterialIcons name="file-download" size={22} color={colors.successDark} />
+            </View>
+            <View style={styles.toolInfo}>
+              <Text style={styles.toolTitle}>Excel Report Exporter</Text>
+              <Text style={styles.toolDesc}>Download multi-sheet attendance records</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
           </View>
-          <MaterialIcons name="chevron-right" size={24} color="#B0BEC5" />
-        </TouchableOpacity>
+        </AppCard>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  header: {
-    backgroundColor: '#1976D2',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  logoutBtn: {
-    padding: 4,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 16,
@@ -194,7 +189,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#424242',
+    color: colors.textSecondary,
     marginTop: 12,
     marginBottom: 12,
     textTransform: 'uppercase',
@@ -206,49 +201,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statBox: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
     width: '31%',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-  },
-  statVal: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginVertical: 4,
-  },
-  statLabel: {
-    fontSize: 10,
-    color: '#757575',
-    textAlign: 'center',
+    minWidth: 0,
   },
   toolRow: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
+    marginBottom: 12,
+  },
+  toolRowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
   },
   toolIconWrapper: {
     width: 42,
     height: 42,
     borderRadius: 8,
-    backgroundColor: '#E3F2FD',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
@@ -259,11 +225,11 @@ const styles = StyleSheet.create({
   toolTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.textPrimary,
   },
   toolDesc: {
     fontSize: 11,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 2,
   },
 });
