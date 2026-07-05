@@ -1,65 +1,146 @@
 /**
- * Central design system — Dawn Bread brand palette, spacing, and shared constants.
- * Import from here instead of hardcoding hex values in StyleSheet definitions.
+ * Central design system — Dawn Bread Pakistan brand guidelines.
+ * Import from here instead of hardcoding hex values, font sizes, or spacing in
+ * StyleSheet definitions.
+ *
+ * NOTE: this supersedes an earlier draft palette (navy/red/green built for the
+ * Login screen only) — that screen still needs re-touching to match these values.
  */
+import { useColorScheme } from 'react-native';
 
-export const colors = {
+const lightColors = {
   // Brand palette
-  primary: '#00478A',    // navy blue — headers, navigation, primary brand elements
-  action: '#ED1C24',     // red — primary action buttons (Check-in, Submit, Export, Generate Report)
-  success: '#8DC63F',    // green — active/checked-in/on-time states, success alerts
-  warning: '#F7941D',    // orange — pending/missing verification, warning states
-  error: '#C62828',      // deeper red — failed/absent/error states (kept distinct from action red)
-  background: '#FAF7F2', // warm off-white — screen backgrounds
+  primary: '#E30613',    // Dawn Red — primary brand color, top bars, primary CTAs
+  secondary: '#0057B8',  // Brand Blue — secondary actions, links, selected states
+  accent: '#FDB913',     // Golden Wheat — sparing use: highlights, badges, ratings
+  success: '#22C55E',
+  warning: '#F59E0B',
+  error: '#C62828',      // kept distinct from primary red so "submit" and "failed" never look identical
+  background: '#F8F9FA',
 
   // Light tint variants — badge/chip/status-container backgrounds
-  primaryLight: '#E3F2FD',
-  successLight: '#E8F5E9',
-  warningLight: '#FFF3E0',
-  errorLight: '#FFEBEE',
+  primaryLight: '#FCE4E6',
+  secondaryLight: '#E1EDFB',
+  accentLight: '#FEF3D6',
+  successLight: '#E6F9EF',
+  warningLight: '#FEF3E2',
+  errorLight: '#FBEAEA',
 
-  // Neutrals — cover the text/border/surface colors used throughout existing screens
+  // Neutrals
   white: '#FFFFFF',
-  surface: '#FFFFFF',
-  inputBackground: '#FAFAFA', // form input fields specifically — distinct from screen background
-  surfaceMuted: '#ECEFF1',    // muted/secondary button backgrounds (e.g. Cancel/Reset)
-  textPrimary: '#212121',
-  textSecondary: '#757575',
-  textMuted: '#9E9E9E',
-  border: '#E0E0E0',
-  divider: '#EEEEEE',
+  surface: '#FFFFFF',        // card background — "white with subtle elevation"
+  inputBackground: '#F5F6F7',
+  surfaceMuted: '#EEF0F2',
+  textPrimary: '#1A1D1F',
+  textSecondary: '#6B7280',
+  textMuted: '#9CA3AF',
+  textOnPrimary: '#FFFFFF',
+  border: '#E5E7EB',
+  divider: '#EDEEF0',
   shadow: '#000000',
 
   // Accent colors — for distinguishing multiple simultaneous stat cards/chart series
   // where reusing a semantic brand color (success/warning/error) would be misleading.
-  accent1: '#5E35B1', // purple
-  accent2: '#00ACC1', // teal
-  accent3: '#1E88E5', // light blue
-  accent4: '#E91E63', // pink
+  chart1: '#5E35B1',
+  chart2: '#00ACC1',
+  chart3: '#1E88E5',
+  chart4: '#E91E63',
 };
+
+const darkColors = {
+  primary: '#FF4D5A',
+  secondary: '#4C9AFF',
+  accent: '#FDB913',
+  success: '#3DDC84',
+  warning: '#FBBF24',
+  error: '#EF5350',
+  background: '#121417',
+
+  primaryLight: '#3A1518',
+  secondaryLight: '#132A42',
+  accentLight: '#3A2E0E',
+  successLight: '#0F2E1E',
+  warningLight: '#3A2A0E',
+  errorLight: '#3A1414',
+
+  white: '#FFFFFF',
+  surface: '#1C1F23',
+  inputBackground: '#22262B',
+  surfaceMuted: '#262B31',
+  textPrimary: '#F3F4F6',
+  textSecondary: '#A6ADBB',
+  textMuted: '#7C8492',
+  textOnPrimary: '#FFFFFF',
+  border: '#2E333A',
+  divider: '#282D33',
+  shadow: '#000000',
+
+  chart1: '#9575CD',
+  chart2: '#4DD0E1',
+  chart3: '#64B5F6',
+  chart4: '#F06292',
+};
+
+// Static export for call sites that can't use the hook (e.g. outside components).
+// Prefer useTheme() inside components so dark mode is respected automatically.
+export const colors = lightColors;
 
 export const spacing = {
   xs: 4,
   sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 40,
 };
 
 export const radius = {
-  card: 12,
-  chip: 8,
-  pill: 20,
+  card: 20,
+  button: 14,
+  chip: 12,
+  pill: 24,
+  input: 12,
 };
 
-export const shadow = {
-  card: {
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
+export const typography = {
+  display: { fontSize: 32, fontWeight: '700', lineHeight: 40 },
+  h1: { fontSize: 26, fontWeight: '700', lineHeight: 32 },
+  h2: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
+  h3: { fontSize: 18, fontWeight: '600', lineHeight: 24 },
+  title: { fontSize: 16, fontWeight: '600', lineHeight: 22 },
+  subtitle: { fontSize: 14, fontWeight: '600', lineHeight: 20 },
+  body: { fontSize: 14, fontWeight: '400', lineHeight: 20 },
+  bodySmall: { fontSize: 13, fontWeight: '400', lineHeight: 18 },
+  label: { fontSize: 12, fontWeight: '700', lineHeight: 16, letterSpacing: 0.4 },
+  caption: { fontSize: 11, fontWeight: '500', lineHeight: 14 },
+};
+
+export function cardShadow(c = lightColors) {
+  return {
+    shadowColor: c.shadow,
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-};
+    shadowRadius: 8,
+    elevation: 3,
+  };
+}
 
-export default { colors, spacing, radius, shadow };
+/**
+ * Resolves the active palette based on the device's light/dark setting.
+ * Use inside components: const { colors: c } = useTheme();
+ */
+export function useTheme() {
+  const scheme = useColorScheme();
+  const isDark = scheme === 'dark';
+  const activeColors = isDark ? darkColors : lightColors;
+  return {
+    isDark,
+    colors: activeColors,
+    spacing,
+    radius,
+    typography,
+    shadow: cardShadow(activeColors),
+  };
+}
+
+export default { colors, spacing, radius, typography, cardShadow, useTheme };

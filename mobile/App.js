@@ -1,6 +1,8 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import * as Notifications from 'expo-notifications';
 
 // Polyfill TextEncoder/TextDecoder required by sockjs-client in React Native
@@ -15,8 +17,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { AuthProvider } from './src/context/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef, navigate } from './src/navigation/NavigationService';
-import './src/services/LocationService'; 
+import './src/services/LocationService';
 import NotificationService from './src/services/NotificationService';
+import { colors } from './src/theme';
 
 export default function App() {
   const notificationListener = useRef();
@@ -50,13 +53,17 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <NavigationContainer ref={navigationRef}>
-        <AuthProvider>
-          <StatusBar style="light" backgroundColor="#1976D2" />
-          <AppNavigator />
-        </AuthProvider>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <NavigationContainer ref={navigationRef}>
+          <AuthProvider>
+            <BottomSheetModalProvider>
+              <StatusBar style="light" backgroundColor={colors.primary} />
+              <AppNavigator />
+            </BottomSheetModalProvider>
+          </AuthProvider>
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
