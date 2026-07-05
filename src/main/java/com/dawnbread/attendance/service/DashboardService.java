@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -232,9 +233,9 @@ public class DashboardService {
                     unitsSold
             ));
 
-            // Generate overall attendance history performance
-            long totalAgentCheckins = attendanceRepository.countByAgentId(agent.getId());
-            double attPercent = totalAgentsCount > 0 ? (Math.min(totalAgentCheckins * 5.0, 100.0)) : 100.0; // simple percentage mapping
+            // Overall attendance performance for the current month-to-date, based on the
+            // agent's actual working-day schedule (not a lifetime-checkin-count placeholder).
+            double attPercent = calculateAttendancePercentage(agent, today.withDayOfMonth(1), today);
 
             String status = "Absent";
             if (!attendances.isEmpty()) {
@@ -280,5 +281,46 @@ public class DashboardService {
                 attendanceSalesSheet,
                 topPerformers
         );
+    }
+
+    private static final Map<DayOfWeek, String> WORKING_DAY_CODES = Map.of(
+            DayOfWeek.MONDAY, "MON",
+            DayOfWeek.TUESDAY, "TUE",
+            DayOfWeek.WEDNESDAY, "WED",
+            DayOfWeek.THURSDAY, "THU",
+            DayOfWeek.FRIDAY, "FRI",
+            DayOfWeek.SATURDAY, "SAT",
+            DayOfWeek.SUNDAY, "SUN"
+    );
+
+    /**
+     * Real attendance percentage: days actually present ÷ days the agent was scheduled
+     * to work (per their workingDays field) within [periodStart, periodEnd], inclusive.
+     * Replaces the old checkins-count * 5% placeholder.
+     */
+    private double calculateAttendancePercentage(Agent agent, LocalDate periodStart, LocalDate periodEnd) {
+        List<String> workingDays = agent.getWorkingDays();
+        if (workingDays == null || workingDays.isEmpty()) {
+            return 0.0;
+        }
+
+        int expectedDays = 0;
+        for (LocalDate d = periodStart; !d.isAfter(periodEnd); d = d.plusDays(1)) {
+            if (workingDays.contains(WORKING_DAY_CODES.get(d.getDayOfWeek()))) {
+                expectedDays++;
+            }
+        }
+        if (expectedDays == 0) {
+            return 0.0;
+        }
+
+        List<Attendance> periodAttendance = attendanceRepository.findByAgentIdAndCheckInTimeBetween(
+                agent.getId(), periodStart.atStartOfDay(), periodEnd.atTime(23, 59, 59));
+        long daysPresent = periodAttendance.stream()
+                .map(a -> a.getCheckInTime().toLocalDate())
+                .distinct()
+                .count();
+
+        return Math.min(daysPresent * 100.0 / expectedDays, 100.0);
     }
 }

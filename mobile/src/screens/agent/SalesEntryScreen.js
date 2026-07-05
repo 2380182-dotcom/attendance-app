@@ -8,13 +8,13 @@ import {
   FlatList,
   Alert,
   SafeAreaView,
-  Image,
   ScrollView
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { apiService } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
+import ProductThumbnail from '../../components/ProductThumbnail';
 
 export default function SalesEntryScreen({ navigation }) {
   const { user } = useContext(AuthContext);
@@ -184,7 +184,7 @@ export default function SalesEntryScreen({ navigation }) {
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
             <View style={styles.productRow}>
-              <Image source={{ uri: item.thumbnailUrl }} style={styles.productImage} />
+              <ProductThumbnail uri={item.thumbnailUrl} size={40} style={styles.productImage} />
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{item.name}</Text>
                 <Text style={styles.productPrice}>PKR {item.price}</Text>

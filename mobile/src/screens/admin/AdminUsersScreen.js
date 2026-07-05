@@ -515,7 +515,7 @@ export default function AdminUsersScreen() {
                   >
                     <MaterialIcons name={newFaceRegistered ? "face" : "add-a-photo"} size={18} color="#fff" style={{ marginRight: 6 }} />
                     <Text style={styles.faceRegisterBtnText}>
-                      {newFaceRegistered ? "Face Registered ✓" : "Register Agent Face"}
+                      {newFaceRegistered ? "Face Registered" : "Register Agent Face"}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -678,7 +678,7 @@ export default function AdminUsersScreen() {
                   >
                     <MaterialIcons name={faceRegistered ? "face" : "add-a-photo"} size={18} color="#fff" style={{ marginRight: 6 }} />
                     <Text style={styles.faceRegisterBtnText}>
-                      {faceRegistered ? "Face Registered ✓" : "Register Face Verification"}
+                      {faceRegistered ? "Face Registered" : "Register Face Verification"}
                     </Text>
                   </TouchableOpacity>
                 </View>

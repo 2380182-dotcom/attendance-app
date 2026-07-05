@@ -7,13 +7,13 @@ import {
   Alert,
   SafeAreaView,
   TouchableOpacity,
-  ScrollView,
-  Image
+  ScrollView
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import api, { apiService } from '../../services/api';
 import CustomMapView from '../../components/MapView';
 import Loading from '../../components/Loading';
+import ProductThumbnail from '../../components/ProductThumbnail';
 import { AuthContext } from '../../context/AuthContext';
 import { storage } from '../../utils/storage';
 import config from '../../config';
@@ -148,12 +148,15 @@ export default function SalesDashboardScreen({ navigation }) {
           <View style={[styles.summaryCard, { borderLeftColor: '#E91E63' }]}>
             <MaterialIcons name="people" size={20} color="#E91E63" />
             <Text style={styles.summaryVal}>{dashboardData?.activeAgentsCount || 0}</Text>
-            <Text style={styles.summaryLabel}>Active Agents</Text>
+            <Text style={styles.summaryLabel}>Checked In Today</Text>
           </View>
         </View>
 
         {/* Real-time Alerts */}
-        <Text style={styles.sectionTitle}>🔴 Real-time Alerts</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="notifications-active" size={16} color="#E53935" />
+          <Text style={styles.sectionTitle}>Real-time Alerts</Text>
+        </View>
         <View style={styles.alertsCard}>
           {dashboardData?.recentAlerts && dashboardData.recentAlerts.length > 0 ? (
             dashboardData.recentAlerts.map((alert, idx) => (
@@ -165,13 +168,19 @@ export default function SalesDashboardScreen({ navigation }) {
         </View>
 
         {/* Map View */}
-        <Text style={styles.sectionTitle}>🗺️ Live Agent Map</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="map" size={16} color="#424242" />
+          <Text style={styles.sectionTitle}>Live Agent Map</Text>
+        </View>
         <View style={styles.mapContainer}>
           <CustomMapView activeAgents={activeAgents} marts={marts} />
         </View>
 
         {/* Sales by Agent Table */}
-        <Text style={styles.sectionTitle}>📊 Sales by Agent (Today)</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="bar-chart" size={16} color="#424242" />
+          <Text style={styles.sectionTitle}>Sales by Agent (Today)</Text>
+        </View>
         <View style={styles.tableCard}>
           <View style={styles.tableHeader}>
             <Text style={[styles.tableCol, { flex: 2 }]}>Agent</Text>
@@ -198,7 +207,10 @@ export default function SalesDashboardScreen({ navigation }) {
         </View>
 
         {/* Top Selling Products Table */}
-        <Text style={styles.sectionTitle}>🍞 Top Selling Products (Today)</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="bakery-dining" size={16} color="#424242" />
+          <Text style={styles.sectionTitle}>Top Selling Products (Today)</Text>
+        </View>
         <View style={styles.tableCard}>
           <View style={styles.tableHeader}>
             <Text style={[styles.tableCol, { flex: 2.2 }]}>Product</Text>
@@ -210,10 +222,7 @@ export default function SalesDashboardScreen({ navigation }) {
             dashboardData.topSellingProducts.map((p, idx) => (
               <View key={idx} style={styles.tableRow}>
                 <View style={[styles.productCell, { flex: 2.2 }]}>
-                  <Image 
-                    source={{ uri: `https://placehold.co/50x50/1976D2/FFFFFF?text=${(p.productName || 'Bread').substring(0, 2)}` }} 
-                    style={styles.productThumb} 
-                  />
+                  <ProductThumbnail uri={p.productImageUrl} size={36} style={styles.productThumb} />
                   <Text style={styles.productCellText} numberOfLines={1}>{p.productName}</Text>
                 </View>
                 <Text style={[styles.tableCell, { flex: 0.8, textAlign: 'center', fontWeight: '600' }]}>{p.unitsSold}</Text>
@@ -231,7 +240,10 @@ export default function SalesDashboardScreen({ navigation }) {
         </View>
 
         {/* 7 Days Sales Trend Graph */}
-        <Text style={styles.sectionTitle}>📈 Sales Trend (Last 7 Days)</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="trending-up" size={16} color="#424242" />
+          <Text style={styles.sectionTitle}>Sales Trend (Last 7 Days)</Text>
+        </View>
         <View style={styles.chartCard}>
           <View style={styles.chartContainer}>
             {dashboardData?.salesTrend && dashboardData.salesTrend.length > 0 ? (
@@ -296,12 +308,17 @@ const styles = StyleSheet.create({
     padding: 14,
     paddingBottom: 40
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontSize: 12,
     fontWeight: 'bold',
     color: '#424242',
-    marginTop: 16,
-    marginBottom: 8,
+    marginLeft: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5
   },

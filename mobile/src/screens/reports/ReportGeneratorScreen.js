@@ -5,14 +5,14 @@ import {
   Text,
   TouchableOpacity,
   Alert,
-  SafeAreaView,
-  Linking
+  SafeAreaView
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import RNPickerSelect from 'react-native-picker-select';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
+import { downloadAndShareFile } from '../../utils/downloadAndShareFile';
 
 export default function ReportGeneratorScreen() {
   const [agents, setAgents] = useState([]);
@@ -43,19 +43,15 @@ export default function ReportGeneratorScreen() {
   }, []);
 
   const handleExport = async () => {
-    try {
-      const dateStr = useDate ? date.toISOString().split('T')[0] : null;
-      const agentId = selectedAgentId === 'ALL' ? null : selectedAgentId;
-      const url = apiService.reports.getExportUrl(
-        dateStr,
-        agentId,
-        parseInt(year),
-        parseInt(month)
-      );
-      await Linking.openURL(url);
-    } catch (e) {
-      Alert.alert('Download Error', 'Could not open the export download link.');
-    }
+    const dateStr = useDate ? date.toISOString().split('T')[0] : null;
+    const agentId = selectedAgentId === 'ALL' ? null : selectedAgentId;
+    const path = apiService.reports.getExportPath(
+      dateStr,
+      agentId,
+      parseInt(year),
+      parseInt(month)
+    );
+    await downloadAndShareFile(path, 'attendance_report.xlsx');
   };
 
   const onDateChange = (event, selectedDate) => {

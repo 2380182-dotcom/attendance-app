@@ -11,11 +11,13 @@ import {
   ScrollView,
   SafeAreaView,
   Modal,
-  StatusBar
+  StatusBar,
+  Image
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
+import { colors } from '../../theme';
 
 export default function LoginScreen({ navigation }) {
   const { login } = useContext(AuthContext);
@@ -68,14 +70,17 @@ export default function LoginScreen({ navigation }) {
             style={styles.settingsIconBtn}
             onPress={() => navigation.navigate('ServerSettings')}
           >
-            <MaterialIcons name="dns" size={24} color="#fff" />
+            <MaterialIcons name="dns" size={24} color={colors.white} />
           </TouchableOpacity>
 
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <MaterialIcons name="security" size={50} color="#fff" />
+            <View style={styles.logoCard}>
+              <Image
+                source={require('../../../assets/dawn-bread-logo.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
-            <Text style={styles.appName}>Attendance Hub</Text>
             <Text style={styles.appSubtitle}>Agent Verification Portal</Text>
           </View>
 
@@ -85,11 +90,11 @@ export default function LoginScreen({ navigation }) {
 
             <Text style={styles.label}>Agent ID</Text>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="badge" size={20} color="#757575" style={styles.inputIcon} />
+              <MaterialIcons name="badge" size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter Agent ID (e.g. AGENT001)"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.textMuted}
                 value={agentId}
                 onChangeText={setAgentId}
                 autoCapitalize="characters"
@@ -99,11 +104,11 @@ export default function LoginScreen({ navigation }) {
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.inputContainer}>
-              <MaterialIcons name="lock" size={20} color="#757575" style={styles.inputIcon} />
+              <MaterialIcons name="lock" size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter Password"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
@@ -116,14 +121,14 @@ export default function LoginScreen({ navigation }) {
                 <MaterialIcons
                   name={showPassword ? 'visibility' : 'visibility-off'}
                   size={20}
-                  color="#757575"
+                  color={colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
               <Text style={styles.loginButtonText}>LOG IN</Text>
-              <MaterialIcons name="arrow-forward" size={18} color="#fff" style={{ marginLeft: 6 }} />
+              <MaterialIcons name="arrow-forward" size={18} color={colors.white} style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -135,7 +140,7 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2196F3',
+    backgroundColor: colors.primary,
   },
   keyboardView: {
     flex: 1,
@@ -149,32 +154,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 32,
   },
-  logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  logoCard: {
+    width: 120,
+    height: 120,
+    borderRadius: 20,
+    backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
+    padding: 12,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  appName: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#fff',
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   appSubtitle: {
     fontSize: 14,
-    color: '#E3F2FD',
+    color: colors.primaryLight,
     marginTop: 4,
   },
   formCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     marginHorizontal: 20,
     borderRadius: 20,
     paddingHorizontal: 24,
     paddingVertical: 32,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -183,18 +193,18 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#212121',
+    color: colors.textPrimary,
   },
   instructionText: {
     fontSize: 13,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 4,
     marginBottom: 24,
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#424242',
+    color: colors.textPrimary,
     marginBottom: 6,
     textTransform: 'uppercase',
   },
@@ -202,11 +212,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 10,
     marginBottom: 20,
     paddingHorizontal: 12,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.inputBackground,
   },
   inputIcon: {
     marginRight: 8,
@@ -214,28 +224,28 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: 48,
-    color: '#212121',
+    color: colors.textPrimary,
     fontSize: 14,
   },
   eyeIcon: {
     padding: 8,
   },
   loginButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: colors.action,
     height: 50,
     borderRadius: 10,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: '#2196F3',
+    shadowColor: colors.action,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 4,
   },
   loginButtonText: {
-    color: '#fff',
+    color: colors.white,
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 1,
@@ -248,11 +258,11 @@ const styles = StyleSheet.create({
   },
   noAccountText: {
     fontSize: 14,
-    color: '#757575',
+    color: colors.textSecondary,
   },
   registerText: {
     fontSize: 14,
-    color: '#2196F3',
+    color: colors.primary,
     fontWeight: 'bold',
   },
   settingsIconBtn: {
@@ -271,7 +281,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.white,
     borderRadius: 16,
     padding: 20,
     width: '85%',
@@ -281,24 +291,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 16,
-    color: '#333',
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   modalLabel: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 6,
   },
   modalTextInput: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 14,
-    color: '#333',
-    backgroundColor: '#FAFAFA',
+    color: colors.textPrimary,
+    backgroundColor: colors.inputBackground,
     marginBottom: 20,
   },
   modalButtons: {
@@ -310,25 +320,25 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#ECEFF1',
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     marginRight: 8,
   },
   resetBtnText: {
     fontWeight: 'bold',
-    color: '#607D8B',
+    color: colors.textSecondary,
   },
   saveBtn: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#2196F3',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     marginLeft: 8,
   },
   saveBtnText: {
     fontWeight: 'bold',
-    color: '#fff',
+    color: colors.white,
   },
   closeBtn: {
     paddingVertical: 10,
@@ -336,7 +346,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   closeBtnText: {
-    color: '#9E9E9E',
+    color: colors.textMuted,
     fontWeight: 'bold',
   },
 });

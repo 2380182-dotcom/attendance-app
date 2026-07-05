@@ -7,8 +7,7 @@ import {
   RefreshControl,
   Alert,
   SafeAreaView,
-  TouchableOpacity,
-  Linking
+  TouchableOpacity
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import RNPickerSelect from 'react-native-picker-select';
@@ -17,6 +16,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { apiService } from '../../services/api';
 import AttendanceCard from '../../components/AttendanceCard';
 import Loading from '../../components/Loading';
+import { downloadAndShareFile } from '../../utils/downloadAndShareFile';
 
 export default function HistoryScreen() {
   const { user } = useContext(AuthContext);
@@ -90,14 +90,10 @@ export default function HistoryScreen() {
 
   const handleExport = async () => {
     if (!user?.id) return;
-    try {
-      const startStr = startDate.toISOString().split('T')[0];
-      const endStr = endDate.toISOString().split('T')[0];
-      const url = apiService.reports.getAgentExportUrl(user.id, startStr, endStr);
-      await Linking.openURL(url);
-    } catch (e) {
-      Alert.alert('Export Failed', 'Could not open the export download link.');
-    }
+    const startStr = startDate.toISOString().split('T')[0];
+    const endStr = endDate.toISOString().split('T')[0];
+    const path = apiService.reports.getAgentExportPath(user.id, startStr, endStr);
+    await downloadAndShareFile(path, 'agent_attendance_history.xlsx');
   };
 
   const onStartChange = (event, date) => {

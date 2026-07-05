@@ -109,7 +109,10 @@ public class AdminService {
         LocalDateTime start = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
         LocalDateTime end = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
 
-        long totalAgents = agentRepository.count();
+        // Active field agents only — matches HR dashboard's "Total Agents" definition.
+        // (agentRepository.count() would include ADMIN/HR/SALES accounts and deactivated
+        // agents too, which is why this used to show a different, larger number than HR's.)
+        long totalAgents = agentRepository.countByIsActiveTrueAndRole("AGENT");
         long activeToday = agentRepository.findAgentsWithCheckInToday(start, end).size();
         long checkInsToday = attendanceRepository.findByCheckInTimeBetween(start, end).size();
         long lateArrivalsToday = attendanceRepository.findByDateRangeAndStatus(start, end, "LATE").size();

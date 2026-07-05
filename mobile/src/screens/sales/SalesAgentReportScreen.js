@@ -7,14 +7,14 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
-  SafeAreaView,
-  Linking
+  SafeAreaView
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
 import { DATE_PRESETS, PRESET_LABELS, computeDateRange } from '../../utils/dateRangePresets';
+import { downloadAndShareFile } from '../../utils/downloadAndShareFile';
 
 export default function SalesAgentReportScreen() {
   const [agents, setAgents] = useState([]);
@@ -70,12 +70,8 @@ export default function SalesAgentReportScreen() {
       Alert.alert('Invalid Range', '"From" date must be before "To" date.');
       return;
     }
-    try {
-      const url = apiService.reports.getSalesAgentSalesCsvUrl(selectedAgent.id, from, to);
-      await Linking.openURL(url);
-    } catch (e) {
-      Alert.alert('Download Error', 'Could not open the CSV download link.');
-    }
+    const path = apiService.reports.getSalesAgentSalesCsvPath(selectedAgent.id, from, to);
+    await downloadAndShareFile(path, `agent_${selectedAgent.agentId}_sales_${from}_to_${to}.csv`);
   };
 
   const onFromChange = (event, date) => {

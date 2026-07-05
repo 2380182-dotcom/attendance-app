@@ -391,26 +391,30 @@ export const apiService = {
   },
 
   // Reports APIs
+  // NOTE: these return relative API paths (not full URLs) — they're meant to be passed
+  // to downloadAndShareFile() (utils/downloadAndShareFile.js), which fetches them through
+  // the authenticated axios instance. Do NOT pass these to Linking.openURL() — that opens
+  // the system browser with no Authorization header and the backend will reject it.
   reports: {
-    getExportUrl(date, agentId, year, month) {
+    getExportPath(date, agentId, year, month) {
       const params = [];
       if (date) params.push(`date=${date}`);
       if (agentId) params.push(`agentId=${agentId}`);
       if (year) params.push(`year=${year}`);
       if (month) params.push(`month=${month}`);
-      return `${dynamicBaseUrl}/reports/export` + (params.length > 0 ? '?' + params.join('&') : '');
+      return '/reports/export' + (params.length > 0 ? '?' + params.join('&') : '');
     },
-    getAgentExportUrl(agentId, startDate, endDate) {
+    getAgentExportPath(agentId, startDate, endDate) {
       const params = [];
       if (startDate) params.push(`startDate=${startDate}`);
       if (endDate) params.push(`endDate=${endDate}`);
-      return `${dynamicBaseUrl}/reports/export/agent/${agentId}` + (params.length > 0 ? '?' + params.join('&') : '');
+      return `/reports/export/agent/${agentId}` + (params.length > 0 ? '?' + params.join('&') : '');
     },
-    getHrAgentAttendanceCsvUrl(agentId, from, to) {
-      return `${dynamicBaseUrl}/reports/hr/agent-attendance-csv?agentId=${agentId}&from=${from}&to=${to}`;
+    getHrAgentAttendanceCsvPath(agentId, from, to) {
+      return `/reports/hr/agent-attendance-csv?agentId=${agentId}&from=${from}&to=${to}`;
     },
-    getSalesAgentSalesCsvUrl(agentId, from, to) {
-      return `${dynamicBaseUrl}/reports/sales/agent-sales-csv?agentId=${agentId}&from=${from}&to=${to}`;
+    getSalesAgentSalesCsvPath(agentId, from, to) {
+      return `/reports/sales/agent-sales-csv?agentId=${agentId}&from=${from}&to=${to}`;
     }
   },
 

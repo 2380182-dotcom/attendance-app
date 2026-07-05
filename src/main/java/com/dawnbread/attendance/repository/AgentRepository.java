@@ -24,7 +24,8 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
     List<Agent> findByCreatedAtAfter(LocalDateTime date);
     List<Agent> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
     List<Agent> findByName(String name);
-    
+    long countByIsActiveTrueAndRole(String role);
+
     // ===== JPQL QUERIES =====
     
     @Query("SELECT DISTINCT a FROM Agent a JOIN a.attendances at WHERE at.checkInTime BETWEEN :start AND :end")

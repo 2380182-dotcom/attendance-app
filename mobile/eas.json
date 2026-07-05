@@ -7,8 +7,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:8080/api",
-        "EXPO_PUBLIC_GOOGLE_MAPS_KEY": "YOUR_GOOGLE_MAPS_KEY_HERE"
+        "EXPO_PUBLIC_API_URL": "http://localhost:8080/api"
       },
       "android": {
         "buildType": "apk"
@@ -17,8 +16,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://attendance-app-rn2m.onrender.com/api",
-        "EXPO_PUBLIC_GOOGLE_MAPS_KEY": "YOUR_GOOGLE_MAPS_KEY_HERE"
+        "EXPO_PUBLIC_API_URL": "https://attendance-app-rn2m.onrender.com/api"
       },
       "android": {
         "buildType": "apk"
@@ -26,8 +24,7 @@
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://attendance-app-rn2m.onrender.com/api",
-        "EXPO_PUBLIC_GOOGLE_MAPS_KEY": "YOUR_GOOGLE_MAPS_KEY_HERE"
+        "EXPO_PUBLIC_API_URL": "https://attendance-app-rn2m.onrender.com/api"
       },
       "android": {
         "buildType": "apk"

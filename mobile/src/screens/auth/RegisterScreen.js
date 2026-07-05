@@ -244,7 +244,7 @@ export default function RegisterScreen({ navigation }) {
                 >
                   <MaterialIcons name={faceRegistered ? "face" : "add-a-photo"} size={20} color="#fff" style={{ marginRight: 6 }} />
                   <Text style={styles.faceRegisterBtnText}>
-                    {faceRegistered ? "Face Registered ✓" : "Register Face Verification"}
+                    {faceRegistered ? "Face Registered" : "Register Face Verification"}
                   </Text>
                 </TouchableOpacity>
               </View>

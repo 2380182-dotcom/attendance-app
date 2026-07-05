@@ -160,7 +160,10 @@ export default function SalesReportScreen() {
         )}
 
         {/* Product Performance ranking */}
-        <Text style={styles.sectionTitle}>📈 Top Selling Products</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="trending-up" size={16} color="#424242" />
+          <Text style={styles.sectionTitleWithIcon}>Top Selling Products</Text>
+        </View>
         <View style={styles.rankingCard}>
           <View style={styles.tableHeaderRow}>
             <Text style={[styles.tableHeaderCell, { flex: 0.5 }]}>No</Text>
@@ -276,12 +279,26 @@ const styles = StyleSheet.create({
     color: '#757575',
     marginTop: 2
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 18,
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontSize: 12,
     fontWeight: 'bold',
     color: '#424242',
     marginTop: 18,
     marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  sectionTitleWithIcon: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#424242',
+    marginLeft: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5
   },

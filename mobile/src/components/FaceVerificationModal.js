@@ -206,7 +206,7 @@ export default function FaceVerificationModal({
         if (result.verified) {
           await submitVerificationResult(agentId, true, result.confidence, checkpointType);
           setStatus('success');
-          setMessage(`Verified (${(result.confidence * 100).toFixed(0)}% match)`);
+          setMessage(result.reason || `Verified (${(result.confidence * 100).toFixed(0)}% match)`);
           setTimeout(() => onSuccess({ confidence: result.confidence }), 1200);
         } else {
           const newAttempts = attempts + 1;

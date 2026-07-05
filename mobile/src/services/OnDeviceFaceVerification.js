@@ -69,15 +69,22 @@ export async function verifyAgainstReference(imageUri, referenceBase64, threshol
   const embedding = await getFaceEmbedding(imageUri, face);
   const confidence = cosineSimilarity(embedding, reference);
 
+  // TEMP DIAGNOSTIC: full-precision raw cosine similarity, not rounded to whole percent,
+  // so we can tell a threshold-calibration issue (wrong face scores well below right face,
+  // just need a better cutoff) apart from a correctness bug (wrong face scores ~right face).
   if (confidence < confidenceThreshold) {
     return {
       verified: false,
       confidence,
-      reason: `Face match confidence ${(confidence * 100).toFixed(0)}% is below required ${(confidenceThreshold * 100).toFixed(0)}%`,
+      reason: `Cosine similarity ${confidence.toFixed(4)} is below threshold ${confidenceThreshold.toFixed(4)}`,
     };
   }
 
-  return { verified: true, confidence };
+  return {
+    verified: true,
+    confidence,
+    reason: `Cosine similarity ${confidence.toFixed(4)} met threshold ${confidenceThreshold.toFixed(4)}`,
+  };
 }
 
 /**

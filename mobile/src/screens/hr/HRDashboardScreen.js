@@ -61,22 +61,22 @@ export default function HRDashboardScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerTitleBlock}>
           <Text style={styles.headerTitle}>HR Dashboard</Text>
-          <Text style={styles.headerSubtitle}>Dawn Bread Attendance & Performance</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={2}>Dawn Bread Attendance & Performance</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={() => navigation.navigate('ReportGenerator')} style={styles.iconButton}>
-            <MaterialIcons name="assessment" size={24} color="#fff" />
+            <MaterialIcons name="assessment" size={22} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('HRReport')} style={styles.iconButton}>
-            <MaterialIcons name="notifications-active" size={24} color="#fff" />
+            <MaterialIcons name="notifications-active" size={22} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('HRAgentAttendanceReport')} style={styles.iconButton}>
-            <MaterialIcons name="file-download" size={24} color="#fff" />
+            <MaterialIcons name="file-download" size={22} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleLogout} style={styles.iconButton}>
-            <MaterialIcons name="exit-to-app" size={24} color="#fff" />
+            <MaterialIcons name="exit-to-app" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -88,7 +88,10 @@ export default function HRDashboardScreen({ navigation }) {
         }
       >
         {/* Today's Attendance Summary Card */}
-        <Text style={styles.sectionTitle}>📋 Today's Attendance</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="assignment" size={16} color="#424242" />
+          <Text style={styles.sectionTitle}>Today's Attendance</Text>
+        </View>
         <View style={styles.card}>
           <View style={styles.headerStatsRow}>
             <Text style={styles.totalAgentsText}>Total Agents: {d?.totalAgents || 0}</Text>
@@ -108,11 +111,17 @@ export default function HRDashboardScreen({ navigation }) {
         </View>
 
         {/* Verification Compliance Card */}
-        <Text style={styles.sectionTitle}>🔒 Verification Compliance (3x Daily)</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="verified-user" size={16} color="#424242" />
+          <Text style={styles.sectionTitle}>Verification Compliance (3x Daily)</Text>
+        </View>
         <View style={styles.card}>
           <View style={styles.complianceItem}>
             <View style={styles.complianceLabelRow}>
-              <Text style={styles.complianceTitle}>✅ All 3 Verifications</Text>
+              <View style={styles.complianceLabelWithIcon}>
+                <MaterialIcons name="check-circle" size={14} color="#4CAF50" />
+                <Text style={styles.complianceTitle}>All 3 Verifications</Text>
+              </View>
               <Text style={styles.complianceCount}>
                 {d?.complianceAll3Count || 0} agents ({Math.round(d?.complianceAll3Percent || 0)}%)
               </Text>
@@ -124,7 +133,10 @@ export default function HRDashboardScreen({ navigation }) {
 
           <View style={styles.complianceItem}>
             <View style={styles.complianceLabelRow}>
-              <Text style={styles.complianceTitle}>⚠️ Missing 1 Verification</Text>
+              <View style={styles.complianceLabelWithIcon}>
+                <MaterialIcons name="warning" size={14} color="#FF9800" />
+                <Text style={styles.complianceTitle}>Missing 1 Verification</Text>
+              </View>
               <Text style={styles.complianceCount}>
                 {d?.complianceMissing1Count || 0} agents ({Math.round(d?.complianceMissing1Percent || 0)}%)
               </Text>
@@ -136,7 +148,10 @@ export default function HRDashboardScreen({ navigation }) {
 
           <View style={styles.complianceItem}>
             <View style={styles.complianceLabelRow}>
-              <Text style={styles.complianceTitle}>❌ Missing 2+ Verifications</Text>
+              <View style={styles.complianceLabelWithIcon}>
+                <MaterialIcons name="cancel" size={14} color="#D32F2F" />
+                <Text style={styles.complianceTitle}>Missing 2+ Verifications</Text>
+              </View>
               <Text style={styles.complianceCount}>
                 {d?.complianceMissing2PlusCount || 0} agents ({Math.round(d?.complianceMissing2PlusPercent || 0)}%)
               </Text>
@@ -148,7 +163,10 @@ export default function HRDashboardScreen({ navigation }) {
         </View>
 
         {/* Combined Attendance + Sales Sheet */}
-        <Text style={styles.sectionTitle}>📊 Attendance + Sales Sheet (Today)</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="table-chart" size={16} color="#424242" />
+          <Text style={styles.sectionTitle}>Attendance + Sales Sheet (Today)</Text>
+        </View>
         <View style={styles.tableCard}>
           <View style={styles.tableHeader}>
             <Text style={[styles.tableCol, { flex: 2.2 }]}>Agent</Text>
@@ -175,7 +193,10 @@ export default function HRDashboardScreen({ navigation }) {
         </View>
 
         {/* Top Performing Agents Leaderboard */}
-        <Text style={styles.sectionTitle}>🏆 Top Performing Agents (Today)</Text>
+        <View style={styles.sectionTitleRow}>
+          <MaterialIcons name="emoji-events" size={16} color="#424242" />
+          <Text style={styles.sectionTitle}>Top Performing Agents (Today)</Text>
+        </View>
         <View style={styles.leaderboardCard}>
           {d?.topPerformers && d.topPerformers.length > 0 ? (
             d.topPerformers.map((agent, idx) => (
@@ -218,6 +239,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 }
   },
+  headerTitleBlock: {
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 8,
+  },
   headerTitle: {
     color: '#fff',
     fontSize: 18,
@@ -230,20 +256,26 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: 'row',
+    flexShrink: 0,
   },
   iconButton: {
-    marginLeft: 18,
+    marginLeft: 14,
   },
   scrollContent: {
     padding: 14,
     paddingBottom: 40
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 18,
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontSize: 12,
     fontWeight: 'bold',
     color: '#424242',
-    marginTop: 18,
-    marginBottom: 8,
+    marginLeft: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5
   },
@@ -305,10 +337,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 4
   },
+  complianceLabelWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   complianceTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#424242'
+    color: '#424242',
+    marginLeft: 5,
   },
   complianceCount: {
     fontSize: 11,

@@ -7,8 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
-  SafeAreaView,
-  Image
+  SafeAreaView
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../../context/AuthContext';
@@ -16,6 +15,7 @@ import { apiService } from '../../services/api';
 import StatusCard from '../../components/StatusCard';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
+import ProductThumbnail from '../../components/ProductThumbnail';
 
 export default function DashboardScreen({ navigation, route }) {
   const { user, logout } = useContext(AuthContext);
@@ -153,7 +153,7 @@ export default function DashboardScreen({ navigation, route }) {
             return (
               <View key={idx} style={styles.tableBodyRow}>
                 <View style={[styles.productCell, { flex: 2 }]}>
-                  <Image source={{ uri: item.productImageUrl }} style={styles.productThumbnail} />
+                  <ProductThumbnail uri={item.productImageUrl} size={24} style={styles.productThumbnail} />
                   <Text style={styles.productCellText} numberOfLines={1}>{item.productName}</Text>
                 </View>
                 <Text style={[styles.tableBodyCell, { flex: 0.6, textAlign: 'center', fontWeight: 'bold' }]}>
@@ -259,7 +259,7 @@ export default function DashboardScreen({ navigation, route }) {
           <Text style={styles.actionButtonText}>Enter Daily Sales</Text>
         </TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>📊 Agent Sales History</Text>
+        <Text style={styles.sectionTitle}>Agent Sales History</Text>
         {salesHistory.length === 0 ? (
           <View style={styles.emptySalesCard}>
             <MaterialIcons name="assessment" size={32} color="#B0BEC5" style={{ marginBottom: 6 }} />
