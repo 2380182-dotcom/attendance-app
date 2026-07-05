@@ -1,6 +1,5 @@
 import React from 'react';
-import { Text, StyleSheet, ActivityIndicator, AccessibilityInfo } from 'react-native';
-import { Pressable } from 'react-native-gesture-handler';
+import { Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
