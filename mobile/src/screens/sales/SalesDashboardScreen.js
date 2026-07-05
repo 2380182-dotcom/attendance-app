@@ -118,6 +118,9 @@ export default function SalesDashboardScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.navigate('SalesReport')} style={styles.iconButton}>
             <MaterialIcons name="assessment" size={24} color="#fff" />
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('SalesAgentReport')} style={styles.iconButton}>
+            <MaterialIcons name="file-download" size={24} color="#fff" />
+          </TouchableOpacity>
           <TouchableOpacity onPress={handleLogout} style={styles.iconButton}>
             <MaterialIcons name="exit-to-app" size={24} color="#fff" />
           </TouchableOpacity>

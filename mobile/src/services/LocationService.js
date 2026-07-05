@@ -93,32 +93,24 @@ export const LocationService = {
     }
   },
 
-  async isTracking() {
+  /**
+   * Reads current permission status WITHOUT prompting the OS dialog.
+   * Use this to detect if an agent has revoked location access after
+   * previously granting it (e.g. from phone Settings), so check-in/out
+   * can be blocked with a clear message instead of silently failing.
+   */
+  async getPermissionStatus() {
     try {
-      return await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+      const foreground = await Location.getForegroundPermissionsAsync();
+      const background = await Location.getBackgroundPermissionsAsync();
+      return {
+        foregroundGranted: foreground.status === 'granted',
+        backgroundGranted: background.status === 'granted',
+        granted: foreground.status === 'granted' && background.status === 'granted',
+      };
     } catch (e) {
-      return false;
-    }
-  },
-
-  async watchForegroundLocation(callback) {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        console.warn('Foreground location permission not granted');
-        return null;
-      }
-      return await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 5000,
-          distanceInterval: 5,
-        },
-        callback
-      );
-    } catch (e) {
-      console.error('Error starting foreground location watch:', e);
-      return null;
+      console.error('Error checking location permission status:', e);
+      return { foregroundGranted: false, backgroundGranted: false, granted: false };
     }
   }
 };

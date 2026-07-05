@@ -135,6 +135,16 @@ public class AdminController {
         }
     }
 
+    @PatchMapping("/marts/{id}/reactivate")
+    public ResponseEntity<ApiResponse<Mart>> reactivateMart(@PathVariable Long id) {
+        try {
+            Mart reactivated = adminService.reactivateMart(id);
+            return ResponseEntity.ok(ApiResponse.success("Mart reactivated successfully", reactivated));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
     @PatchMapping("/marts/{id}/toggle-geofence")
     public ResponseEntity<ApiResponse<Mart>> toggleGeoFence(
             @PathVariable Long id,

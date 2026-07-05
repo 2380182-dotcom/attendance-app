@@ -18,6 +18,12 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
     @Query("SELECT sr FROM SalesRecord sr WHERE sr.agent.id = :agentId AND sr.saleDate = :date")
     List<SalesRecord> findByAgentIdAndSaleDate(@Param("agentId") Long agentId, @Param("date") LocalDate date);
 
+    @Query("SELECT sr FROM SalesRecord sr WHERE sr.agent.id = :agentId AND sr.saleDate BETWEEN :start AND :end " +
+            "ORDER BY sr.saleDate DESC, sr.saleTime DESC")
+    List<SalesRecord> findByAgentIdAndSaleDateBetween(@Param("agentId") Long agentId,
+                                                       @Param("start") LocalDate start,
+                                                       @Param("end") LocalDate end);
+
     @Query("SELECT sr FROM SalesRecord sr JOIN sr.agent a WHERE " +
             "(:agentName IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', :agentName, '%'))) AND " +
             "(:date IS NULL OR sr.saleDate = :date) AND " +

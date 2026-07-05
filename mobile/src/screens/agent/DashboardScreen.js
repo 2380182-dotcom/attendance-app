@@ -8,13 +8,11 @@ import {
   RefreshControl,
   Alert,
   SafeAreaView,
-  Switch,
   Image
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../../context/AuthContext';
 import { apiService } from '../../services/api';
-import LocationService from '../../services/LocationService';
 import StatusCard from '../../components/StatusCard';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
@@ -26,7 +24,6 @@ export default function DashboardScreen({ navigation, route }) {
   const [currentCheckIn, setCurrentCheckIn] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [isTracking, setIsTracking] = useState(false);
   const [salesHistory, setSalesHistory] = useState([]);
   const [midDayModalVisible, setMidDayModalVisible] = useState(false);
 
@@ -36,35 +33,6 @@ export default function DashboardScreen({ navigation, route }) {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    const checkTracking = async () => {
-      const active = await LocationService.isTracking();
-      setIsTracking(active);
-    };
-    checkTracking();
-  }, []);
-
-  const toggleLocationTracking = async () => {
-    if (isTracking) {
-      const success = await LocationService.stopBackgroundTracking();
-      if (success) {
-        setIsTracking(false);
-        Alert.alert('Geofencing Disabled', 'Background location auto check-in is now disabled.');
-      }
-    } else {
-      const permission = await LocationService.requestPermissions();
-      if (permission.success) {
-        const success = await LocationService.startBackgroundTracking();
-        if (success) {
-          setIsTracking(true);
-          Alert.alert('Geofencing Enabled', 'The app will now check you in automatically when you enter a mart geofence.');
-        }
-      } else {
-        Alert.alert('Permission Denied', permission.error);
-      }
-    }
-  };
 
   const handleMidDayVerify = async () => {
     fetchStatus();
@@ -131,48 +99,6 @@ export default function DashboardScreen({ navigation, route }) {
     });
     return unsubscribe;
   }, [navigation, fetchStatus, route?.params?.openFaceVerification]);
-
-  useEffect(() => {
-    let subscription = null;
-
-    const startWatching = async () => {
-      if (!isTracking || !user?.id) return;
-
-      subscription = await LocationService.watchForegroundLocation(async (location) => {
-        const { latitude, longitude } = location.coords;
-        console.log(`[Foreground Location Update] Lat: ${latitude}, Lon: ${longitude}`);
-
-        try {
-          const response = await apiService.geoFence.check(user.id, latitude, longitude);
-          if (response) {
-            const { status: geoStatus, message } = response;
-            if (geoStatus === 'ENTERED' || geoStatus === 'EXITED') {
-              Alert.alert(
-                geoStatus === 'ENTERED' ? 'Auto Checked-In' : 'Auto Checked-Out',
-                message
-              );
-              fetchStatus();
-            } else {
-              const backendIsCheckedIn = (geoStatus === 'ENTERED' || geoStatus === 'STAYED');
-              if (backendIsCheckedIn !== isCheckedIn) {
-                fetchStatus();
-              }
-            }
-          }
-        } catch (err) {
-          console.error('Foreground location check failed:', err);
-        }
-      });
-    };
-
-    startWatching();
-
-    return () => {
-      if (subscription) {
-        subscription.remove();
-      }
-    };
-  }, [isTracking, user?.id, isCheckedIn, fetchStatus]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -310,25 +236,6 @@ export default function DashboardScreen({ navigation, route }) {
           agentName={user ? user.name : 'Agent'}
           checkpointType="MIDSHIFT"
         />
-
-        <Text style={styles.sectionTitle}>Auto-Checkin Settings</Text>
-        <View style={styles.trackingCard}>
-          <View style={styles.trackingInfo}>
-            <MaterialIcons name="my-location" size={24} color="#1976D2" />
-            <View style={{ marginLeft: 12 }}>
-              <Text style={styles.trackingTitle}>Background Geofencing</Text>
-              <Text style={styles.trackingDesc}>
-                {isTracking ? 'Active geofence monitoring' : 'Disabled geofence monitoring'}
-              </Text>
-            </View>
-          </View>
-          <Switch
-            value={isTracking}
-            onValueChange={toggleLocationTracking}
-            trackColor={{ false: '#767577', true: '#90CAF9' }}
-            thumbColor={isTracking ? '#1976D2' : '#f4f3f4'}
-          />
-        </View>
 
         {!isCheckedIn && (
           <>
@@ -486,30 +393,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
-  },
-  trackingCard: {
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-  },
-  trackingInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  trackingTitle: {
-    fontWeight: 'bold',
-    fontSize: 14,
-    color: '#333',
-  },
-  trackingDesc: {
-    fontSize: 11,
-    color: '#757575',
-    marginTop: 2,
   },
   grid: {
     flexDirection: 'row',

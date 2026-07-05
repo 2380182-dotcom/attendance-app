@@ -2,6 +2,7 @@ package com.dawnbread.attendance.service;
 
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.entity.GeoFenceLog;
+import com.dawnbread.attendance.entity.Mart;
 import com.dawnbread.attendance.entity.SaleItem;
 import com.dawnbread.attendance.entity.SalesRecord;
 import com.dawnbread.attendance.repository.AttendanceRepository;
@@ -118,7 +119,7 @@ public class ExcelExportService {
             for (Attendance att : attendances) {
                 Row row = sheet.createRow(rowIdx++);
                 row.createCell(0).setCellValue(att.getCheckInTime() != null ? att.getCheckInTime().format(DATE_FORMATTER) : "");
-                row.createCell(1).setCellValue(att.getMart().getName());
+                row.createCell(1).setCellValue(formatMartName(att.getMart()));
                 row.createCell(2).setCellValue(att.getCheckInTime() != null ? att.getCheckInTime().format(DATE_TIME_FORMATTER) : "");
                 row.createCell(3).setCellValue(att.getCheckOutTime() != null ? att.getCheckOutTime().format(DATE_TIME_FORMATTER) : "");
                 row.createCell(4).setCellValue(att.getStatus());
@@ -160,7 +161,7 @@ public class ExcelExportService {
             Row row = sheet.createRow(rowIdx++);
             row.createCell(0).setCellValue(att.getAgent().getAgentId());
             row.createCell(1).setCellValue(att.getAgent().getName());
-            row.createCell(2).setCellValue(att.getMart().getName());
+            row.createCell(2).setCellValue(formatMartName(att.getMart()));
             row.createCell(3).setCellValue(att.getCheckInTime() != null ? att.getCheckInTime().format(DATE_TIME_FORMATTER) : "");
             row.createCell(4).setCellValue(att.getCheckOutTime() != null ? att.getCheckOutTime().format(DATE_TIME_FORMATTER) : "");
             row.createCell(5).setCellValue(att.getStatus());
@@ -238,7 +239,7 @@ public class ExcelExportService {
             Row row = sheet.createRow(rowIdx++);
             row.createCell(0).setCellValue(att.getAgent().getAgentId());
             row.createCell(1).setCellValue(att.getAgent().getName());
-            row.createCell(2).setCellValue(att.getMart().getName());
+            row.createCell(2).setCellValue(formatMartName(att.getMart()));
             row.createCell(3).setCellValue(att.getCheckInTime() != null ? att.getCheckInTime().format(DATE_TIME_FORMATTER) : "");
             row.createCell(4).setCellValue(att.getDistanceFromMart() != null ? att.getDistanceFromMart() : 0.0);
             row.createCell(5).setCellValue(att.getStatus());
@@ -275,7 +276,7 @@ public class ExcelExportService {
             Row row = sheet.createRow(rowIdx++);
             row.createCell(0).setCellValue(att.getAgent().getAgentId());
             row.createCell(1).setCellValue(att.getAgent().getName());
-            row.createCell(2).setCellValue(att.getMart().getName());
+            row.createCell(2).setCellValue(formatMartName(att.getMart()));
             row.createCell(3).setCellValue(att.getCheckInTime() != null ? att.getCheckInTime().format(DATE_TIME_FORMATTER) : "");
             row.createCell(4).setCellValue(att.getCheckOutTime() != null ? att.getCheckOutTime().format(DATE_TIME_FORMATTER) : "");
             row.createCell(5).setCellValue(att.getStatus());
@@ -310,7 +311,7 @@ public class ExcelExportService {
             row.createCell(0).setCellValue(log.getCreatedAt() != null ? log.getCreatedAt().format(DATE_TIME_FORMATTER) : "");
             row.createCell(1).setCellValue(log.getAgent().getAgentId());
             row.createCell(2).setCellValue(log.getAgent().getName());
-            row.createCell(3).setCellValue(log.getMart().getName());
+            row.createCell(3).setCellValue(formatMartName(log.getMart()));
             row.createCell(4).setCellValue(log.getAction());
             row.createCell(5).setCellValue(log.getLatitude() != null ? log.getLatitude() : 0.0);
             row.createCell(6).setCellValue(log.getLongitude() != null ? log.getLongitude() : 0.0);
@@ -335,5 +336,15 @@ public class ExcelExportService {
         for (int i = 0; i < colCount; i++) {
             sheet.autoSizeColumn(i);
         }
+    }
+
+    /**
+     * Historical reports must keep showing a soft-deleted mart's name (attendance/geo-fence
+     * rows still reference it via FK), but clearly flag that it's no longer an active location.
+     */
+    static String formatMartName(Mart mart) {
+        if (mart == null) return "";
+        String name = mart.getName() != null ? mart.getName() : "";
+        return Boolean.FALSE.equals(mart.getIsActive()) ? name + " (Deleted)" : name;
     }
 }

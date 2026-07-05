@@ -110,13 +110,27 @@ public class MartController {
     }
 
     /**
-     * Delete mart
+     * Delete mart (soft delete — sets isActive = false, does not remove the row)
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteMart(@PathVariable Long id) {
         try {
             martService.deleteMart(id);
             return ResponseEntity.ok(ApiResponse.success("Mart deleted successfully", null));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    /**
+     * Reactivate a previously soft-deleted mart
+     */
+    @PatchMapping("/{id}/reactivate")
+    public ResponseEntity<ApiResponse<MartDTO>> reactivateMart(@PathVariable Long id) {
+        try {
+            Mart reactivated = martService.reactivateMart(id);
+            return ResponseEntity.ok(ApiResponse.success("Mart reactivated successfully", convertToDTO(reactivated)));
         } catch (Exception e) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(e.getMessage()));
@@ -155,7 +169,7 @@ public class MartController {
 
     // ===== Helper Methods =====
     private MartDTO convertToDTO(Mart mart) {
-        return new MartDTO(
+        MartDTO dto = new MartDTO(
                 mart.getId(),
                 mart.getName(),
                 mart.getAddress(),
@@ -164,5 +178,7 @@ public class MartController {
                 mart.getRadius(),
                 mart.getCreatedAt()
         );
+        dto.setIsActive(mart.getIsActive());
+        return dto;
     }
 }

@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
-  SafeAreaView
+  SafeAreaView,
+  Linking
 } from 'react-native';
 import * as Location from 'expo-location';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../../context/AuthContext';
 import { apiService } from '../../services/api';
+import LocationService from '../../services/LocationService';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
 
@@ -19,6 +21,7 @@ export default function CheckinScreen({ navigation }) {
   const { user } = useContext(AuthContext);
   const [location, setLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(true);
+  const [locationPermissionGranted, setLocationPermissionGranted] = useState(true);
   const [marts, setMarts] = useState([]);
   const [selectedMart, setSelectedMart] = useState(null);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -26,6 +29,19 @@ export default function CheckinScreen({ navigation }) {
   const [faceModalVisible, setFaceModalVisible] = useState(false);
   const [faceVerified, setFaceVerified] = useState(false);
   const [faceConfig, setFaceConfig] = useState(null);
+
+  const blockForLocationPermission = () => {
+    setLocationPermissionGranted(false);
+    setLocation(null);
+    Alert.alert(
+      'Location Permission Required',
+      'Location access is required to check in. Please enable location permissions in your phone settings.',
+      [
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        { text: 'Cancel', onPress: () => navigation.goBack(), style: 'cancel' },
+      ]
+    );
+  };
 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371; 
@@ -44,15 +60,18 @@ export default function CheckinScreen({ navigation }) {
   const getGPSLocation = async () => {
     setLocationLoading(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Location Permission Required',
-          'GPS permission is needed to verify your check-in distance from marts.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
-        return;
+      let status = await LocationService.getPermissionStatus();
+      if (!status.granted) {
+        // Not yet granted — try requesting once (covers the case where the OS dialog
+        // simply hasn't been shown/answered yet). If this also fails, permission has
+        // been actively denied or revoked, so block check-in.
+        const requestResult = await LocationService.requestPermissions();
+        if (!requestResult.success) {
+          blockForLocationPermission();
+          return;
+        }
       }
+      setLocationPermissionGranted(true);
 
       const currentLoc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
@@ -127,6 +146,10 @@ export default function CheckinScreen({ navigation }) {
   });
 
   const handleCheckIn = async () => {
+    if (!locationPermissionGranted) {
+      blockForLocationPermission();
+      return;
+    }
     if (!selectedMart) {
       Alert.alert('Required Selection', 'Please select a mart to check-in.');
       return;
@@ -262,11 +285,13 @@ export default function CheckinScreen({ navigation }) {
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={[styles.checkInButton, !selectedMart && styles.disabledButton]}
+          style={[styles.checkInButton, (!selectedMart || !locationPermissionGranted) && styles.disabledButton]}
           onPress={handleCheckIn}
-          disabled={!selectedMart || checkingIn}
+          disabled={!selectedMart || checkingIn || !locationPermissionGranted}
         >
-          <Text style={styles.checkInButtonText}>CONFIRM CHECK-IN</Text>
+          <Text style={styles.checkInButtonText}>
+            {locationPermissionGranted ? 'CONFIRM CHECK-IN' : 'LOCATION PERMISSION REQUIRED'}
+          </Text>
         </TouchableOpacity>
       </View>
 

@@ -1,6 +1,8 @@
 package com.dawnbread.attendance.dto;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
 
 public class AgentDTO {
     private Long id;
@@ -16,6 +18,10 @@ public class AgentDTO {
     private Boolean faceVerifyAnytime;
     private Boolean faceRegistered;
     private String faceTemplate;
+    private LocalTime shiftStartTime;
+    private LocalTime shiftEndTime;
+    private Integer gracePeriodMinutes;
+    private List<String> workingDays;
     
     // Constructors
     public AgentDTO() {}
@@ -62,7 +68,11 @@ public class AgentDTO {
     public Boolean getFaceVerifyAnytime() { return faceVerifyAnytime; }
     public Boolean getFaceRegistered() { return faceRegistered; }
     public String getFaceTemplate() { return faceTemplate; }
-    
+    public LocalTime getShiftStartTime() { return shiftStartTime; }
+    public LocalTime getShiftEndTime() { return shiftEndTime; }
+    public Integer getGracePeriodMinutes() { return gracePeriodMinutes; }
+    public List<String> getWorkingDays() { return workingDays; }
+
     // Setters
     public void setId(Long id) { this.id = id; }
     public void setAgentId(String agentId) { this.agentId = agentId; }
@@ -77,4 +87,8 @@ public class AgentDTO {
     public void setFaceVerifyAnytime(Boolean faceVerifyAnytime) { this.faceVerifyAnytime = faceVerifyAnytime; }
     public void setFaceRegistered(Boolean faceRegistered) { this.faceRegistered = faceRegistered; }
     public void setFaceTemplate(String faceTemplate) { this.faceTemplate = faceTemplate; }
+    public void setShiftStartTime(LocalTime shiftStartTime) { this.shiftStartTime = shiftStartTime; }
+    public void setShiftEndTime(LocalTime shiftEndTime) { this.shiftEndTime = shiftEndTime; }
+    public void setGracePeriodMinutes(Integer gracePeriodMinutes) { this.gracePeriodMinutes = gracePeriodMinutes; }
+    public void setWorkingDays(List<String> workingDays) { this.workingDays = workingDays; }
 }

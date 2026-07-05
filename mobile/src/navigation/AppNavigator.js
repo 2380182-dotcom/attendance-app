@@ -21,10 +21,12 @@ import SalesEntryScreen from '../screens/agent/SalesEntryScreen';
 // Sales Screens
 import SalesDashboardScreen from '../screens/sales/SalesDashboardScreen';
 import SalesReportScreen from '../screens/sales/SalesReportScreen';
+import SalesAgentReportScreen from '../screens/sales/SalesAgentReportScreen';
 
 // HR Screens
 import HRDashboardScreen from '../screens/hr/HRDashboardScreen';
 import HRReportScreen from '../screens/hr/HRReportScreen';
+import HRAgentAttendanceReportScreen from '../screens/hr/HRAgentAttendanceReportScreen';
 
 // Admin Screens
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
@@ -85,25 +87,35 @@ export default function AppNavigator() {
                 component={SalesDashboardScreen} 
                 options={{ title: 'Sales Dashboard' }} 
               />
-              <Stack.Screen 
-                name="SalesReport" 
-                component={SalesReportScreen} 
-                options={{ title: 'Sales Live Feed' }} 
+              <Stack.Screen
+                name="SalesReport"
+                component={SalesReportScreen}
+                options={{ title: 'Sales Live Feed' }}
+              />
+              <Stack.Screen
+                name="SalesAgentReport"
+                component={SalesAgentReportScreen}
+                options={{ title: 'Agent Sales CSV' }}
               />
             </>
           )}
 
           {role === 'HR' && (
             <>
-              <Stack.Screen 
-                name="HRDashboard" 
-                component={HRDashboardScreen} 
-                options={{ title: 'HR Roster Dashboard' }} 
+              <Stack.Screen
+                name="HRDashboard"
+                component={HRDashboardScreen}
+                options={{ title: 'HR Roster Dashboard' }}
               />
-              <Stack.Screen 
-                name="HRReport" 
-                component={HRReportScreen} 
-                options={{ title: 'HR Roster Reports' }} 
+              <Stack.Screen
+                name="HRReport"
+                component={HRReportScreen}
+                options={{ title: 'HR Roster Reports' }}
+              />
+              <Stack.Screen
+                name="HRAgentAttendanceReport"
+                component={HRAgentAttendanceReportScreen}
+                options={{ title: 'Agent Attendance CSV' }}
               />
             </>
           )}

@@ -1,7 +1,10 @@
 package com.dawnbread.attendance.controller;
 
 import com.dawnbread.attendance.service.ExcelExportService;
+import com.dawnbread.attendance.service.HrAgentAttendanceCsvService;
+import com.dawnbread.attendance.service.SalesAgentCsvService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +22,12 @@ public class ExcelExportController {
 
     @Autowired
     private ExcelExportService excelExportService;
+
+    @Autowired
+    private HrAgentAttendanceCsvService hrAgentAttendanceCsvService;
+
+    @Autowired
+    private SalesAgentCsvService salesAgentCsvService;
 
     @GetMapping("/export")
     public ResponseEntity<InputStreamResource> exportReports(
@@ -53,5 +62,47 @@ public class ExcelExportController {
                 .headers(headers)
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(new InputStreamResource(in));
+    }
+
+    /**
+     * HR: per-agent attendance CSV, date-ranged. Never includes sales data — see
+     * HrAgentAttendanceCsvService's data-boundary note.
+     */
+    @GetMapping("/hr/agent-attendance-csv")
+    public ResponseEntity<ByteArrayResource> exportHrAgentAttendanceCsv(
+            @RequestParam Long agentId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+
+        byte[] csv = hrAgentAttendanceCsvService.exportAgentAttendanceCsv(agentId, from, to);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=agent_" + agentId + "_attendance_" + from + "_to_" + to + ".csv");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(new ByteArrayResource(csv));
+    }
+
+    /**
+     * Sales: per-agent sales CSV, date-ranged. Never includes attendance data — see
+     * SalesAgentCsvService's data-boundary note.
+     */
+    @GetMapping("/sales/agent-sales-csv")
+    public ResponseEntity<ByteArrayResource> exportSalesAgentSalesCsv(
+            @RequestParam Long agentId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+
+        byte[] csv = salesAgentCsvService.exportAgentSalesCsv(agentId, from, to);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=agent_" + agentId + "_sales_" + from + "_to_" + to + ".csv");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(new ByteArrayResource(csv));
     }
 }

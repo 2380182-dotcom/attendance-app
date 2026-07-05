@@ -118,25 +118,53 @@ export default function AdminMartScreen() {
     }
   };
 
-  const handleDelete = (id) => {
-    Alert.alert('Confirm Delete', 'Are you sure you want to delete this Mart?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          setLoading(true);
-          try {
-            await apiService.admin.deleteMart(id);
-            Alert.alert('Success', 'Mart deleted.');
-            fetchMarts();
-          } catch (e) {
-            Alert.alert('Error', 'Failed to delete mart.');
-            setLoading(false);
+  const handleDelete = (mart) => {
+    Alert.alert(
+      'Confirm Delete',
+      `Delete ${mart.name}? Historical attendance and sales records will be preserved, but this mart will no longer be available for check-ins.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await apiService.admin.deleteMart(mart.id);
+              Alert.alert('Success', 'Mart deleted. It can be reactivated later if needed.');
+              fetchMarts();
+            } catch (e) {
+              Alert.alert('Error', 'Failed to delete mart.');
+              setLoading(false);
+            }
           }
         }
-      }
-    ]);
+      ]
+    );
+  };
+
+  const handleReactivate = (mart) => {
+    Alert.alert(
+      'Reactivate Mart',
+      `Reactivate ${mart.name}? It will become available for check-ins and geofencing again.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reactivate',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await apiService.admin.reactivateMart(mart.id);
+              Alert.alert('Success', 'Mart reactivated.');
+              fetchMarts();
+            } catch (e) {
+              Alert.alert('Error', 'Failed to reactivate mart.');
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleToggleGeo = async (id, enabled) => {
@@ -165,38 +193,55 @@ export default function AdminMartScreen() {
       <FlatList
         data={marts}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.martCard}>
-            <View style={styles.martInfo}>
-              <Text style={styles.martName}>{item.name}</Text>
-              <Text style={styles.martAddress}>{item.address || 'No address'}</Text>
-              <Text style={styles.martCoords}>
-                Lat: {item.latitude} | Lon: {item.longitude} | Radius: {item.radius}m
-              </Text>
-            </View>
-
-            <View style={styles.cardActions}>
-              <View style={styles.switchRow}>
-                <Text style={styles.switchLabel}>Geofence</Text>
-                <Switch
-                  value={item.geoFencingEnabled}
-                  onValueChange={(val) => handleToggleGeo(item.id, val)}
-                  trackColor={{ false: '#767577', true: '#90CAF9' }}
-                  thumbColor={item.geoFencingEnabled ? '#1976D2' : '#f4f3f4'}
-                />
+        renderItem={({ item }) => {
+          const isInactive = item.isActive === false;
+          return (
+            <View style={[styles.martCard, isInactive && styles.martCardInactive]}>
+              <View style={styles.martInfo}>
+                <View style={styles.martNameRow}>
+                  <Text style={styles.martName}>{item.name}</Text>
+                  {isInactive && (
+                    <View style={styles.inactiveBadge}>
+                      <Text style={styles.inactiveBadgeText}>DELETED</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.martAddress}>{item.address || 'No address'}</Text>
+                <Text style={styles.martCoords}>
+                  Lat: {item.latitude} | Lon: {item.longitude} | Radius: {item.radius}m
+                </Text>
               </View>
 
-              <View style={styles.buttonRow}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => handleOpenEdit(item)}>
-                  <MaterialIcons name="edit" size={18} color="#1976D2" />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDelete(item.id)}>
-                  <MaterialIcons name="delete" size={18} color="#D32F2F" />
-                </TouchableOpacity>
+              <View style={styles.cardActions}>
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>Geofence</Text>
+                  <Switch
+                    value={item.geoFencingEnabled}
+                    onValueChange={(val) => handleToggleGeo(item.id, val)}
+                    trackColor={{ false: '#767577', true: '#90CAF9' }}
+                    thumbColor={item.geoFencingEnabled ? '#1976D2' : '#f4f3f4'}
+                    disabled={isInactive}
+                  />
+                </View>
+
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleOpenEdit(item)}>
+                    <MaterialIcons name="edit" size={18} color="#1976D2" />
+                  </TouchableOpacity>
+                  {isInactive ? (
+                    <TouchableOpacity style={[styles.actionBtn, styles.reactivateBtn]} onPress={() => handleReactivate(item)}>
+                      <MaterialIcons name="restore" size={18} color="#2E7D32" />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDelete(item)}>
+                      <MaterialIcons name="delete" size={18} color="#D32F2F" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             </View>
-          </View>
-        )}
+          );
+        }}
         contentContainerStyle={styles.list}
       />
 
@@ -296,14 +341,35 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
+  martCardInactive: {
+    backgroundColor: '#FAFAFA',
+    opacity: 0.7,
+  },
   martInfo: {
     flex: 1,
     paddingRight: 8,
+  },
+  martNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   martName: {
     fontWeight: 'bold',
     fontSize: 15,
     color: '#333',
+  },
+  inactiveBadge: {
+    backgroundColor: '#D32F2F',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  inactiveBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
   martAddress: {
     fontSize: 12,
@@ -340,6 +406,9 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     backgroundColor: '#FFEBEE',
+  },
+  reactivateBtn: {
+    backgroundColor: '#E8F5E9',
   },
   modalOverlay: {
     flex: 1,

@@ -22,11 +22,17 @@ public class MartService {
             throw new RuntimeException("Mart with name already exists: " + mart.getName());
         }
         mart.setCreatedAt(LocalDateTime.now());
+        mart.setIsActive(true);
         return martRepository.save(mart);
     }
 
+    /**
+     * Returns marts available for check-in selection — excludes soft-deleted marts.
+     * Admin-facing mart management should use a repository/service path that includes
+     * inactive marts (see AdminService.getAllMarts) so deleted marts remain manageable.
+     */
     public List<Mart> getAllMarts() {
-        return martRepository.findAll();
+        return martRepository.findByIsActiveTrue();
     }
 
     public Optional<Mart> getMartById(Long id) {
@@ -76,17 +82,32 @@ public class MartService {
         return martRepository.save(mart);
     }
 
+    /**
+     * Soft-deletes a mart (sets isActive = false) rather than removing the row.
+     * Attendance history has a NOT NULL FK to mart_id, so a hard delete would either
+     * fail once any attendance exists or destroy historical records — neither is
+     * acceptable. The mart simply stops being offered for check-in/geofencing.
+     */
     public void deleteMart(Long id) {
-        if (!martRepository.existsById(id)) {
-            throw new RuntimeException("Mart not found with id: " + id);
-        }
-        martRepository.deleteById(id);
+        Mart mart = martRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Mart not found with id: " + id));
+        mart.setIsActive(false);
+        martRepository.save(mart);
+    }
+
+    /** Reverses a soft-delete, making the mart selectable for check-in/geofencing again. */
+    public Mart reactivateMart(Long id) {
+        Mart mart = martRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Mart not found with id: " + id));
+        mart.setIsActive(true);
+        return martRepository.save(mart);
     }
 
     public void deleteMartByName(String name) {
         Mart mart = martRepository.findByName(name)
                 .orElseThrow(() -> new RuntimeException("Mart not found with name: " + name));
-        martRepository.delete(mart);
+        mart.setIsActive(false);
+        martRepository.save(mart);
     }
 
     public List<Mart> getActiveMarts() {

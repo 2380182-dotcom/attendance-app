@@ -328,6 +328,14 @@ export const apiService = {
         return handleApiError(error);
       }
     },
+    async reactivateMart(id) {
+      try {
+        const response = await api.patch(`/admin/marts/${id}/reactivate`);
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
     async toggleGeoFence(id, enabled) {
       try {
         const response = await api.patch(`/admin/marts/${id}/toggle-geofence?enabled=${enabled}`);
@@ -397,6 +405,12 @@ export const apiService = {
       if (startDate) params.push(`startDate=${startDate}`);
       if (endDate) params.push(`endDate=${endDate}`);
       return `${dynamicBaseUrl}/reports/export/agent/${agentId}` + (params.length > 0 ? '?' + params.join('&') : '');
+    },
+    getHrAgentAttendanceCsvUrl(agentId, from, to) {
+      return `${dynamicBaseUrl}/reports/hr/agent-attendance-csv?agentId=${agentId}&from=${from}&to=${to}`;
+    },
+    getSalesAgentSalesCsvUrl(agentId, from, to) {
+      return `${dynamicBaseUrl}/reports/sales/agent-sales-csv?agentId=${agentId}&from=${from}&to=${to}`;
     }
   },
 

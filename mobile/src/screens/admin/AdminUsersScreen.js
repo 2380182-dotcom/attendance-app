@@ -13,9 +13,53 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import RNPickerSelect from 'react-native-picker-select';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
+
+const WORKING_DAYS_OPTIONS = [
+  { code: 'MON', label: 'Mon' },
+  { code: 'TUE', label: 'Tue' },
+  { code: 'WED', label: 'Wed' },
+  { code: 'THU', label: 'Thu' },
+  { code: 'FRI', label: 'Fri' },
+  { code: 'SAT', label: 'Sat' },
+  { code: 'SUN', label: 'Sun' },
+];
+
+const DEFAULT_WORKING_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+
+function defaultShiftStart() {
+  const d = new Date();
+  d.setHours(9, 0, 0, 0);
+  return d;
+}
+
+function defaultShiftEnd() {
+  const d = new Date();
+  d.setHours(17, 0, 0, 0);
+  return d;
+}
+
+/** Backend LocalTime fields serialize as "HH:mm:ss" — parse into a Date for the time picker. */
+function parseBackendTime(timeStr) {
+  if (!timeStr) return defaultShiftStart();
+  const [hh, mm] = timeStr.split(':').map(Number);
+  const d = new Date();
+  d.setHours(hh || 0, mm || 0, 0, 0);
+  return d;
+}
+
+function formatTimeForBackend(date) {
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}:00`;
+}
+
+function formatTimeDisplay(date) {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function AdminUsersScreen() {
   const [agents, setAgents] = useState([]);
@@ -53,6 +97,26 @@ export default function AdminUsersScreen() {
   const [newFaceEmbedding, setNewFaceEmbedding] = useState('');
   const [newFaceModalVisible, setNewFaceModalVisible] = useState(false);
 
+  // Shift & Schedule State (Edit)
+  const [shiftStartTime, setShiftStartTime] = useState(defaultShiftStart());
+  const [shiftEndTime, setShiftEndTime] = useState(defaultShiftEnd());
+  const [gracePeriodMinutes, setGracePeriodMinutes] = useState('15');
+  const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
+  const [showShiftStartPicker, setShowShiftStartPicker] = useState(false);
+  const [showShiftEndPicker, setShowShiftEndPicker] = useState(false);
+
+  // Shift & Schedule State (Create)
+  const [newShiftStartTime, setNewShiftStartTime] = useState(defaultShiftStart());
+  const [newShiftEndTime, setNewShiftEndTime] = useState(defaultShiftEnd());
+  const [newGracePeriodMinutes, setNewGracePeriodMinutes] = useState('15');
+  const [newWorkingDays, setNewWorkingDays] = useState(DEFAULT_WORKING_DAYS);
+  const [showNewShiftStartPicker, setShowNewShiftStartPicker] = useState(false);
+  const [showNewShiftEndPicker, setShowNewShiftEndPicker] = useState(false);
+
+  const toggleWorkingDay = (days, setDays, code) => {
+    setDays(days.includes(code) ? days.filter((d) => d !== code) : [...days, code]);
+  };
+
   const resetCreateForm = () => {
     setNewName('');
     setNewEmail('');
@@ -66,6 +130,10 @@ export default function AdminUsersScreen() {
     setNewFaceVerifyAnytime(true);
     setNewFaceRegistered(false);
     setNewFaceEmbedding('');
+    setNewShiftStartTime(defaultShiftStart());
+    setNewShiftEndTime(defaultShiftEnd());
+    setNewGracePeriodMinutes('15');
+    setNewWorkingDays(DEFAULT_WORKING_DAYS);
   };
 
   const fetchAgents = useCallback(async () => {
@@ -93,6 +161,10 @@ export default function AdminUsersScreen() {
     setFaceVerifyOnCheckOut(agent.faceVerifyOnCheckOut ?? true);
     setFaceVerifyAnytime(agent.faceVerifyAnytime ?? true);
     setFaceRegistered(agent.faceRegistered ?? false);
+    setShiftStartTime(parseBackendTime(agent.shiftStartTime));
+    setShiftEndTime(parseBackendTime(agent.shiftEndTime));
+    setGracePeriodMinutes(agent.gracePeriodMinutes != null ? String(agent.gracePeriodMinutes) : '15');
+    setWorkingDays(agent.workingDays && agent.workingDays.length > 0 ? agent.workingDays : DEFAULT_WORKING_DAYS);
     setModalVisible(true);
   };
 
@@ -106,7 +178,11 @@ export default function AdminUsersScreen() {
         faceVerifyOnCheckIn,
         faceVerifyOnCheckOut,
         faceVerifyAnytime,
-        faceRegistered
+        faceRegistered,
+        shiftStartTime: formatTimeForBackend(shiftStartTime),
+        shiftEndTime: formatTimeForBackend(shiftEndTime),
+        gracePeriodMinutes: parseInt(gracePeriodMinutes, 10) || 15,
+        workingDays
       });
       if (response.data && response.data.success) {
         Alert.alert('Success', 'Agent role and department updated.');
@@ -160,6 +236,14 @@ export default function AdminUsersScreen() {
       Alert.alert('Face Verification Required', 'Please register the agent\'s face verification before onboarding.');
       return;
     }
+    if (newRole === 'AGENT' && newWorkingDays.length === 0) {
+      Alert.alert('Shift Schedule Required', 'Select at least one working day — late-arrival detection needs a defined shift.');
+      return;
+    }
+    if (newRole === 'AGENT' && newShiftStartTime >= newShiftEndTime) {
+      Alert.alert('Invalid Shift Times', 'Shift start time must be before shift end time.');
+      return;
+    }
     setLoading(true);
     try {
       const response = await api.post('/agents', {
@@ -173,7 +257,11 @@ export default function AdminUsersScreen() {
         faceVerifyOnCheckIn: newFaceVerifyOnCheckIn,
         faceVerifyOnCheckOut: newFaceVerifyOnCheckOut,
         faceVerifyAnytime: newFaceVerifyAnytime,
-        faceRegistered: newFaceRegistered
+        faceRegistered: newFaceRegistered,
+        shiftStartTime: formatTimeForBackend(newShiftStartTime),
+        shiftEndTime: formatTimeForBackend(newShiftEndTime),
+        gracePeriodMinutes: parseInt(newGracePeriodMinutes, 10) || 15,
+        workingDays: newWorkingDays
       });
       if (response.data && response.data.success) {
         const createdAgentId = response.data.data.id;
@@ -339,8 +427,73 @@ export default function AdminUsersScreen() {
 
               {newRole === 'AGENT' && (
                 <View style={styles.policyContainer}>
+                  <Text style={styles.policyTitle}>Shift & Schedule *</Text>
+
+                  <View style={styles.timeRow}>
+                    <TouchableOpacity style={styles.timeBtn} onPress={() => setShowNewShiftStartPicker(true)}>
+                      <MaterialIcons name="schedule" size={16} color="#1976D2" />
+                      <Text style={styles.timeBtnText}>Start: {formatTimeDisplay(newShiftStartTime)}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.timeBtn} onPress={() => setShowNewShiftEndPicker(true)}>
+                      <MaterialIcons name="schedule" size={16} color="#1976D2" />
+                      <Text style={styles.timeBtnText}>End: {formatTimeDisplay(newShiftEndTime)}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {showNewShiftStartPicker && (
+                    <DateTimePicker
+                      value={newShiftStartTime}
+                      mode="time"
+                      display="default"
+                      onChange={(event, date) => {
+                        setShowNewShiftStartPicker(false);
+                        if (date) setNewShiftStartTime(date);
+                      }}
+                    />
+                  )}
+                  {showNewShiftEndPicker && (
+                    <DateTimePicker
+                      value={newShiftEndTime}
+                      mode="time"
+                      display="default"
+                      onChange={(event, date) => {
+                        setShowNewShiftEndPicker(false);
+                        if (date) setNewShiftEndTime(date);
+                      }}
+                    />
+                  )}
+
+                  <Text style={styles.subLabel}>Working Days</Text>
+                  <View style={styles.dayRow}>
+                    {WORKING_DAYS_OPTIONS.map(({ code, label }) => {
+                      const selected = newWorkingDays.includes(code);
+                      return (
+                        <TouchableOpacity
+                          key={code}
+                          style={[styles.dayChip, selected && styles.dayChipSelected]}
+                          onPress={() => toggleWorkingDay(newWorkingDays, setNewWorkingDays, code)}
+                        >
+                          <Text style={[styles.dayChipText, selected && styles.dayChipTextSelected]}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={styles.subLabel}>Grace Period (minutes)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="15"
+                    keyboardType="numeric"
+                    value={newGracePeriodMinutes}
+                    onChangeText={setNewGracePeriodMinutes}
+                  />
+                </View>
+              )}
+
+              {newRole === 'AGENT' && (
+                <View style={styles.policyContainer}>
                   <Text style={styles.policyTitle}>Face Verification Policy Settings</Text>
-                  
+
                   <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyOnCheckIn(!newFaceVerifyOnCheckIn)}>
                     <MaterialIcons name={newFaceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color="#1976D2" />
                     <Text style={styles.checkboxLabel}>Verify on Check-In</Text>
@@ -437,8 +590,73 @@ export default function AdminUsersScreen() {
 
               {role === 'AGENT' && (
                 <View style={styles.policyContainer}>
+                  <Text style={styles.policyTitle}>Shift & Schedule *</Text>
+
+                  <View style={styles.timeRow}>
+                    <TouchableOpacity style={styles.timeBtn} onPress={() => setShowShiftStartPicker(true)}>
+                      <MaterialIcons name="schedule" size={16} color="#1976D2" />
+                      <Text style={styles.timeBtnText}>Start: {formatTimeDisplay(shiftStartTime)}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.timeBtn} onPress={() => setShowShiftEndPicker(true)}>
+                      <MaterialIcons name="schedule" size={16} color="#1976D2" />
+                      <Text style={styles.timeBtnText}>End: {formatTimeDisplay(shiftEndTime)}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {showShiftStartPicker && (
+                    <DateTimePicker
+                      value={shiftStartTime}
+                      mode="time"
+                      display="default"
+                      onChange={(event, date) => {
+                        setShowShiftStartPicker(false);
+                        if (date) setShiftStartTime(date);
+                      }}
+                    />
+                  )}
+                  {showShiftEndPicker && (
+                    <DateTimePicker
+                      value={shiftEndTime}
+                      mode="time"
+                      display="default"
+                      onChange={(event, date) => {
+                        setShowShiftEndPicker(false);
+                        if (date) setShiftEndTime(date);
+                      }}
+                    />
+                  )}
+
+                  <Text style={styles.subLabel}>Working Days</Text>
+                  <View style={styles.dayRow}>
+                    {WORKING_DAYS_OPTIONS.map(({ code, label }) => {
+                      const selected = workingDays.includes(code);
+                      return (
+                        <TouchableOpacity
+                          key={code}
+                          style={[styles.dayChip, selected && styles.dayChipSelected]}
+                          onPress={() => toggleWorkingDay(workingDays, setWorkingDays, code)}
+                        >
+                          <Text style={[styles.dayChipText, selected && styles.dayChipTextSelected]}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={styles.subLabel}>Grace Period (minutes)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="15"
+                    keyboardType="numeric"
+                    value={gracePeriodMinutes}
+                    onChangeText={setGracePeriodMinutes}
+                  />
+                </View>
+              )}
+
+              {role === 'AGENT' && (
+                <View style={styles.policyContainer}>
                   <Text style={styles.policyTitle}>Face Verification Policy Settings</Text>
-                  
+
                   <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyOnCheckIn(!faceVerifyOnCheckIn)}>
                     <MaterialIcons name={faceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color="#1976D2" />
                     <Text style={styles.checkboxLabel}>Verify on Check-In</Text>
@@ -674,6 +892,61 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 6,
+  },
+  subLabel: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#757575',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  timeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingVertical: 10,
+    backgroundColor: '#FAFAFA',
+    marginHorizontal: 3,
+  },
+  timeBtnText: {
+    fontSize: 12,
+    color: '#333',
+    marginLeft: 6,
+    fontWeight: '600',
+  },
+  dayRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayChip: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 6,
+    marginBottom: 6,
+    backgroundColor: '#FAFAFA',
+  },
+  dayChipSelected: {
+    backgroundColor: '#1976D2',
+    borderColor: '#1976D2',
+  },
+  dayChipText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  dayChipTextSelected: {
+    color: '#fff',
   },
   checkboxRow: {
     flexDirection: 'row',

@@ -72,6 +72,9 @@ export default function HRDashboardScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.navigate('HRReport')} style={styles.iconButton}>
             <MaterialIcons name="notifications-active" size={24} color="#fff" />
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('HRAgentAttendanceReport')} style={styles.iconButton}>
+            <MaterialIcons name="file-download" size={24} color="#fff" />
+          </TouchableOpacity>
           <TouchableOpacity onPress={handleLogout} style={styles.iconButton}>
             <MaterialIcons name="exit-to-app" size={24} color="#fff" />
           </TouchableOpacity>

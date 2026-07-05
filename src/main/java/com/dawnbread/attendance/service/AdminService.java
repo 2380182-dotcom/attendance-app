@@ -60,6 +60,7 @@ public class AdminService {
         if (mart.getGeoFencingEnabled() == null) {
             mart.setGeoFencingEnabled(true);
         }
+        mart.setIsActive(true);
         return martRepository.save(mart);
     }
 
@@ -77,11 +78,24 @@ public class AdminService {
         return martRepository.save(mart);
     }
 
+    /**
+     * Soft-deletes a mart (isActive = false) instead of removing the row — attendance
+     * history holds a NOT NULL FK to mart_id, so historical records must remain intact
+     * and readable. The mart just stops being offered for check-in/geofencing.
+     */
     public void deleteMart(Long id) {
-        if (!martRepository.existsById(id)) {
-            throw new RuntimeException("Mart not found with id: " + id);
-        }
-        martRepository.deleteById(id);
+        Mart mart = martRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Mart not found with id: " + id));
+        mart.setIsActive(false);
+        martRepository.save(mart);
+    }
+
+    /** Reverses a soft-delete, making the mart selectable for check-in/geofencing again. */
+    public Mart reactivateMart(Long id) {
+        Mart mart = martRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Mart not found with id: " + id));
+        mart.setIsActive(true);
+        return martRepository.save(mart);
     }
 
     public Mart toggleGeoFence(Long id, Boolean enabled) {

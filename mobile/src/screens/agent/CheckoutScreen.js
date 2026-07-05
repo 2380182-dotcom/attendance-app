@@ -5,12 +5,14 @@ import {
   Text,
   TouchableOpacity,
   Alert,
-  SafeAreaView
+  SafeAreaView,
+  Linking
 } from 'react-native';
 import * as Location from 'expo-location';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../../context/AuthContext';
 import { apiService } from '../../services/api';
+import LocationService from '../../services/LocationService';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
 
@@ -18,24 +20,38 @@ export default function CheckoutScreen({ navigation }) {
   const { user } = useContext(AuthContext);
   const [location, setLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(true);
+  const [locationPermissionGranted, setLocationPermissionGranted] = useState(true);
   const [currentCheckIn, setCurrentCheckIn] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(true);
   const [faceModalVisible, setFaceModalVisible] = useState(false);
   const [faceConfig, setFaceConfig] = useState(null);
   const [checkingOut, setCheckingOut] = useState(false);
 
+  const blockForLocationPermission = () => {
+    setLocationPermissionGranted(false);
+    setLocation(null);
+    Alert.alert(
+      'Location Permission Required',
+      'Location access is required to check out. Please enable location permissions in your phone settings.',
+      [
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        { text: 'Cancel', onPress: () => navigation.goBack(), style: 'cancel' },
+      ]
+    );
+  };
+
   const getGPSLocation = async () => {
     setLocationLoading(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Location Permission Required',
-          'GPS permission is needed to record checkout location.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
-        return;
+      const status = await LocationService.getPermissionStatus();
+      if (!status.granted) {
+        const requestResult = await LocationService.requestPermissions();
+        if (!requestResult.success) {
+          blockForLocationPermission();
+          return;
+        }
       }
+      setLocationPermissionGranted(true);
 
       const currentLoc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
@@ -91,6 +107,10 @@ export default function CheckoutScreen({ navigation }) {
   };
 
   const handleCheckOut = async () => {
+    if (!locationPermissionGranted) {
+      blockForLocationPermission();
+      return;
+    }
     if (!location) {
       Alert.alert('Location Error', 'Unable to retrieve location coordinates. Please retry.');
       return;
@@ -234,11 +254,13 @@ export default function CheckoutScreen({ navigation }) {
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={[styles.checkoutButton, !location && styles.disabledButton]}
+          style={[styles.checkoutButton, (!location || !locationPermissionGranted) && styles.disabledButton]}
           onPress={handleCheckOut}
-          disabled={!location || checkingOut}
+          disabled={!location || checkingOut || !locationPermissionGranted}
         >
-          <Text style={styles.checkoutButtonText}>CONFIRM CHECK-OUT</Text>
+          <Text style={styles.checkoutButtonText}>
+            {locationPermissionGranted ? 'CONFIRM CHECK-OUT' : 'LOCATION PERMISSION REQUIRED'}
+          </Text>
         </TouchableOpacity>
       </View>
 

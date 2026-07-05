@@ -47,7 +47,7 @@
     <key>NSCameraUsageDescription</key>
     <string>Allow Attendance System to use your camera for face verification.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>This app requires background location to auto check in and check out.</string>
+    <string>This app needs background location to automatically record your check-in and check-out at each mart, even when the app is closed.</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>

@@ -144,7 +144,7 @@ public class AgentController {
 
     // ===== Helper Methods =====
     private AgentDTO convertToDTO(Agent agent) {
-        return new AgentDTO(
+        AgentDTO dto = new AgentDTO(
                 agent.getId(),
                 agent.getAgentId(),
                 agent.getName(),
@@ -159,5 +159,10 @@ public class AgentController {
                 agent.getFaceRegistered(),
                 agent.getFaceTemplate()
         );
+        dto.setShiftStartTime(agent.getShiftStartTime());
+        dto.setShiftEndTime(agent.getShiftEndTime());
+        dto.setGracePeriodMinutes(agent.getGracePeriodMinutes());
+        dto.setWorkingDays(agent.getWorkingDays());
+        return dto;
     }
 }

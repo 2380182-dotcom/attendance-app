@@ -56,7 +56,7 @@ public class GeoFencingService {
         Agent agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new RuntimeException("Agent not found with id: " + agentId));
 
-        List<Mart> marts = martRepository.findAll();
+        List<Mart> marts = martRepository.findByIsActiveTrue();
         Mart insideMart = null;
 
         for (Mart mart : marts) {

@@ -18,6 +18,11 @@ public interface MartRepository extends JpaRepository<Mart, Long> {
     Optional<Mart> findByName(String name);
     List<Mart> findByNameContainingIgnoreCase(String name);
     List<Mart> findByAddressContainingIgnoreCase(String address);
+
+    // Soft-delete aware lookups — use these (not findAll/findById) anywhere a mart
+    // needs to be selectable for check-in or geofence matching, since soft-deleted
+    // marts (isActive = false) must never be offered for new activity.
+    List<Mart> findByIsActiveTrue();
     
     @Query("SELECT m FROM Mart m WHERE " +
            "(6371 * acos(cos(radians(:latitude)) * cos(radians(m.latitude)) * " +

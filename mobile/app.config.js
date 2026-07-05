@@ -52,6 +52,7 @@ export default ({ config }) => {
           'ACCESS_FINE_LOCATION',
           'ACCESS_BACKGROUND_LOCATION',
           'FOREGROUND_SERVICE',
+          'FOREGROUND_SERVICE_LOCATION',
           'CAMERA',
         ],
       },
@@ -88,6 +89,15 @@ export default ({ config }) => {
           'expo-camera',
           {
             cameraPermission: 'Allow Attendance System to use your camera for face verification.',
+          },
+        ],
+        [
+          'expo-location',
+          {
+            locationAlwaysAndWhenInUsePermission:
+              'This app needs background location to automatically record your check-in and check-out at each mart, even when the app is closed.',
+            isAndroidBackgroundLocationEnabled: true,
+            isIosBackgroundLocationEnabled: true,
           },
         ],
       ],
