@@ -4,7 +4,6 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   RefreshControl,
   Alert,
   SafeAreaView
@@ -16,8 +15,15 @@ import StatusCard from '../../components/StatusCard';
 import Loading from '../../components/Loading';
 import FaceVerificationModal from '../../components/FaceVerificationModal';
 import ProductThumbnail from '../../components/ProductThumbnail';
+import AppCard from '../../components/AppCard';
+import AppButton from '../../components/AppButton';
+import EmptyState from '../../components/EmptyState';
+import AnimatedListItem from '../../components/AnimatedListItem';
+import { useTheme, typography } from '../../theme';
 
 export default function DashboardScreen({ navigation, route }) {
+  const { colors, spacing } = useTheme();
+  const styles = createStyles(colors, spacing);
   const { user, logout } = useContext(AuthContext);
   const [refreshing, setRefreshing] = useState(false);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
@@ -135,41 +141,43 @@ export default function DashboardScreen({ navigation, route }) {
       });
     });
 
-    return Object.keys(groups).sort((a, b) => b.localeCompare(a)).map(date => (
-      <View key={date} style={styles.dateGroupCard}>
-        <View style={styles.dateGroupHeader}>
-          <MaterialIcons name="event" size={16} color="#1976D2" />
-          <Text style={styles.dateGroupHeaderText}>Date: {date}</Text>
-        </View>
-        <View style={styles.salesTable}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.columnHeader, { flex: 2 }]}>Product</Text>
-            <Text style={[styles.columnHeader, { flex: 0.6, textAlign: 'center' }]}>Qty</Text>
-            <Text style={[styles.columnHeader, { flex: 1, textAlign: 'center' }]}>Time</Text>
-            <Text style={[styles.columnHeader, { flex: 1.2, textAlign: 'right' }]}>Total</Text>
+    return Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((date, groupIdx) => (
+      <AnimatedListItem key={date} index={groupIdx}>
+        <AppCard style={styles.dateGroupCard}>
+          <View style={styles.dateGroupHeader}>
+            <MaterialIcons name="event" size={16} color={colors.primary} />
+            <Text style={styles.dateGroupHeaderText}>Date: {date}</Text>
           </View>
-          {groups[date].map((item, idx) => {
-            const timeStr = item.time ? item.time.substring(0, 5) : '';
-            return (
-              <View key={idx} style={styles.tableBodyRow}>
-                <View style={[styles.productCell, { flex: 2 }]}>
-                  <ProductThumbnail uri={item.productImageUrl} size={24} style={styles.productThumbnail} />
-                  <Text style={styles.productCellText} numberOfLines={1}>{item.productName}</Text>
+          <View style={styles.salesTable}>
+            <View style={styles.tableHeaderRow}>
+              <Text style={[styles.columnHeader, { flex: 2 }]}>Product</Text>
+              <Text style={[styles.columnHeader, { flex: 0.6, textAlign: 'center' }]}>Qty</Text>
+              <Text style={[styles.columnHeader, { flex: 1, textAlign: 'center' }]}>Time</Text>
+              <Text style={[styles.columnHeader, { flex: 1.2, textAlign: 'right' }]}>Total</Text>
+            </View>
+            {groups[date].map((item, idx) => {
+              const timeStr = item.time ? item.time.substring(0, 5) : '';
+              return (
+                <View key={idx} style={styles.tableBodyRow}>
+                  <View style={[styles.productCell, { flex: 2 }]}>
+                    <ProductThumbnail uri={item.productImageUrl} size={24} style={styles.productThumbnail} />
+                    <Text style={styles.productCellText} numberOfLines={1}>{item.productName}</Text>
+                  </View>
+                  <Text style={[styles.tableBodyCell, { flex: 0.6, textAlign: 'center', fontWeight: 'bold' }]}>
+                    {item.quantity}
+                  </Text>
+                  <Text style={[styles.tableBodyCell, { flex: 1, textAlign: 'center', color: colors.textSecondary, fontSize: 11 }]}>
+                    {timeStr}
+                  </Text>
+                  <Text style={[styles.tableBodyCell, { flex: 1.2, textAlign: 'right', fontWeight: 'bold', color: colors.primary }]}>
+                    PKR {item.totalPrice}
+                  </Text>
                 </View>
-                <Text style={[styles.tableBodyCell, { flex: 0.6, textAlign: 'center', fontWeight: 'bold' }]}>
-                  {item.quantity}
-                </Text>
-                <Text style={[styles.tableBodyCell, { flex: 1, textAlign: 'center', color: '#757575', fontSize: 11 }]}>
-                  {timeStr}
-                </Text>
-                <Text style={[styles.tableBodyCell, { flex: 1.2, textAlign: 'right', fontWeight: 'bold', color: '#1976D2' }]}>
-                  PKR {item.totalPrice}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      </View>
+              );
+            })}
+          </View>
+        </AppCard>
+      </AnimatedListItem>
     ));
   };
 
@@ -182,7 +190,7 @@ export default function DashboardScreen({ navigation, route }) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} color="#2196F3" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
         }
       >
         <View style={styles.banner}>
@@ -191,28 +199,32 @@ export default function DashboardScreen({ navigation, route }) {
           <Text style={styles.agentIdText}>Agent ID: {user?.agentId || 'N/A'} | Dept: {user?.department || 'N/A'}</Text>
         </View>
 
-        <View style={styles.timeCard}>
+        <AppCard style={styles.timeCard}>
           <Text style={styles.dateText}>
             {currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </Text>
           <Text style={styles.timeText}>
             {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </Text>
-        </View>
+        </AppCard>
 
         {isCheckedIn && user?.faceVerifyAnytime && !currentCheckIn?.midDayVerificationTime && (
-          <View style={styles.alertBanner}>
+          <AppCard style={styles.alertBanner}>
             <View style={styles.alertBannerLeft}>
-              <MaterialIcons name="warning" size={24} color="#E53935" />
+              <MaterialIcons name="warning" size={24} color={colors.warning} />
               <View style={{ marginLeft: 12, flex: 1 }}>
                 <Text style={styles.alertBannerTitle}>Verification Required</Text>
                 <Text style={styles.alertBannerDesc}>Please submit your face verification check for today.</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.alertBannerBtn} onPress={() => setMidDayModalVisible(true)}>
-              <Text style={styles.alertBannerBtnText}>VERIFY</Text>
-            </TouchableOpacity>
-          </View>
+            <AppButton
+              title="VERIFY"
+              onPress={() => setMidDayModalVisible(true)}
+              variant="danger"
+              size="sm"
+              fullWidth={false}
+            />
+          </AppCard>
         )}
 
         <StatusCard isCheckedIn={isCheckedIn} currentCheckIn={currentCheckIn} />
@@ -240,177 +252,136 @@ export default function DashboardScreen({ navigation, route }) {
         {!isCheckedIn && (
           <>
             <Text style={styles.sectionTitle}>Manual Duty Operations</Text>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.checkinButton]}
+            <AppButton
+              title="Proceed to Check-In"
               onPress={() => navigation.navigate('Checkin')}
-            >
-              <MaterialIcons name="login" size={24} color="#fff" />
-              <Text style={styles.actionButtonText}>Proceed to Check-In</Text>
-            </TouchableOpacity>
+              variant="success"
+              icon="login"
+              style={{ marginBottom: 8 }}
+            />
           </>
         )}
 
         <Text style={styles.sectionTitle}>Dawn Bread Sales</Text>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#FF9800', shadowColor: '#FF9800', marginTop: 0, marginBottom: 12 }]}
+        <AppButton
+          title="Enter Daily Sales"
           onPress={() => navigation.navigate('SalesEntry')}
-        >
-          <MaterialIcons name="shopping-cart" size={24} color="#fff" />
-          <Text style={styles.actionButtonText}>Enter Daily Sales</Text>
-        </TouchableOpacity>
+          variant="accent"
+          icon="shopping-cart"
+          style={{ marginBottom: 12 }}
+        />
 
         <Text style={styles.sectionTitle}>Agent Sales History</Text>
         {salesHistory.length === 0 ? (
-          <View style={styles.emptySalesCard}>
-            <MaterialIcons name="assessment" size={32} color="#B0BEC5" style={{ marginBottom: 6 }} />
-            <Text style={styles.emptySalesText}>No sales recorded yet.</Text>
-          </View>
+          <AppCard>
+            <EmptyState
+              icon="assessment"
+              title="No sales recorded yet"
+              message="Submit your daily sales to see them listed here."
+            />
+          </AppCard>
         ) : (
           renderSalesHistoryTable()
         )}
 
         <Text style={styles.sectionTitle}>Resources & Logs</Text>
         <View style={styles.grid}>
-          <TouchableOpacity
-            style={styles.gridItem}
-            onPress={() => navigation.navigate('History')}
-          >
-            <View style={[styles.gridIconBg, { backgroundColor: '#E3F2FD' }]}>
-              <MaterialIcons name="history" size={26} color="#2196F3" />
+          <AppCard onPress={() => navigation.navigate('History')} style={styles.gridItem} padding={16}>
+            <View style={[styles.gridIconBg, { backgroundColor: colors.secondaryLight }]}>
+              <MaterialIcons name="history" size={26} color={colors.secondary} />
             </View>
             <Text style={styles.gridTitle}>My History</Text>
             <Text style={styles.gridDesc}>Past logs</Text>
-          </TouchableOpacity>
+          </AppCard>
 
-          <TouchableOpacity
-            style={styles.gridItem}
-            onPress={() => navigation.navigate('Profile')}
-          >
-            <View style={[styles.gridIconBg, { backgroundColor: '#E8F5E9' }]}>
-              <MaterialIcons name="person" size={26} color="#4CAF50" />
+          <AppCard onPress={() => navigation.navigate('Profile')} style={styles.gridItem} padding={16}>
+            <View style={[styles.gridIconBg, { backgroundColor: colors.successLight }]}>
+              <MaterialIcons name="person" size={26} color={colors.success} />
             </View>
             <Text style={styles.gridTitle}>My Profile</Text>
             <Text style={styles.gridDesc}>Manage account</Text>
-          </TouchableOpacity>
+          </AppCard>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <MaterialIcons name="exit-to-app" size={20} color="#D32F2F" />
-          <Text style={styles.logoutButtonText}>Log Out of System</Text>
-        </TouchableOpacity>
+        <AppButton
+          title="Log Out of System"
+          onPress={handleLogout}
+          variant="ghost"
+          icon="exit-to-app"
+          style={{ backgroundColor: colors.errorLight, marginTop: 32 }}
+          textStyle={{ color: colors.error }}
+        />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors, spacing) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
   },
   banner: {
-    backgroundColor: '#1976D2',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#1976D2',
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 3,
   },
   greetingText: {
-    color: '#E3F2FD',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 14,
     fontWeight: '500',
   },
   agentNameText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 24,
     fontWeight: 'bold',
     marginTop: 2,
   },
   agentIdText: {
-    color: '#E3F2FD',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 12,
     marginTop: 6,
     letterSpacing: 0.5,
   },
   timeCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
     alignItems: 'center',
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
+    marginBottom: spacing.sm,
   },
   dateText: {
     fontSize: 14,
-    color: '#757575',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   timeText: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1976D2',
+    color: colors.primary,
     marginTop: 4,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#424242',
-    marginTop: 20,
-    marginBottom: 10,
+    ...typography.label,
+    color: colors.textSecondary,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm + 2,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  actionButton: {
-    height: 54,
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  checkinButton: {
-    backgroundColor: '#4CAF50',
-    shadowColor: '#4CAF50',
-  },
-  checkoutButton: {
-    backgroundColor: '#FF9800',
-    shadowColor: '#FF9800',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
   },
   grid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   gridItem: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
     width: '48%',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
   gridIconBg: {
     width: 46,
@@ -423,55 +394,29 @@ const styles = StyleSheet.create({
   gridTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#212121',
+    color: colors.textPrimary,
   },
   gridDesc: {
     fontSize: 11,
-    color: '#757575',
+    color: colors.textSecondary,
     marginTop: 2,
   },
-  logoutButton: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 32,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: '#FFCDD2',
-    borderRadius: 10,
-    backgroundColor: '#FFEBEE',
-  },
-  logoutButtonText: {
-    color: '#D32F2F',
-    fontWeight: 'bold',
-    marginLeft: 8,
-    fontSize: 14,
-  },
   dateGroupCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    marginBottom: 16,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
+    marginBottom: spacing.md,
+    padding: spacing.md,
   },
   dateGroupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
+    borderBottomColor: colors.divider,
     paddingBottom: 8,
     marginBottom: 8,
   },
   dateGroupHeaderText: {
     fontWeight: 'bold',
     fontSize: 13,
-    color: '#1976D2',
+    color: colors.primary,
     marginLeft: 6,
   },
   salesTable: {
@@ -481,12 +426,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
+    borderBottomColor: colors.divider,
   },
   columnHeader: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#757575',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   tableBodyRow: {
@@ -494,53 +439,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
+    borderBottomColor: colors.divider,
   },
   productCell: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   productThumbnail: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: '#EEEEEE',
     marginRight: 6,
   },
   productCellText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textPrimary,
     flex: 1,
   },
   tableBodyCell: {
     fontSize: 12,
-    color: '#333',
-  },
-  emptySalesCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    marginBottom: 16,
-  },
-  emptySalesText: {
-    color: '#757575',
-    fontSize: 13,
+    color: colors.textPrimary,
   },
   alertBanner: {
-    backgroundColor: '#FFEBEE',
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
-    borderRadius: 12,
-    padding: 14,
-    marginHorizontal: 16,
-    marginBottom: 16,
+    backgroundColor: colors.errorLight,
+    marginBottom: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: spacing.md,
   },
   alertBannerLeft: {
     flexDirection: 'row',
@@ -551,23 +475,12 @@ const styles = StyleSheet.create({
   alertBannerTitle: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#C62828',
+    color: colors.error,
   },
   alertBannerDesc: {
     fontSize: 11,
-    color: '#D32F2F',
+    color: colors.error,
     marginTop: 2,
     lineHeight: 14,
-  },
-  alertBannerBtn: {
-    backgroundColor: '#D32F2F',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  alertBannerBtnText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
   },
 });

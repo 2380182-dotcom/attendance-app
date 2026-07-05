@@ -17,9 +17,11 @@ import {
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
-import { colors } from '../../theme';
+import { useTheme } from '../../theme';
 
 export default function LoginScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { login } = useContext(AuthContext);
   const [agentId, setAgentId] = useState('');
   const [password, setPassword] = useState('');
@@ -137,7 +139,7 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.primary,
@@ -175,7 +177,7 @@ const styles = StyleSheet.create({
   },
   appSubtitle: {
     fontSize: 14,
-    color: colors.primaryLight,
+    color: 'rgba(255,255,255,0.85)', // light text on the primary-red header — primaryLight (a pink tint) has poor contrast here
     marginTop: 4,
   },
   formCard: {
@@ -231,14 +233,14 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   loginButton: {
-    backgroundColor: colors.action,
+    backgroundColor: colors.primary,
     height: 50,
     borderRadius: 10,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: colors.action,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 6,

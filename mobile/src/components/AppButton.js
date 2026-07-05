@@ -50,6 +50,8 @@ export default function AppButton({
     outline: { backgroundColor: 'transparent', textColor: colors.primary, borderColor: colors.primary },
     ghost: { backgroundColor: colors.surfaceMuted, textColor: colors.textPrimary, borderColor: 'transparent' },
     danger: { backgroundColor: colors.error, textColor: colors.textOnPrimary, borderColor: 'transparent' },
+    success: { backgroundColor: colors.success, textColor: colors.textOnPrimary, borderColor: 'transparent' },
+    accent: { backgroundColor: colors.accent, textColor: colors.textPrimary, borderColor: 'transparent' },
   };
   const v = variantStyles[variant] || variantStyles.primary;
 
