@@ -61,7 +61,7 @@ export default ({ config }) => {
       },
       extra: {
         eas: {
-          projectId: '1bd11e5d-3c8c-4d2c-8943-d20cdc112d49',
+          projectId: '56b54b31-4b87-4bc5-8b9b-8388ee34b9b9',
         },
         apiUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/api',
       },
@@ -101,7 +101,6 @@ export default ({ config }) => {
           },
         ],
       ],
-      owner: 'raffaay1',
     },
   };
 };
