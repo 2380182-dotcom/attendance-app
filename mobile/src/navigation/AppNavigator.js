@@ -4,6 +4,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { createStackNavigator } from '@react-navigation/stack';
 import { AuthContext } from '../context/AuthContext';
 import Loading from '../components/Loading';
+import { useTheme } from '../theme';
 
 // Auth Screens
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -39,6 +40,7 @@ const Stack = createStackNavigator();
 
 export default function AppNavigator() {
   const { isLoading, userToken, user } = useContext(AuthContext);
+  const { colors } = useTheme();
 
   if (isLoading) {
     return <Loading fullScreen />;
@@ -50,22 +52,22 @@ export default function AppNavigator() {
     <Stack.Navigator
       screenOptions={({ navigation }) => ({
         headerStyle: {
-          backgroundColor: '#1976D2',
+          backgroundColor: colors.primary,
           elevation: 2,
           shadowOpacity: 0.2,
         },
-        headerTintColor: '#fff',
+        headerTintColor: colors.textOnPrimary,
         headerTitleStyle: {
           fontWeight: 'bold',
         },
         headerTitleAlign: 'center',
-        cardStyle: { backgroundColor: '#f5f5f5' },
+        cardStyle: { backgroundColor: colors.background },
         headerRight: () => (
           <TouchableOpacity
             style={{ marginRight: 16, padding: 8 }}
             onPress={() => navigation.navigate('ServerSettings')}
           >
-            <MaterialIcons name="settings" size={22} color="#fff" />
+            <MaterialIcons name="settings" size={22} color={colors.textOnPrimary} />
           </TouchableOpacity>
         ),
       })}
@@ -82,10 +84,10 @@ export default function AppNavigator() {
         <>
           {role === 'SALES' && (
             <>
-              <Stack.Screen 
-                name="SalesDashboard" 
-                component={SalesDashboardScreen} 
-                options={{ title: 'Sales Dashboard' }} 
+              <Stack.Screen
+                name="SalesDashboard"
+                component={SalesDashboardScreen}
+                options={{ headerShown: false }}
               />
               <Stack.Screen
                 name="SalesReport"
@@ -105,7 +107,7 @@ export default function AppNavigator() {
               <Stack.Screen
                 name="HRDashboard"
                 component={HRDashboardScreen}
-                options={{ title: 'HR Roster Dashboard' }}
+                options={{ headerShown: false }}
               />
               <Stack.Screen
                 name="HRReport"
@@ -122,10 +124,10 @@ export default function AppNavigator() {
 
           {role === 'ADMIN' && (
             <>
-              <Stack.Screen 
-                name="AdminDashboard" 
-                component={AdminDashboardScreen} 
-                options={{ title: 'Admin Console' }} 
+              <Stack.Screen
+                name="AdminDashboard"
+                component={AdminDashboardScreen}
+                options={{ headerShown: false }}
               />
               <Stack.Screen 
                 name="AdminMart" 

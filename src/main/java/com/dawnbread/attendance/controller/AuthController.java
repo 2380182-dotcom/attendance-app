@@ -32,10 +32,18 @@ public class AuthController {
     private HttpServletRequest request;
 
     /**
-     * Register a new agent
+     * Register a new agent. Requires an authenticated admin — SecurityInterceptor
+     * validates the bearer token and attaches its role to the request before this
+     * runs, so the role check below only trusts a role claim the server itself
+     * verified, never the client-submitted request body.
      */
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Map<String, Object>>> register(@RequestBody Agent agent) {
+        String callerRole = (String) request.getAttribute("role");
+        if (!"ADMIN".equals(callerRole)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator can register new accounts."));
+        }
         try {
             Agent created = agentService.createAgent(agent);
             

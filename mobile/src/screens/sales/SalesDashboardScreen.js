@@ -120,6 +120,7 @@ export default function SalesDashboardScreen({ navigation }) {
         actions={[
           { icon: 'assessment', onPress: () => navigation.navigate('SalesReport'), accessibilityLabel: 'Sales report' },
           { icon: 'file-download', onPress: () => navigation.navigate('SalesAgentReport'), accessibilityLabel: 'Agent report' },
+          { icon: 'settings', onPress: () => navigation.navigate('ServerSettings'), accessibilityLabel: 'Server settings' },
           { icon: 'exit-to-app', onPress: handleLogout, accessibilityLabel: 'Log out' },
         ]}
       />

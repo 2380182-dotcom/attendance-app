@@ -4,6 +4,7 @@ import com.dawnbread.attendance.dto.AgentDTO;
 import com.dawnbread.attendance.dto.ApiResponse;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.service.AgentService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,11 +20,23 @@ public class AgentController {
     @Autowired
     private AgentService agentService;
 
+    @Autowired
+    private HttpServletRequest request;
+
     /**
-     * Create a new agent
+     * Create a new agent. Requires an authenticated admin — SecurityInterceptor
+     * validates the bearer token and attaches its role to the request before this
+     * runs, so the role check below only trusts a role claim the server itself
+     * verified, never the client-submitted request body. Same pattern as
+     * AuthController.register().
      */
     @PostMapping
     public ResponseEntity<ApiResponse<AgentDTO>> createAgent(@RequestBody Agent agent) {
+        String callerRole = (String) request.getAttribute("role");
+        if (!"ADMIN".equals(callerRole)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator can create new accounts."));
+        }
         try {
             Agent created = agentService.createAgent(agent);
             AgentDTO dto = convertToDTO(created);
@@ -70,10 +83,21 @@ public class AgentController {
     }
 
     /**
-     * Update agent
+     * Update agent. Requires an authenticated admin — same pattern as
+     * createAgent() above. This matters beyond the usual "don't let random
+     * users edit other accounts" concern: AgentService.updateAgent() copies
+     * agentDetails.getRole() straight onto the target record with no ownership
+     * or role check of its own, so without this guard any authenticated caller
+     * could PUT their own (or anyone's) id with {"role": "ADMIN"} and grant
+     * themselves administrator access.
      */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<AgentDTO>> updateAgent(@PathVariable Long id, @RequestBody Agent agentDetails) {
+        String callerRole = (String) request.getAttribute("role");
+        if (!"ADMIN".equals(callerRole)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator can update accounts."));
+        }
         try {
             Agent updated = agentService.updateAgent(id, agentDetails);
             return ResponseEntity.ok(ApiResponse.success("Agent updated successfully", convertToDTO(updated)));
@@ -84,10 +108,16 @@ public class AgentController {
     }
 
     /**
-     * Delete agent
+     * Delete agent. Requires an authenticated admin — same pattern as
+     * createAgent() above.
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteAgent(@PathVariable Long id) {
+        String callerRole = (String) request.getAttribute("role");
+        if (!"ADMIN".equals(callerRole)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator can delete accounts."));
+        }
         try {
             agentService.deleteAgent(id);
             return ResponseEntity.ok(ApiResponse.success("Agent deleted successfully", null));

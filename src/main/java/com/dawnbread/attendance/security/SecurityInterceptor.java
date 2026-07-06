@@ -27,8 +27,11 @@ public class SecurityInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // Skip auth endpoints
-        if (path.startsWith("/api/auth")) {
+        // Only login and the agentId-existence check are public. Registration
+        // creates accounts (including admin accounts) and must go through the
+        // normal token check below, so it can be gated to admins only in
+        // AuthController.
+        if (path.equals("/api/auth/login") || path.startsWith("/api/auth/exists")) {
             return true;
         }
 

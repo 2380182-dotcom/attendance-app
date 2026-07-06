@@ -62,7 +62,10 @@ export default function AdminDashboardScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <AppTopBar
         title="Admin Console"
-        actions={[{ icon: 'exit-to-app', onPress: handleLogout, accessibilityLabel: 'Log out' }]}
+        actions={[
+          { icon: 'settings', onPress: () => navigation.navigate('ServerSettings'), accessibilityLabel: 'Server settings' },
+          { icon: 'exit-to-app', onPress: handleLogout, accessibilityLabel: 'Log out' },
+        ]}
       />
 
       <ScrollView

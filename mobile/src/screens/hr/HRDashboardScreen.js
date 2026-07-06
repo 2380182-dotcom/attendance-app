@@ -70,6 +70,7 @@ export default function HRDashboardScreen({ navigation }) {
           { icon: 'assessment', onPress: () => navigation.navigate('ReportGenerator'), accessibilityLabel: 'Excel reports' },
           { icon: 'notifications-active', onPress: () => navigation.navigate('HRReport'), accessibilityLabel: 'HR report' },
           { icon: 'file-download', onPress: () => navigation.navigate('HRAgentAttendanceReport'), accessibilityLabel: 'Agent attendance report' },
+          { icon: 'settings', onPress: () => navigation.navigate('ServerSettings'), accessibilityLabel: 'Server settings' },
           { icon: 'exit-to-app', onPress: handleLogout, accessibilityLabel: 'Log out' },
         ]}
       />
