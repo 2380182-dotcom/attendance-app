@@ -2,7 +2,32 @@
   "permissions": {
     "allow": [
       "Bash(node -e ' *)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn -q compile test-compile)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn -q test-compile)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn -q test -Dtest=FaceVerificationControllerSecurityTest,AgentControllerReadSecurityTest)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 mvn -q test -Dtest=AttendanceControllerSecurityTest)",
+      "Bash(awk -F'[:,]' '{run+=$2; fail+=$4; err+=$6; skip+=$8} END {print \"Total run:\", run, \" Failures:\", fail, \" Errors:\", err, \" Skipped:\", skip}')",
+      "Bash(grep -rn \"attendance.checkIn\\\\b\" src/)",
+      "Bash(grep -rn \"attendance.checkOut\\\\b\" src/)",
+      "Bash(grep -rn \"submitFaceResult\\\\|face\\\\.submitResult\\\\|submitVerificationResult\" src/)",
+      "Bash(grep -rn \"verifyMidDay\" src/)",
+      "Bash(export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64)",
+      "Bash(mvn -q test-compile)",
+      "Bash(mvn -q test -Dtest=GeoFenceAttendanceModelIntegrationTest,AttendanceImpersonationSecurityTest)",
+      "Bash(mvn test *)",
+      "Bash(npx babel *)",
+      "Bash(env)",
+      "Bash(cat src/main/resources/application-prod.properties)",
+      "Bash(grep -v -i \"PASSWORD\\\\|SECRET\\\\|KEY\" .env)",
+      "Read(//home/rafay/**)",
+      "Bash(render --version)",
+      "Bash(which render-cli 2>/dev/null *)",
+      "Bash(timeout 20 psql \"postgresql://attendance_user:jXKlkyQNNjXoIVpsvLbJ6jyWEaK7A9Zd@dpg-d939b95ckfvc73aj3qhg-a.ohio-postgres.render.com/attendance_db_j8ef?sslmode=require\" -c \"SELECT 1;\")",
+      "Bash(timeout 20 psql postgresql://attendance_user:jXKlkyQNNjXoIVpsvLbJ6jyWEaK7A9Zd@dpg-d939b95ckfvc73aj3qhg-a.ohio-postgres.render.com/attendance_db_j8ef?sslmode=require -c ' *)",
+      "Bash(timeout 10 psql \"postgresql://attendance_user:jXKlkyQNNjXoIVpsvLbJ6jyWEaK7A9Zd@dpg-d939b95ckfvc73aj3qhg-a.ohio-postgres.render.com/attendance_db_j8ef?sslmode=require\" -c \"\\\\q\")",
+      "Bash(history -c)"
     ]
   }
 }

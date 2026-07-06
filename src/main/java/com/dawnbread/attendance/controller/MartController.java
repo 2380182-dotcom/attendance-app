@@ -3,7 +3,9 @@ package com.dawnbread.attendance.controller;
 import com.dawnbread.attendance.dto.ApiResponse;
 import com.dawnbread.attendance.dto.MartDTO;
 import com.dawnbread.attendance.entity.Mart;
+import com.dawnbread.attendance.security.AccessControl;
 import com.dawnbread.attendance.service.MartService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,11 +21,23 @@ public class MartController {
     @Autowired
     private MartService martService;
 
+    @Autowired
+    private HttpServletRequest request;
+
+    private ResponseEntity<ApiResponse<MartDTO>> adminOnly() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Only an administrator can manage marts."));
+    }
+
     /**
-     * Create a new mart
+     * Create a new mart. Admin-only — reads stay open to any authenticated
+     * role (agents need the mart list to check in), but mutations don't.
      */
     @PostMapping
     public ResponseEntity<ApiResponse<MartDTO>> createMart(@RequestBody Mart mart) {
+        if (!AccessControl.hasRole(request, "ADMIN")) {
+            return adminOnly();
+        }
         try {
             Mart created = martService.createMart(mart);
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -96,10 +110,13 @@ public class MartController {
     }
 
     /**
-     * Update mart
+     * Update mart. Admin-only.
      */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<MartDTO>> updateMart(@PathVariable Long id, @RequestBody Mart martDetails) {
+        if (!AccessControl.hasRole(request, "ADMIN")) {
+            return adminOnly();
+        }
         try {
             Mart updated = martService.updateMart(id, martDetails);
             return ResponseEntity.ok(ApiResponse.success("Mart updated successfully", convertToDTO(updated)));
@@ -110,10 +127,15 @@ public class MartController {
     }
 
     /**
-     * Delete mart (soft delete — sets isActive = false, does not remove the row)
+     * Delete mart (soft delete — sets isActive = false, does not remove the row).
+     * Admin-only.
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteMart(@PathVariable Long id) {
+        if (!AccessControl.hasRole(request, "ADMIN")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator can manage marts."));
+        }
         try {
             martService.deleteMart(id);
             return ResponseEntity.ok(ApiResponse.success("Mart deleted successfully", null));
@@ -124,10 +146,13 @@ public class MartController {
     }
 
     /**
-     * Reactivate a previously soft-deleted mart
+     * Reactivate a previously soft-deleted mart. Admin-only.
      */
     @PatchMapping("/{id}/reactivate")
     public ResponseEntity<ApiResponse<MartDTO>> reactivateMart(@PathVariable Long id) {
+        if (!AccessControl.hasRole(request, "ADMIN")) {
+            return adminOnly();
+        }
         try {
             Mart reactivated = martService.reactivateMart(id);
             return ResponseEntity.ok(ApiResponse.success("Mart reactivated successfully", convertToDTO(reactivated)));

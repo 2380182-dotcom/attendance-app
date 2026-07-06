@@ -32,6 +32,7 @@ export default function DashboardScreen({ navigation, route }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [salesHistory, setSalesHistory] = useState([]);
   const [midDayModalVisible, setMidDayModalVisible] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -55,6 +56,15 @@ export default function DashboardScreen({ navigation, route }) {
         setCurrentCheckIn(details);
       } else {
         setCurrentCheckIn(null);
+      }
+
+      // Today's mid-shift verification status — drives the persistent
+      // indicator below, not just a one-shot "haven't verified yet" banner.
+      try {
+        const verification = await apiService.attendance.getVerificationStatus(user.id);
+        setVerificationStatus(verification);
+      } catch (err) {
+        console.error('Failed to load verification status', err);
       }
 
       // Fetch agent sales history
@@ -185,6 +195,12 @@ export default function DashboardScreen({ navigation, route }) {
     return <Loading message="Loading dashboard..." fullScreen />;
   }
 
+  // Prefer showing a due/missed slot (needs action) over a completed one.
+  const midShiftSlot =
+    verificationStatus?.verifications?.find((v) => v.status === 'PENDING' || v.status === 'MISSED') ||
+    verificationStatus?.verifications?.find((v) => v.status === 'COMPLETED') ||
+    null;
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -208,22 +224,49 @@ export default function DashboardScreen({ navigation, route }) {
           </Text>
         </AppCard>
 
-        {isCheckedIn && user?.faceVerifyAnytime && !currentCheckIn?.midDayVerificationTime && (
-          <AppCard style={styles.alertBanner}>
+        {isCheckedIn && midShiftSlot && (
+          <AppCard
+            style={[
+              styles.alertBanner,
+              midShiftSlot.status === 'COMPLETED' && { backgroundColor: colors.successLight },
+            ]}
+          >
             <View style={styles.alertBannerLeft}>
-              <MaterialIcons name="warning" size={24} color={colors.warning} />
+              <MaterialIcons
+                name={midShiftSlot.status === 'COMPLETED' ? 'check-circle' : 'warning'}
+                size={24}
+                color={midShiftSlot.status === 'COMPLETED' ? colors.successDark : colors.warning}
+              />
               <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={styles.alertBannerTitle}>Verification Required</Text>
-                <Text style={styles.alertBannerDesc}>Please submit your face verification check for today.</Text>
+                <Text
+                  style={[
+                    styles.alertBannerTitle,
+                    midShiftSlot.status === 'COMPLETED' && { color: colors.successDark },
+                  ]}
+                >
+                  {midShiftSlot.status === 'COMPLETED' ? 'Mid-Shift Verification Completed' : 'Mid-Shift Verification Due'}
+                </Text>
+                <Text
+                  style={[
+                    styles.alertBannerDesc,
+                    midShiftSlot.status === 'COMPLETED' && { color: colors.successDark },
+                  ]}
+                >
+                  {midShiftSlot.status === 'COMPLETED'
+                    ? `Completed at ${new Date(midShiftSlot.verifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : `Scheduled for ${midShiftSlot.time}${midShiftSlot.status === 'MISSED' ? ' — missed, please verify now' : ''}`}
+                </Text>
               </View>
             </View>
-            <AppButton
-              title="VERIFY"
-              onPress={() => setMidDayModalVisible(true)}
-              variant="danger"
-              size="sm"
-              fullWidth={false}
-            />
+            {midShiftSlot.status !== 'COMPLETED' && (
+              <AppButton
+                title="VERIFY NOW"
+                onPress={() => setMidDayModalVisible(true)}
+                variant="danger"
+                size="sm"
+                fullWidth={false}
+              />
+            )}
           </AppCard>
         )}
 
@@ -249,16 +292,28 @@ export default function DashboardScreen({ navigation, route }) {
           checkpointType="MIDSHIFT"
         />
 
-        {!isCheckedIn && (
+        <Text style={styles.sectionTitle}>Manual Duty Operations</Text>
+        {!isCheckedIn ? (
+          <AppButton
+            title="Proceed to Check-In"
+            onPress={() => navigation.navigate('Checkin')}
+            variant="success"
+            icon="login"
+            style={{ marginBottom: 8 }}
+          />
+        ) : (
           <>
-            <Text style={styles.sectionTitle}>Manual Duty Operations</Text>
             <AppButton
-              title="Proceed to Check-In"
-              onPress={() => navigation.navigate('Checkin')}
-              variant="success"
-              icon="login"
-              style={{ marginBottom: 8 }}
+              title="End Duty"
+              onPress={() => navigation.navigate('Checkout')}
+              variant="danger"
+              icon="logout"
+              style={{ marginBottom: 4 }}
             />
+            <Text style={styles.endDutyHint}>
+              This is the only way to officially finalize today's check-out — geofence exits no
+              longer close your shift automatically.
+            </Text>
           </>
         )}
 
@@ -482,5 +537,11 @@ const createStyles = (colors, spacing) => StyleSheet.create({
     color: colors.error,
     marginTop: 2,
     lineHeight: 14,
+  },
+  endDutyHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
+    lineHeight: 15,
   },
 });

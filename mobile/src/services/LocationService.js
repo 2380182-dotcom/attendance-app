@@ -24,11 +24,13 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
           const geoResponse = await apiService.geoFence.check(user.id, latitude, longitude);
           if (geoResponse) {
             const { status, message } = geoResponse;
-            if (status === 'ENTERED' || status === 'EXITED') {
-              await NotificationService.sendLocalNotification(
-                status === 'ENTERED' ? 'Mart Check-In' : 'Mart Check-Out',
-                message
-              );
+            // Only the day's first entry is a real check-in worth surfacing to
+            // the agent. ENTERED_LOGGED/EXITED_LOGGED are Sales-facing presence
+            // pings — see GeoFencingService — and don't need an agent-facing
+            // notification. Checkout is never auto-triggered here anymore; it's
+            // exclusively finalized via the End Duty button.
+            if (status === 'ENTERED') {
+              await NotificationService.sendLocalNotification('Mart Check-In', message);
             }
           }
         }

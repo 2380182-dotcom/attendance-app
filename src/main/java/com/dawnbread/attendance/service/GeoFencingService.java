@@ -1,7 +1,6 @@
 package com.dawnbread.attendance.service;
 
 import com.dawnbread.attendance.dto.CheckInRequest;
-import com.dawnbread.attendance.dto.CheckOutRequest;
 import com.dawnbread.attendance.dto.GeoFenceResponse;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Attendance;
@@ -17,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -52,6 +52,17 @@ public class GeoFencingService {
         return R * c * 1000; // meters
     }
 
+    /**
+     * Only the day's very first geofence entry is attendance-relevant (creates
+     * the check-in). Every other entry and every exit is a live presence
+     * signal for Sales only — it never touches the attendance record.
+     * Check-out is exclusively finalized via the "End Duty" button
+     * (AttendanceController.checkOut / AttendanceService.checkOut), never here.
+     *
+     * A GeoFenceLog transition (not "is currently inside/outside") drives the
+     * ENTERED/EXITED decision so a stationary agent pinging every ~10s doesn't
+     * spam a new log/notification on every call — only real boundary crossings do.
+     */
     public GeoFenceResponse checkGeoFenceStatus(Long agentId, Double latitude, Double longitude) {
         Agent agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new RuntimeException("Agent not found with id: " + agentId));
@@ -69,10 +80,29 @@ public class GeoFencingService {
             }
         }
 
-        Optional<Attendance> openAttendance = attendanceRepository.findOpenAttendanceByAgentId(agentId);
+        Optional<GeoFenceLog> lastLog = geoFenceLogRepository.findFirstByAgentIdOrderByCreatedAtDesc(agentId);
+        boolean lastKnownInside = lastLog.isPresent() && "ENTERED".equals(lastLog.get().getAction());
+        Long lastKnownMartId = lastLog.isPresent() && lastLog.get().getMart() != null
+                ? lastLog.get().getMart().getId() : null;
 
         if (insideMart != null) {
-            if (openAttendance.isEmpty()) {
+            boolean sameMartAsLastKnown = lastKnownInside && Objects.equals(lastKnownMartId, insideMart.getId());
+            if (sameMartAsLastKnown) {
+                // No boundary crossing — still inside the same mart as last known. No-op.
+                Optional<Attendance> openAttendance = attendanceRepository.findOpenAttendanceByAgentId(agentId);
+                return new GeoFenceResponse("STAYED", "Agent is active inside " + insideMart.getName(),
+                        openAttendance.orElse(null));
+            }
+
+            // Genuine ENTER transition.
+            logGeoFenceEvent(agent, insideMart, "ENTERED", latitude, longitude);
+
+            LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
+            LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+            boolean alreadyCheckedInToday = !attendanceRepository
+                    .findByAgentIdAndCheckInTimeBetween(agentId, startOfDay, endOfDay).isEmpty();
+
+            if (!alreadyCheckedInToday) {
                 CheckInRequest checkInRequest = new CheckInRequest();
                 checkInRequest.setAgentId(agentId);
                 checkInRequest.setMartId(insideMart.getId());
@@ -80,50 +110,47 @@ public class GeoFencingService {
                 checkInRequest.setLongitude(longitude);
 
                 Attendance attendance = attendanceService.checkIn(checkInRequest);
-                
-                GeoFenceLog log = new GeoFenceLog();
-                log.setAgent(agent);
-                log.setMart(insideMart);
-                log.setAction("ENTERED");
-                log.setLatitude(latitude);
-                log.setLongitude(longitude);
-                log.setCreatedAt(LocalDateTime.now());
-                geoFenceLogRepository.save(log);
 
-                notificationService.sendPushNotification(agentId, "Auto Checked-In", "You have been checked in automatically at " + insideMart.getName());
+                notificationService.sendPushNotification(agentId, "Auto Checked-In",
+                        "You have been checked in automatically at " + insideMart.getName());
 
                 return new GeoFenceResponse("ENTERED", "Auto Check-In successful at " + insideMart.getName(), attendance);
             } else {
-                return new GeoFenceResponse("STAYED", "Agent is active inside " + insideMart.getName(), openAttendance.get());
+                // Already checked in today (whether still open or already
+                // finalized via End Duty) — this re-entry is Sales-notification
+                // only, no attendance change.
+                notificationService.sendGeoFenceActivityNotification(agent, insideMart.getName(), "ENTERED");
+                return new GeoFenceResponse("ENTERED_LOGGED",
+                        "Presence logged at " + insideMart.getName() + " (already checked in today)", null);
             }
         } else {
-            if (openAttendance.isPresent()) {
-                Attendance attendance = openAttendance.get();
-                Mart mart = attendance.getMart();
-
-                CheckOutRequest checkOutRequest = new CheckOutRequest();
-                checkOutRequest.setAgentId(agentId);
-                checkOutRequest.setLatitude(latitude);
-                checkOutRequest.setLongitude(longitude);
-
-                Attendance updatedAttendance = attendanceService.checkOut(checkOutRequest);
-
-                GeoFenceLog log = new GeoFenceLog();
-                log.setAgent(agent);
-                log.setMart(mart);
-                log.setAction("EXITED");
-                log.setLatitude(latitude);
-                log.setLongitude(longitude);
-                log.setCreatedAt(LocalDateTime.now());
-                geoFenceLogRepository.save(log);
-
-                notificationService.sendPushNotification(agentId, "Auto Checked-Out", "You have been checked out automatically from " + mart.getName());
-
-                return new GeoFenceResponse("EXITED", "Auto Check-Out successful from " + mart.getName(), updatedAttendance);
-            } else {
+            if (!lastKnownInside) {
+                // No boundary crossing — still outside, as last known. No-op.
                 return new GeoFenceResponse("OUTSIDE", "Agent is outside all geo-fences", null);
             }
+
+            // Genuine EXIT transition. Never finalizes check-out — that only
+            // happens via the End Duty button — this is a presence signal only.
+            Mart lastMart = lastLog.get().getMart();
+            logGeoFenceEvent(agent, lastMart, "EXITED", latitude, longitude);
+            notificationService.sendGeoFenceActivityNotification(agent, lastMart.getName(), "EXITED");
+
+            Optional<Attendance> openAttendance = attendanceRepository.findOpenAttendanceByAgentId(agentId);
+            return new GeoFenceResponse("EXITED_LOGGED",
+                    "Presence logged leaving " + lastMart.getName() + " — check out with End Duty when your shift ends",
+                    openAttendance.orElse(null));
         }
+    }
+
+    private void logGeoFenceEvent(Agent agent, Mart mart, String action, Double latitude, Double longitude) {
+        GeoFenceLog log = new GeoFenceLog();
+        log.setAgent(agent);
+        log.setMart(mart);
+        log.setAction(action);
+        log.setLatitude(latitude);
+        log.setLongitude(longitude);
+        log.setCreatedAt(LocalDateTime.now());
+        geoFenceLogRepository.save(log);
     }
 
     public List<GeoFenceLog> getLogsForAgent(Long agentId) {

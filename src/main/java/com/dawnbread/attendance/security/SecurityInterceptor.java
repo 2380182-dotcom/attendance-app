@@ -56,11 +56,15 @@ public class SecurityInterceptor implements HandlerInterceptor {
             // Parse token to get claims
             Claims claims = tokenProvider.parseToken(token);
             String username = claims.getSubject();
-            
+
             // Store username in request for later use
             request.setAttribute("username", username);
             request.setAttribute("role", claims.get("role"));
-            
+            Object idClaim = claims.get("id");
+            if (idClaim != null) {
+                request.setAttribute("id", Long.valueOf(idClaim.toString()));
+            }
+
             return true;
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

@@ -8,7 +8,9 @@ import com.dawnbread.attendance.dto.CheckOutRequest;
 import com.dawnbread.attendance.dto.FaceVerificationStatusDTO;
 import com.dawnbread.attendance.dto.FaceResultRequest;
 import com.dawnbread.attendance.entity.Attendance;
+import com.dawnbread.attendance.security.AccessControl;
 import com.dawnbread.attendance.service.AttendanceService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,9 +24,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * checkin/checkout/face-result/verify-midday/verify-scheduled stay open to any
+ * authenticated role — they're self-service actions an agent performs for
+ * themselves. Every other endpoint here reads attendance/location data, which
+ * is either a cross-agent aggregate (management-only) or a specific agent's
+ * record (self-or-management), per the same rationale as
+ * NotificationController/FaceVerificationController.
+ */
 @RestController
 @RequestMapping("/api/attendance")
 public class AttendanceController {
+
+    private static final String[] MANAGEMENT_ROLES = { "ADMIN", "HR", "SALES" };
 
     @Autowired
     private AttendanceService attendanceService;
@@ -32,11 +44,33 @@ public class AttendanceController {
     @Autowired
     private com.dawnbread.attendance.service.FaceVerificationService faceVerificationService;
 
+    @Autowired
+    private HttpServletRequest request;
+
+    private <T> ResponseEntity<ApiResponse<T>> managementOnly() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Only Admin, HR, or Sales can access this."));
+    }
+
+    private <T> ResponseEntity<ApiResponse<T>> selfOrManagementOnly() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("You can only view your own attendance records."));
+    }
+
+    private <T> ResponseEntity<ApiResponse<T>> selfOnly() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("You can only do this for yourself."));
+    }
+
     /**
-     * Check-in an agent
+     * Check-in an agent. Self-only — confirmed every mobile caller passes the
+     * logged-in agent's own id; no management-on-behalf-of flow exists.
      */
     @PostMapping("/checkin")
     public ResponseEntity<ApiResponse<AttendanceDTO>> checkIn(@RequestBody CheckInRequest request) {
+        if (!AccessControl.isSelfOrRole(this.request, request.getAgentId())) {
+            return selfOnly();
+        }
         try {
             Attendance attendance = attendanceService.checkIn(request);
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -48,10 +82,13 @@ public class AttendanceController {
     }
 
     /**
-     * Check-out an agent
+     * Check-out an agent. Self-only — same rationale as checkIn().
      */
     @PostMapping("/checkout")
     public ResponseEntity<ApiResponse<AttendanceDTO>> checkOut(@RequestBody CheckOutRequest request) {
+        if (!AccessControl.isSelfOrRole(this.request, request.getAgentId())) {
+            return selfOnly();
+        }
         try {
             Attendance attendance = attendanceService.checkOut(request);
             return ResponseEntity.ok(ApiResponse.success("Check-out successful", convertToDTO(attendance)));
@@ -62,10 +99,13 @@ public class AttendanceController {
     }
 
     /**
-     * Get all attendance records
+     * Get all attendance records — every agent, unscoped. Management-only.
      */
     @GetMapping
     public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getAllAttendance() {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Attendance> attendances = attendanceService.getAllAttendance();
         List<AttendanceDTO> dtos = attendances.stream()
                 .map(this::convertToDTO)
@@ -74,10 +114,13 @@ public class AttendanceController {
     }
 
     /**
-     * Get attendance by ID
+     * Get attendance by ID — arbitrary record, no agent scoping. Management-only.
      */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<AttendanceDTO>> getAttendanceById(@PathVariable Long id) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         return attendanceService.getAttendanceById(id)
                 .map(attendance -> ResponseEntity.ok(ApiResponse.success("Attendance found", convertToDTO(attendance))))
                 .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -85,10 +128,13 @@ public class AttendanceController {
     }
 
     /**
-     * Get attendance by agent
+     * Get attendance by agent — full history. Self-or-management.
      */
     @GetMapping("/agent/{agentId}")
     public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getAttendanceByAgent(@PathVariable Long agentId) {
+        if (!AccessControl.isSelfOrRole(request, agentId, MANAGEMENT_ROLES)) {
+            return selfOrManagementOnly();
+        }
         List<Attendance> attendances = attendanceService.getAttendanceByAgent(agentId);
         List<AttendanceDTO> dtos = attendances.stream()
                 .map(this::convertToDTO)
@@ -97,10 +143,13 @@ public class AttendanceController {
     }
 
     /**
-     * Get today's attendance for an agent
+     * Get today's attendance for an agent. Self-or-management.
      */
     @GetMapping("/agent/{agentId}/today")
     public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getTodayAttendanceForAgent(@PathVariable Long agentId) {
+        if (!AccessControl.isSelfOrRole(request, agentId, MANAGEMENT_ROLES)) {
+            return selfOrManagementOnly();
+        }
         List<Attendance> attendances = attendanceService.getTodayAttendanceForAgent(agentId);
         List<AttendanceDTO> dtos = attendances.stream()
                 .map(this::convertToDTO)
@@ -109,12 +158,15 @@ public class AttendanceController {
     }
 
     /**
-     * Get attendance by date range
+     * Get attendance by date range — every agent, unscoped. Management-only.
      */
     @GetMapping("/date-range")
     public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getAttendanceByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Attendance> attendances = attendanceService.getAttendanceByDateRange(startDate, endDate);
         List<AttendanceDTO> dtos = attendances.stream()
                 .map(this::convertToDTO)
@@ -123,13 +175,16 @@ public class AttendanceController {
     }
 
     /**
-     * Get attendance for an agent by date range
+     * Get attendance for an agent by date range. Self-or-management.
      */
     @GetMapping("/agent/{agentId}/date-range")
     public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getAttendanceForAgentByDateRange(
             @PathVariable Long agentId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+        if (!AccessControl.isSelfOrRole(request, agentId, MANAGEMENT_ROLES)) {
+            return selfOrManagementOnly();
+        }
         List<Attendance> attendances = attendanceService.getAttendanceForAgentByDateRange(agentId, startDate, endDate);
         List<AttendanceDTO> dtos = attendances.stream()
                 .map(this::convertToDTO)
@@ -138,10 +193,13 @@ public class AttendanceController {
     }
 
     /**
-     * Get attendance by status
+     * Get attendance by status — every agent, unscoped. Management-only.
      */
     @GetMapping("/status/{status}")
     public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getAttendanceByStatus(@PathVariable String status) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Attendance> attendances = attendanceService.getAttendanceByStatus(status);
         List<AttendanceDTO> dtos = attendances.stream()
                 .map(this::convertToDTO)
@@ -150,10 +208,14 @@ public class AttendanceController {
     }
 
     /**
-     * Get open attendance (not checked out)
+     * Get open attendance (not checked out) — confirmed caller: SalesDashboardScreen's
+     * live agent map. Management-only, not bare Agent.
      */
     @GetMapping("/open")
     public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getOpenAttendance() {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Attendance> attendances = attendanceService.getOpenAttendance();
         List<AttendanceDTO> dtos = attendances.stream()
                 .map(this::convertToDTO)
@@ -162,20 +224,26 @@ public class AttendanceController {
     }
 
     /**
-     * Get today's attendance report
+     * Get today's attendance report — every agent, unscoped. Management-only.
      */
     @GetMapping("/report/today")
     public ResponseEntity<ApiResponse<List<Object[]>>> getTodayAttendanceReport() {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Object[]> report = attendanceService.getTodayAttendanceReport();
         return ResponseEntity.ok(ApiResponse.success("Today's attendance report", report));
     }
 
     /**
-     * Get daily attendance report
+     * Get daily attendance report — every agent, unscoped. Management-only.
      */
     @GetMapping("/report/daily")
     public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getDailyAttendanceReport(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Attendance> attendances = attendanceService.getDailyAttendanceReport(date);
         List<AttendanceDTO> dtos = attendances.stream()
                 .map(this::convertToDTO)
@@ -184,13 +252,16 @@ public class AttendanceController {
     }
 
     /**
-     * Get monthly attendance for an agent
+     * Get monthly attendance for an agent. Self-or-management.
      */
     @GetMapping("/agent/{agentId}/monthly")
     public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getMonthlyAttendanceForAgent(
             @PathVariable Long agentId,
             @RequestParam int year,
             @RequestParam int month) {
+        if (!AccessControl.isSelfOrRole(request, agentId, MANAGEMENT_ROLES)) {
+            return selfOrManagementOnly();
+        }
         List<Attendance> attendances = attendanceService.getMonthlyAttendanceForAgent(agentId, year, month);
         List<AttendanceDTO> dtos = attendances.stream()
                 .map(this::convertToDTO)
@@ -199,30 +270,39 @@ public class AttendanceController {
     }
 
     /**
-     * Get attendance statistics
+     * Get attendance statistics — every agent, unscoped. Management-only.
      */
     @GetMapping("/statistics")
     public ResponseEntity<ApiResponse<Object[]>> getAttendanceStatistics(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         Object[] stats = attendanceService.getAttendanceStatistics(startDate, endDate);
         return ResponseEntity.ok(ApiResponse.success("Attendance statistics", stats));
     }
 
     /**
-     * Check if agent is checked in
+     * Check if agent is checked in. Self-or-management.
      */
     @GetMapping("/agent/{agentId}/is-checked-in")
     public ResponseEntity<ApiResponse<Boolean>> isAgentCheckedIn(@PathVariable Long agentId) {
+        if (!AccessControl.isSelfOrRole(request, agentId, MANAGEMENT_ROLES)) {
+            return selfOrManagementOnly();
+        }
         boolean isCheckedIn = attendanceService.isAgentCheckedIn(agentId);
         return ResponseEntity.ok(ApiResponse.success("Agent check-in status", isCheckedIn));
     }
 
     /**
-     * Get current check-in for an agent
+     * Get current check-in for an agent. Self-or-management.
      */
     @GetMapping("/agent/{agentId}/current")
     public ResponseEntity<ApiResponse<AttendanceDTO>> getCurrentCheckIn(@PathVariable Long agentId) {
+        if (!AccessControl.isSelfOrRole(request, agentId, MANAGEMENT_ROLES)) {
+            return selfOrManagementOnly();
+        }
         return attendanceService.getCurrentCheckIn(agentId)
                 .map(attendance -> ResponseEntity.ok(ApiResponse.success("Current check-in", convertToDTO(attendance))))
                 .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -230,20 +310,26 @@ public class AttendanceController {
     }
 
     /**
-     * Count attendance for an agent
+     * Count attendance for an agent. Self-or-management.
      */
     @GetMapping("/agent/{agentId}/count")
     public ResponseEntity<ApiResponse<Long>> countAttendanceByAgent(@PathVariable Long agentId) {
+        if (!AccessControl.isSelfOrRole(request, agentId, MANAGEMENT_ROLES)) {
+            return selfOrManagementOnly();
+        }
         long count = attendanceService.countAttendanceByAgent(agentId);
         return ResponseEntity.ok(ApiResponse.success("Total attendance count for agent", count));
     }
 
     /**
-     * Record on-device face verification result from mobile app.
+     * Record on-device face verification result from mobile app. Self-only.
      */
     @PostMapping("/face-result")
     public ResponseEntity<ApiResponse<Map<String, Object>>> recordFaceResult(
             @Valid @RequestBody FaceResultRequest request) {
+        if (!AccessControl.isSelfOrRole(this.request, request.getAgentId())) {
+            return selfOnly();
+        }
         try {
             var log = faceVerificationService.recordFaceResult(request);
 
@@ -264,10 +350,14 @@ public class AttendanceController {
     }
 
     /**
-     * Record mid-day face verification (legacy — prefer /face-result with MIDSHIFT checkpoint)
+     * Record mid-day face verification (legacy — prefer /face-result with MIDSHIFT checkpoint).
+     * Self-only.
      */
     @PostMapping("/verify-midday/{agentId}")
     public ResponseEntity<ApiResponse<AttendanceDTO>> verifyMidDayFace(@PathVariable Long agentId) {
+        if (!AccessControl.isSelfOrRole(request, agentId)) {
+            return selfOnly();
+        }
         try {
             Attendance attendance = attendanceService.verifyMidDayFace(agentId);
             return ResponseEntity.ok(ApiResponse.success("Mid-day face verification recorded successfully", convertToDTO(attendance)));
@@ -276,9 +366,15 @@ public class AttendanceController {
         }
     }
 
+    /**
+     * Self-only.
+     */
     @PostMapping("/verify-scheduled")
     public ResponseEntity<ApiResponse<Map<String, Object>>> verifyScheduled(
             @Valid @RequestBody FaceResultRequest request) {
+        if (!AccessControl.isSelfOrRole(this.request, request.getAgentId())) {
+            return selfOnly();
+        }
         try {
             request.setCheckpointType("MIDSHIFT");
             var log = attendanceService.recordScheduledFaceResult(request);
@@ -291,16 +387,28 @@ public class AttendanceController {
         }
     }
 
+    /**
+     * Daily report with shift compliance — every agent, unscoped. Management-only.
+     */
     @GetMapping("/daily-report")
     public ResponseEntity<ApiResponse<List<AttendanceWithShiftDTO>>> getDailyReportWithShift(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         LocalDate target = date != null ? date : LocalDate.now();
         List<AttendanceWithShiftDTO> report = attendanceService.getDailyReportWithShift(target);
         return ResponseEntity.ok(ApiResponse.success("Daily attendance report with shift compliance", report));
     }
 
+    /**
+     * Verification status for an agent. Self-or-management.
+     */
     @GetMapping("/verification-status/{agentId}")
     public ResponseEntity<ApiResponse<FaceVerificationStatusDTO>> getVerificationStatus(@PathVariable Long agentId) {
+        if (!AccessControl.isSelfOrRole(request, agentId, MANAGEMENT_ROLES)) {
+            return selfOrManagementOnly();
+        }
         FaceVerificationStatusDTO status = attendanceService.getVerificationStatusForAgent(agentId);
         return ResponseEntity.ok(ApiResponse.success("Verification status retrieved", status));
     }

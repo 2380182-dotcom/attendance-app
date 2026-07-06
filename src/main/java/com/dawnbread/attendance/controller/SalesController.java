@@ -6,9 +6,11 @@ import com.dawnbread.attendance.entity.SalesRecord;
 import com.dawnbread.attendance.entity.SalesSyncLog;
 import com.dawnbread.attendance.repository.ProductRepository;
 import com.dawnbread.attendance.repository.SalesSyncLogRepository;
+import com.dawnbread.attendance.security.AccessControl;
 import com.dawnbread.attendance.service.DashboardService;
 import com.dawnbread.attendance.service.ExcelExportService;
 import com.dawnbread.attendance.service.SalesService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
@@ -42,6 +44,9 @@ public class SalesController {
 
     @Autowired
     private ExcelExportService excelExportService;
+
+    @Autowired
+    private HttpServletRequest request;
 
     @GetMapping("/products")
     public ResponseEntity<ApiResponse<List<ProductCatalogDTO>>> getProducts() {
@@ -228,10 +233,18 @@ public class SalesController {
     public ResponseEntity<ApiResponse<SalesDTO>> overrideSales(
             @PathVariable Long id,
             @Valid @RequestBody SalesRequest request,
-            @RequestParam String reason,
-            @RequestParam String username) {
+            @RequestParam String reason) {
+        // Admin/HR only — overriding another agent's sales record is a
+        // management action. The acting username is taken from the verified
+        // JWT (AccessControl), never a client-supplied query param: a caller
+        // could otherwise attribute their own override to someone else.
+        if (!AccessControl.hasRole(this.request, "ADMIN", "HR")) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator or HR can override sales records."));
+        }
         try {
-            SalesRecord record = salesService.overrideSalesEntry(id, request, reason, username);
+            String actingUsername = AccessControl.callerUsername(this.request);
+            SalesRecord record = salesService.overrideSalesEntry(id, request, reason, actingUsername);
             SalesDTO dto = salesService.convertToDTO(record);
             return ResponseEntity.ok(ApiResponse.success("Sales record overridden by admin", dto));
         } catch (Exception e) {

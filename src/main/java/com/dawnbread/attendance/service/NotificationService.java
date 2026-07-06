@@ -104,6 +104,30 @@ public class NotificationService {
         logger.info("[HR NOTIFICATION] {}", hrMsg);
     }
 
+    /**
+     * A geofence entry/exit that is NOT the day's first check-in, or any exit
+     * (checkout is now exclusively finalized via the End Duty button — see
+     * GeoFencingService). This is a live presence signal for Sales only; it
+     * never touches the attendance record and HR doesn't need it (HR only
+     * cares about the two verified bookends: first check-in and End Duty).
+     */
+    public void sendGeoFenceActivityNotification(Agent agent, String martName, String action) {
+        String agentName = agent.getName();
+        String verb = "ENTERED".equalsIgnoreCase(action) ? "entered" : "exited";
+        String preposition = "ENTERED".equalsIgnoreCase(action) ? "at" : "from";
+        String msg = "📍 " + agentName + " " + verb + " " + martName + " " + preposition + " "
+                + LocalDateTime.now().format(formatter);
+
+        Notification salesNotif = new Notification();
+        salesNotif.setAgent(agent);
+        salesNotif.setAgentName(agentName);
+        salesNotif.setMessage(msg);
+        salesNotif.setType("GEOFENCE_ACTIVITY");
+        salesNotif.setDepartment("SALES");
+        saveNotification(salesNotif);
+        logger.info("[SALES NOTIFICATION] [GEOFENCE] {}", msg);
+    }
+
     public void sendAbsenteeismNotification(Agent agent) {
         String agentName = agent.getName();
         String msg = "❌ " + agentName + " has no check-in today";

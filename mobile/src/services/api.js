@@ -203,6 +203,14 @@ export const apiService = {
       } catch (error) {
         return handleApiError(error);
       }
+    },
+    async getVerificationStatus(agentId) {
+      try {
+        const response = await api.get(`/attendance/verification-status/${agentId}`);
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
     }
   },
 

@@ -3,6 +3,7 @@ package com.dawnbread.attendance.controller;
 import com.dawnbread.attendance.dto.AgentDTO;
 import com.dawnbread.attendance.dto.ApiResponse;
 import com.dawnbread.attendance.entity.Agent;
+import com.dawnbread.attendance.security.AccessControl;
 import com.dawnbread.attendance.service.AgentService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,11 +49,24 @@ public class AgentController {
         }
     }
 
+    private static final String[] MANAGEMENT_ROLES = { "ADMIN", "HR", "SALES" };
+
+    private <T> ResponseEntity<ApiResponse<T>> managementOnly() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Only Admin, HR, or Sales can browse the agent roster."));
+    }
+
     /**
-     * Get all agents
+     * Get all agents. Confirmed callers: SalesAgentReportScreen,
+     * HRAgentAttendanceReportScreen, ReportGeneratorScreen, and
+     * AdminUsersScreen — all agent-picker UIs for Sales/HR/Admin only. A bare
+     * Agent-role token has no legitimate reason to enumerate the whole roster.
      */
     @GetMapping
     public ResponseEntity<ApiResponse<List<AgentDTO>>> getAllAgents() {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Agent> agents = agentService.getAllAgents();
         List<AgentDTO> dtos = agents.stream()
                 .map(this::convertToDTO)
@@ -61,10 +75,13 @@ public class AgentController {
     }
 
     /**
-     * Get agent by ID
+     * Get agent by ID. Same roster-browsing rationale as getAllAgents().
      */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<AgentDTO>> getAgentById(@PathVariable Long id) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         return agentService.getAgentById(id)
                 .map(agent -> ResponseEntity.ok(ApiResponse.success("Agent found", convertToDTO(agent))))
                 .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -72,10 +89,13 @@ public class AgentController {
     }
 
     /**
-     * Get agent by Agent ID
+     * Get agent by Agent ID. Same roster-browsing rationale as getAllAgents().
      */
     @GetMapping("/agentId/{agentId}")
     public ResponseEntity<ApiResponse<AgentDTO>> getAgentByAgentId(@PathVariable String agentId) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         return agentService.getAgentByAgentId(agentId)
                 .map(agent -> ResponseEntity.ok(ApiResponse.success("Agent found", convertToDTO(agent))))
                 .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -128,10 +148,13 @@ public class AgentController {
     }
 
     /**
-     * Search agents by name
+     * Search agents by name. Same roster-browsing rationale as getAllAgents().
      */
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<AgentDTO>>> searchAgents(@RequestParam String name) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Agent> agents = agentService.searchAgentsByName(name);
         List<AgentDTO> dtos = agents.stream()
                 .map(this::convertToDTO)
@@ -140,10 +163,13 @@ public class AgentController {
     }
 
     /**
-     * Get active agents
+     * Get active agents. Same roster-browsing rationale as getAllAgents().
      */
     @GetMapping("/active")
     public ResponseEntity<ApiResponse<List<AgentDTO>>> getActiveAgents() {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Agent> agents = agentService.getActiveAgents();
         List<AgentDTO> dtos = agents.stream()
                 .map(this::convertToDTO)
@@ -152,10 +178,13 @@ public class AgentController {
     }
 
     /**
-     * Get agents checked in today
+     * Get agents checked in today. Same roster-browsing rationale as getAllAgents().
      */
     @GetMapping("/checked-in-today")
     public ResponseEntity<ApiResponse<List<AgentDTO>>> getAgentsCheckedInToday() {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         List<Agent> agents = agentService.getAgentsCheckedInToday();
         List<AgentDTO> dtos = agents.stream()
                 .map(this::convertToDTO)
@@ -164,10 +193,13 @@ public class AgentController {
     }
 
     /**
-     * Count agents
+     * Count agents. Same roster-browsing rationale as getAllAgents().
      */
     @GetMapping("/count")
     public ResponseEntity<ApiResponse<Long>> countAgents() {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
         long count = agentService.countAgents();
         return ResponseEntity.ok(ApiResponse.success("Total agents count", count));
     }
