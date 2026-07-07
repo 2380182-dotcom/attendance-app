@@ -69,21 +69,46 @@ export async function verifyAgainstReference(imageUri, referenceBase64, threshol
   const embedding = await getFaceEmbedding(imageUri, face);
   const confidence = cosineSimilarity(embedding, reference);
 
-  // TEMP DIAGNOSTIC: full-precision raw cosine similarity, not rounded to whole percent,
-  // so we can tell a threshold-calibration issue (wrong face scores well below right face,
-  // just need a better cutoff) apart from a correctness bug (wrong face scores ~right face).
+  // TEMP DIAGNOSTIC: a similarity of exactly 1.0000 between two supposedly
+  // different captures is only mathematically possible if the two arrays
+  // being compared are literally identical after normalization. This block
+  // proves (not guesses) whether that's what's happening by checking the
+  // raw arrays directly, before any similarity math runs on them again:
+  // - identical: every element of embedding === corresponding element of reference
+  // - refConstant/liveConstant: every element of that single array is the same
+  //   value (a signature of a broken/non-running model producing dummy output,
+  //   as opposed to two genuinely different 384-dim face embeddings, which
+  //   should have high internal variance)
+  const identical = embedding.length === reference.length
+    && embedding.every((v, i) => v === reference[i]);
+  const isConstantArray = (arr) => arr.every((v) => v === arr[0]);
+  const refConstant = isConstantArray(reference);
+  const liveConstant = isConstantArray(embedding);
+  const refFirst5 = reference.slice(0, 5).map((v) => v.toFixed(5));
+  const liveFirst5 = embedding.slice(0, 5).map((v) => v.toFixed(5));
+
+  console.log('[FaceDiag] reference (full):', JSON.stringify(reference));
+  console.log('[FaceDiag] live capture (full):', JSON.stringify(embedding));
+  console.log('[FaceDiag] identical:', identical, 'refConstant:', refConstant, 'liveConstant:', liveConstant);
+
+  const diag = { identical, refConstant, liveConstant, refFirst5, liveFirst5 };
+  const diagNote = ` [diag: identical=${identical} refConst=${refConstant} liveConst=${liveConstant} ` +
+    `ref0-4=${refFirst5.join(',')} live0-4=${liveFirst5.join(',')}]`;
+
   if (confidence < confidenceThreshold) {
     return {
       verified: false,
       confidence,
-      reason: `Cosine similarity ${confidence.toFixed(4)} is below threshold ${confidenceThreshold.toFixed(4)}`,
+      diag,
+      reason: `Cosine similarity ${confidence.toFixed(4)} is below threshold ${confidenceThreshold.toFixed(4)}${diagNote}`,
     };
   }
 
   return {
     verified: true,
     confidence,
-    reason: `Cosine similarity ${confidence.toFixed(4)} met threshold ${confidenceThreshold.toFixed(4)}`,
+    diag,
+    reason: `Cosine similarity ${confidence.toFixed(4)} met threshold ${confidenceThreshold.toFixed(4)}${diagNote}`,
   };
 }
 

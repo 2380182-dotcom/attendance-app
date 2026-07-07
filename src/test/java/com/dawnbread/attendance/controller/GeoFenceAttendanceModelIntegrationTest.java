@@ -31,7 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Proves the corrected attendance model end-to-end via real HTTP:
- * (a) only the day's first geofence entry creates/affects the check-in record,
+ * (a) a geofence entry NEVER creates an attendance row by itself — it only
+ *     prompts verification (ENTERED_PENDING_VERIFICATION) — and the row is
+ *     created exclusively by a real, verified POST /attendance/checkin,
  * (b) subsequent entries/exits fire Sales-only notifications and never touch
  *     attendance,
  * (c) End Duty (POST /attendance/checkout) finalizes the official check-out,
@@ -130,16 +132,40 @@ class GeoFenceAttendanceModelIntegrationTest {
         LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
         LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
 
-        // --- (a) First entry of the day creates the check-in ---
+        // --- (a) First entry of the day only PROMPTS verification — creates no row ---
         ResponseEntity<String> first = geoFenceCheck(token, agent.getId(), insideLat, insideLon);
         assertEquals(HttpStatus.OK, first.getStatusCode());
-        assertTrue(first.getBody().contains("\"status\":\"ENTERED\""), "First entry must report ENTERED: " + first.getBody());
+        assertTrue(first.getBody().contains("\"status\":\"ENTERED_PENDING_VERIFICATION\""),
+                "First entry must only prompt verification, never auto check in: " + first.getBody());
 
-        List<Attendance> todaysRecordsAfterFirstEntry =
+        assertTrue(attendanceRepository.findByAgentIdAndCheckInTimeBetween(agent.getId(), startOfDay, endOfDay).isEmpty(),
+                "Geofence entry alone must not create any attendance row");
+        assertEquals(0, countHrNotificationsFor(agent.getId()),
+                "HR must not be notified until a real verified check-in happens");
+
+        // --- (a) Duty only starts once a real, verified check-in is submitted ---
+        Map<String, Object> checkInBody = new HashMap<>();
+        checkInBody.put("agentId", agent.getId());
+        checkInBody.put("martId", mart.getId());
+        checkInBody.put("latitude", insideLat);
+        checkInBody.put("longitude", insideLon);
+        checkInBody.put("faceVerified", true);
+
+        HttpHeaders checkInHeaders = new HttpHeaders();
+        checkInHeaders.setContentType(MediaType.APPLICATION_JSON);
+        checkInHeaders.setBearerAuth(token);
+
+        ResponseEntity<String> checkIn = restTemplate.exchange(
+                url("/api/attendance/checkin"), HttpMethod.POST, new HttpEntity<>(checkInBody, checkInHeaders), String.class);
+        assertEquals(HttpStatus.CREATED, checkIn.getStatusCode(), "Verified check-in: " + checkIn.getBody());
+
+        List<Attendance> todaysRecordsAfterCheckIn =
                 attendanceRepository.findByAgentIdAndCheckInTimeBetween(agent.getId(), startOfDay, endOfDay);
-        assertEquals(1, todaysRecordsAfterFirstEntry.size(), "Exactly one attendance row must exist after the first entry");
-        Long attendanceId = todaysRecordsAfterFirstEntry.get(0).getId();
-        LocalDateTime originalCheckInTime = todaysRecordsAfterFirstEntry.get(0).getCheckInTime();
+        assertEquals(1, todaysRecordsAfterCheckIn.size(), "Exactly one attendance row must exist after the verified check-in");
+        Long attendanceId = todaysRecordsAfterCheckIn.get(0).getId();
+        LocalDateTime originalCheckInTime = todaysRecordsAfterCheckIn.get(0).getCheckInTime();
+        assertTrue(Boolean.TRUE.equals(todaysRecordsAfterCheckIn.get(0).getFaceVerifiedCheckin()),
+                "Check-in must be recorded as face-verified");
         long hrNotifsAfterCheckIn = countHrNotificationsFor(agent.getId());
         assertTrue(hrNotifsAfterCheckIn >= 1, "Check-in should have notified HR");
 
@@ -209,6 +235,35 @@ class GeoFenceAttendanceModelIntegrationTest {
         ResponseEntity<String> outside = geoFenceCheck(token, agent.getId(),
                 mart.getLatitude() + 1.0, mart.getLongitude() + 1.0);
         assertTrue(outside.getBody().contains("\"status\":\"OUTSIDE\""), outside.getBody());
+        assertTrue(attendanceRepository.findOpenAttendanceByAgentId(agent.getId()).isEmpty());
+    }
+
+    @Test
+    void geoFenceEntryAloneNeverCreatesAttendanceWithoutVerification() {
+        // GPS proximity alone must never be treated as identity. An agent who
+        // walks into a mart's geofence and never completes face verification
+        // must end the day with NO attendance row at all — not open, not
+        // flagged, not pending. Only a real POST /attendance/checkin creates one.
+        Agent agent = seedAgent("MODEL_AGENT_3");
+        Mart mart = seedMart("Model Mart 3", 31.7000, 74.5000);
+        String token = tokenProvider.generateToken(agent.getId(), agent.getAgentId(), "AGENT");
+
+        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
+        LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+
+        ResponseEntity<String> entry = geoFenceCheck(token, agent.getId(), mart.getLatitude(), mart.getLongitude());
+        assertEquals(HttpStatus.OK, entry.getStatusCode());
+        assertTrue(entry.getBody().contains("\"status\":\"ENTERED_PENDING_VERIFICATION\""),
+                "Entry must only prompt verification: " + entry.getBody());
+        assertTrue(entry.getBody().contains("\"attendance\":null"),
+                "No attendance object of any kind — pending or otherwise — may be returned: " + entry.getBody());
+
+        // Repeat pings (agent lingering, never verifying) still must not create anything.
+        geoFenceCheck(token, agent.getId(), mart.getLatitude(), mart.getLongitude());
+        geoFenceCheck(token, agent.getId(), mart.getLatitude(), mart.getLongitude());
+
+        assertTrue(attendanceRepository.findByAgentIdAndCheckInTimeBetween(agent.getId(), startOfDay, endOfDay).isEmpty(),
+                "No attendance row of any kind must exist when verification never happened");
         assertTrue(attendanceRepository.findOpenAttendanceByAgentId(agent.getId()).isEmpty());
     }
 }

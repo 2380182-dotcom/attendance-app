@@ -1,6 +1,5 @@
 package com.dawnbread.attendance.service;
 
-import com.dawnbread.attendance.dto.CheckInRequest;
 import com.dawnbread.attendance.dto.GeoFenceResponse;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Attendance;
@@ -36,9 +35,6 @@ public class GeoFencingService {
     private AttendanceRepository attendanceRepository;
 
     @Autowired
-    private AttendanceService attendanceService;
-
-    @Autowired
     private NotificationService notificationService;
 
     public double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -53,10 +49,14 @@ public class GeoFencingService {
     }
 
     /**
-     * Only the day's very first geofence entry is attendance-relevant (creates
-     * the check-in). Every other entry and every exit is a live presence
-     * signal for Sales only — it never touches the attendance record.
-     * Check-out is exclusively finalized via the "End Duty" button
+     * Geofence events never create or finalize an Attendance row — GPS
+     * proximity alone proves nothing about identity. The day's very first
+     * entry only flips a "you're here, go verify" prompt
+     * (ENTERED_PENDING_VERIFICATION); the row is created exclusively by a
+     * real, successful face verification through AttendanceController.checkIn
+     * (POST /api/attendance/checkin, faceVerified=true). Every other entry
+     * and every exit is a live presence signal for Sales only. Check-out is
+     * exclusively finalized via the "End Duty" button
      * (AttendanceController.checkOut / AttendanceService.checkOut), never here.
      *
      * A GeoFenceLog transition (not "is currently inside/outside") drives the
@@ -103,18 +103,18 @@ public class GeoFencingService {
                     .findByAgentIdAndCheckInTimeBetween(agentId, startOfDay, endOfDay).isEmpty();
 
             if (!alreadyCheckedInToday) {
-                CheckInRequest checkInRequest = new CheckInRequest();
-                checkInRequest.setAgentId(agentId);
-                checkInRequest.setMartId(insideMart.getId());
-                checkInRequest.setLatitude(latitude);
-                checkInRequest.setLongitude(longitude);
+                // Geofence entry alone must NEVER create the attendance row — it
+                // only proves GPS proximity, not identity. Duty starts only once
+                // the agent completes a real face verification through the app
+                // (POST /api/attendance/checkin with faceVerified=true, gated by
+                // FaceVerificationModal). This just prompts that step; no
+                // Attendance row exists yet, and none will unless verification
+                // actually succeeds — no pending/flagged row is created either.
+                notificationService.sendPushNotification(agentId, "Verification Required",
+                        "You've arrived at " + insideMart.getName() + ". Open the app and verify your face to start your shift.");
 
-                Attendance attendance = attendanceService.checkIn(checkInRequest);
-
-                notificationService.sendPushNotification(agentId, "Auto Checked-In",
-                        "You have been checked in automatically at " + insideMart.getName());
-
-                return new GeoFenceResponse("ENTERED", "Auto Check-In successful at " + insideMart.getName(), attendance);
+                return new GeoFenceResponse("ENTERED_PENDING_VERIFICATION",
+                        "Arrived at " + insideMart.getName() + " — face verification required to check in", null);
             } else {
                 // Already checked in today (whether still open or already
                 // finalized via End Duty) — this re-entry is Sales-notification

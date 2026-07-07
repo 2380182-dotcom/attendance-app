@@ -24,13 +24,19 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
           const geoResponse = await apiService.geoFence.check(user.id, latitude, longitude);
           if (geoResponse) {
             const { status, message } = geoResponse;
-            // Only the day's first entry is a real check-in worth surfacing to
-            // the agent. ENTERED_LOGGED/EXITED_LOGGED are Sales-facing presence
-            // pings — see GeoFencingService — and don't need an agent-facing
-            // notification. Checkout is never auto-triggered here anymore; it's
-            // exclusively finalized via the End Duty button.
-            if (status === 'ENTERED') {
-              await NotificationService.sendLocalNotification('Mart Check-In', message);
+            // Geofence entry NEVER checks the agent in by itself — GPS proximity
+            // isn't identity. The day's first entry only prompts a verification
+            // step (ENTERED_PENDING_VERIFICATION); the agent must open the app,
+            // select the mart, and pass face verification (CheckinScreen) before
+            // any attendance row exists. ENTERED_LOGGED/EXITED_LOGGED are
+            // Sales-facing presence pings — see GeoFencingService — and don't
+            // need an agent-facing notification. Checkout is never auto-triggered
+            // here either; it's exclusively finalized via the End Duty button.
+            if (status === 'ENTERED_PENDING_VERIFICATION') {
+              await NotificationService.sendLocalNotification(
+                'Verification Required',
+                message || 'Open the app and verify your face to start your shift.'
+              );
             }
           }
         }

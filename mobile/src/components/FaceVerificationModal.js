@@ -207,7 +207,7 @@ export default function FaceVerificationModal({
           await submitVerificationResult(agentId, true, result.confidence, checkpointType);
           setStatus('success');
           setMessage(result.reason || `Verified (${(result.confidence * 100).toFixed(0)}% match)`);
-          setTimeout(() => onSuccess({ confidence: result.confidence }), 1200);
+          setTimeout(() => onSuccess({ confidence: result.confidence, diag: result.diag }), 1200);
         } else {
           const newAttempts = attempts + 1;
           setAttempts(newAttempts);
@@ -216,7 +216,7 @@ export default function FaceVerificationModal({
             await submitVerificationResult(agentId, false, result.confidence || 0, checkpointType);
             setStatus('failed');
             setMessage(result.reason || 'Verification failed after maximum attempts.');
-            onFailure?.({ confidence: result.confidence, attempts: newAttempts });
+            onFailure?.({ confidence: result.confidence, attempts: newAttempts, diag: result.diag });
           } else {
             setStatus('ready');
             setMessage(
