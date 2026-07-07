@@ -27,7 +27,12 @@
       "Bash(timeout 20 psql \"postgresql://attendance_user:jXKlkyQNNjXoIVpsvLbJ6jyWEaK7A9Zd@dpg-d939b95ckfvc73aj3qhg-a.ohio-postgres.render.com/attendance_db_j8ef?sslmode=require\" -c \"SELECT 1;\")",
       "Bash(timeout 20 psql postgresql://attendance_user:jXKlkyQNNjXoIVpsvLbJ6jyWEaK7A9Zd@dpg-d939b95ckfvc73aj3qhg-a.ohio-postgres.render.com/attendance_db_j8ef?sslmode=require -c ' *)",
       "Bash(timeout 10 psql \"postgresql://attendance_user:jXKlkyQNNjXoIVpsvLbJ6jyWEaK7A9Zd@dpg-d939b95ckfvc73aj3qhg-a.ohio-postgres.render.com/attendance_db_j8ef?sslmode=require\" -c \"\\\\q\")",
-      "Bash(history -c)"
+      "Bash(history -c)",
+      "Bash(grep -rn \"FACE_CONFIDENCE_THRESHOLD\" .env .env.example)",
+      "Bash(grep -rn \"FACE_CONFIDENCE_THRESHOLD\" app.json eas.json)",
+      "Bash(cat .env)",
+      "Bash(cat eas.json)",
+      "Bash(npx eas *)"
     ]
   }
 }

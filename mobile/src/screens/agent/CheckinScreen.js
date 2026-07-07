@@ -173,7 +173,7 @@ export default function CheckinScreen({ navigation }) {
     }
   };
 
-  const executeCheckIn = async (verified = faceVerified) => {
+  const executeCheckIn = async (verified = faceVerified, confidence = null) => {
     setCheckingIn(true);
     try {
       const result = await apiService.attendance.checkIn(
@@ -183,11 +183,17 @@ export default function CheckinScreen({ navigation }) {
         location.longitude,
         verified
       );
-      
+
       const isLate = result.status === 'LATE';
-      const msg = isLate 
+      // TEMP DIAGNOSTIC: surface the raw cosine similarity in the persistent
+      // Alert (not just the face modal, which auto-dismisses after ~1.2s) so
+      // it's actually readable on a real device during the impersonation test.
+      const confidenceNote = confidence != null
+        ? ` [Face match similarity: ${confidence.toFixed(4)}]`
+        : '';
+      const msg = (isLate
         ? `You checked in successfully, but were marked as LATE (Distance: ${Math.round(result.distanceFromMart)}m from mart).`
-        : `Check-in successful at ${selectedMart.name}.`;
+        : `Check-in successful at ${selectedMart.name}.`) + confidenceNote;
 
       Alert.alert(
         isLate ? 'Checked In (Late)' : 'Checked In Successfully',
@@ -310,13 +316,16 @@ export default function CheckinScreen({ navigation }) {
         onSuccess={({ confidence }) => {
           setFaceModalVisible(false);
           setFaceVerified(true);
-          executeCheckIn(true);
+          executeCheckIn(true, confidence);
         }}
-        onFailure={() => {
+        onFailure={({ confidence } = {}) => {
           setFaceModalVisible(false);
+          const confidenceNote = confidence != null
+            ? ` [Face match similarity: ${confidence.toFixed(4)}]`
+            : '';
           Alert.alert(
             'Face Verification Failed',
-            'Maximum attempts reached. Check-in blocked. Admin has been notified.'
+            `Maximum attempts reached. Check-in blocked. Admin has been notified.${confidenceNote}`
           );
         }}
         agentId={user?.id}
