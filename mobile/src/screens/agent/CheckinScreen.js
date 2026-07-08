@@ -193,7 +193,7 @@ export default function CheckinScreen({ navigation }) {
         ? ` [Face match similarity: ${confidence.toFixed(4)}]`
         : '';
       const diagNote = diag
-        ? ` [identical=${diag.identical} refConst=${diag.refConstant} liveConst=${diag.liveConstant}]`
+        ? ` [identical=${diag.identical} maxAbsDiff=${diag.maxAbsDiff?.toExponential?.(3)} refConst=${diag.refConstant} liveConst=${diag.liveConstant}]`
         : '';
       const msg = (isLate
         ? `You checked in successfully, but were marked as LATE (Distance: ${Math.round(result.distanceFromMart)}m from mart).`
@@ -328,7 +328,7 @@ export default function CheckinScreen({ navigation }) {
             ? ` [Face match similarity: ${confidence.toFixed(4)}]`
             : '';
           const diagNote = diag
-            ? ` [identical=${diag.identical} refConst=${diag.refConstant} liveConst=${diag.liveConstant}]`
+            ? ` [identical=${diag.identical} maxAbsDiff=${diag.maxAbsDiff?.toExponential?.(3)} refConst=${diag.refConstant} liveConst=${diag.liveConstant}]`
             : '';
           Alert.alert(
             'Face Verification Failed',

@@ -71,16 +71,25 @@ export async function verifyAgainstReference(imageUri, referenceBase64, threshol
 
   // TEMP DIAGNOSTIC: a similarity of exactly 1.0000 between two supposedly
   // different captures is only mathematically possible if the two arrays
-  // being compared are literally identical after normalization. This block
-  // proves (not guesses) whether that's what's happening by checking the
-  // raw arrays directly, before any similarity math runs on them again:
-  // - identical: every element of embedding === corresponding element of reference
-  // - refConstant/liveConstant: every element of that single array is the same
-  //   value (a signature of a broken/non-running model producing dummy output,
-  //   as opposed to two genuinely different 384-dim face embeddings, which
-  //   should have high internal variance)
-  const identical = embedding.length === reference.length
-    && embedding.every((v, i) => v === reference[i]);
+  // are (anywhere from exactly to almost-exactly) identical. The previous
+  // version of this check used strict `===` on floating-point doubles,
+  // which gives a FALSE NEGATIVE for arrays that agree to 5+ decimal places
+  // but differ in the last bit or two (e.g. from a redundant normalize()
+  // pass) — exactly the case that showed up in testing: printed values
+  // matched, cosine was exactly 1.0000, but identical still printed false.
+  // This version reports the actual maximum absolute difference across all
+  // 384 elements, which can't give a false negative — "identical" here
+  // means "within float32 rounding noise", a real content comparison, not
+  // an exact-bits comparison that tiny, expected FP noise can defeat.
+  const EPSILON = 1e-6;
+  let maxAbsDiff = embedding.length === reference.length ? 0 : Infinity;
+  if (embedding.length === reference.length) {
+    for (let i = 0; i < embedding.length; i++) {
+      const diff = Math.abs(embedding[i] - reference[i]);
+      if (diff > maxAbsDiff) maxAbsDiff = diff;
+    }
+  }
+  const identical = maxAbsDiff < EPSILON;
   const isConstantArray = (arr) => arr.every((v) => v === arr[0]);
   const refConstant = isConstantArray(reference);
   const liveConstant = isConstantArray(embedding);
@@ -89,10 +98,12 @@ export async function verifyAgainstReference(imageUri, referenceBase64, threshol
 
   console.log('[FaceDiag] reference (full):', JSON.stringify(reference));
   console.log('[FaceDiag] live capture (full):', JSON.stringify(embedding));
-  console.log('[FaceDiag] identical:', identical, 'refConstant:', refConstant, 'liveConstant:', liveConstant);
+  console.log('[FaceDiag] identical (within', EPSILON, '):', identical, 'maxAbsDiff:', maxAbsDiff,
+    'refConstant:', refConstant, 'liveConstant:', liveConstant);
 
-  const diag = { identical, refConstant, liveConstant, refFirst5, liveFirst5 };
-  const diagNote = ` [diag: identical=${identical} refConst=${refConstant} liveConst=${liveConstant} ` +
+  const diag = { identical, maxAbsDiff, refConstant, liveConstant, refFirst5, liveFirst5 };
+  const diagNote = ` [diag: identical=${identical} maxAbsDiff=${maxAbsDiff.toExponential(3)} ` +
+    `refConst=${refConstant} liveConst=${liveConstant} ` +
     `ref0-4=${refFirst5.join(',')} live0-4=${liveFirst5.join(',')}]`;
 
   if (confidence < confidenceThreshold) {
