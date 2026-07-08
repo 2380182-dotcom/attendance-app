@@ -23,12 +23,17 @@ export default function LoginScreen({ navigation }) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const { login } = useContext(AuthContext);
+  const [companyCode, setCompanyCode] = useState('');
   const [agentId, setAgentId] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
+    if (!companyCode.trim()) {
+      Alert.alert('Validation Error', 'Please enter your Company Code.');
+      return;
+    }
     if (!agentId.trim()) {
       Alert.alert('Validation Error', 'Please enter your Agent ID.');
       return;
@@ -39,7 +44,7 @@ export default function LoginScreen({ navigation }) {
     }
 
     setLoading(true);
-    const result = await login(agentId.trim(), password);
+    const result = await login(companyCode.trim(), agentId.trim(), password);
     setLoading(false);
 
     if (!result.success) {
@@ -89,6 +94,20 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.formCard}>
             <Text style={styles.welcomeText}>Welcome Back</Text>
             <Text style={styles.instructionText}>Sign in to manage your daily attendance</Text>
+
+            <Text style={styles.label}>Company Code</Text>
+            <View style={styles.inputContainer}>
+              <MaterialIcons name="business" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter Company Code"
+                placeholderTextColor={colors.textMuted}
+                value={companyCode}
+                onChangeText={setCompanyCode}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+            </View>
 
             <Text style={styles.label}>Agent ID</Text>
             <View style={styles.inputContainer}>

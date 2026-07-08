@@ -40,8 +40,11 @@ public class SecurityInterceptor implements HandlerInterceptor {
         // Only login and the agentId-existence check are public. Registration
         // creates accounts (including admin accounts) and must go through the
         // normal token check below, so it can be gated to admins only in
-        // AuthController.
-        if (path.equals("/api/auth/login") || path.startsWith("/api/auth/exists")) {
+        // AuthController. Super Admin login is a wholly separate, deliberately
+        // public endpoint — see SuperAdminController — never mixed with the
+        // regular tenant-scoped agent login flow above it.
+        if (path.equals("/api/auth/login") || path.startsWith("/api/auth/exists")
+                || path.equals("/api/super-admin/login")) {
             return true;
         }
 
@@ -67,9 +70,28 @@ public class SecurityInterceptor implements HandlerInterceptor {
             Claims claims = tokenProvider.parseToken(token);
             String username = claims.getSubject();
 
+            String role = claims.get("role", String.class);
+
+            // Structural containment, not a per-controller convention: a
+            // Super Admin token must never reach anything outside
+            // /api/super-admin/**, full stop. Relying on every controller to
+            // remember to exclude SUPER_ADMIN from its role checks is exactly
+            // the "gets missed" failure mode this whole project exists to
+            // avoid — confirmed for real by MartController.getAllMarts(),
+            // which has NO role check at all (deliberately left open to "any
+            // authenticated role" back when that only ever meant a tenant
+            // agent). A Super Admin token passing SecurityInterceptor's basic
+            // validity check would sail straight through it into a query with
+            // no tenant filter enabled — i.e. every tenant's marts at once.
+            if (AccessControl.SUPER_ADMIN_ROLE.equals(role) && !path.startsWith("/api/super-admin")) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.getWriter().write("Super Admin tokens cannot access tenant-operational endpoints");
+                return false;
+            }
+
             // Store username in request for later use
             request.setAttribute("username", username);
-            request.setAttribute("role", claims.get("role"));
+            request.setAttribute("role", role);
             Object idClaim = claims.get("id");
             if (idClaim != null) {
                 request.setAttribute("id", Long.valueOf(idClaim.toString()));
@@ -78,13 +100,16 @@ public class SecurityInterceptor implements HandlerInterceptor {
             // Tenant scoping: every tenant-scoped controller call needs the
             // caller's tenantId to (a) scope the Hibernate filter for every
             // read on this request and (b) let TenantEntityListener stamp it
-            // on anything newly created. Super Admin tokens (added in a later
-            // step) never carry this claim and must never get the filter
-            // enabled — they have no role-check pass on any tenant-data
-            // endpoint, so there is nothing here for them to leak into.
+            // on anything newly created. Super Admin calls its OWN endpoints
+            // (/api/super-admin/**, exempted from the block above) with this
+            // same code still running, so the role check here still matters
+            // even though every other role reaching this point is guaranteed
+            // tenant-scoped — a Super Admin managing tenants must never have
+            // TenantContext/the Hibernate filter set to some arbitrary
+            // tenant's id, even though Tenant itself isn't tenant-scoped data.
             Object tenantIdClaim = claims.get("tenantId");
             Long tenantId = tenantIdClaim != null ? Long.valueOf(tenantIdClaim.toString()) : null;
-            if (tenantId == null && !"SUPER_ADMIN".equals(claims.get("role"))) {
+            if (tenantId == null && !AccessControl.SUPER_ADMIN_ROLE.equals(role)) {
                 // Bridge: tokens issued before the Company Code login flow
                 // shipped carry no tenantId claim at all. There is exactly one
                 // tenant in existence during this rollout window, so this is

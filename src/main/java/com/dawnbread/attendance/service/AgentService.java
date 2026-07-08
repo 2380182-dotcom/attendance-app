@@ -42,22 +42,28 @@ public class AgentService {
 
     // ===== AUTHENTICATION =====
     
-    public Optional<Agent> authenticate(String username, String password) {
-        Optional<Agent> agentOpt = agentRepository.findByAgentId(username);
-        
+    /**
+     * Tenant-scoped authentication — agent_id is only unique per-tenant
+     * (V14), so login must resolve within the caller's specific tenant, not
+     * globally. A valid agentId/password pair for the WRONG tenant simply
+     * won't be found here and correctly fails, same as a wrong password.
+     */
+    public Optional<Agent> authenticate(Long tenantId, String username, String password) {
+        Optional<Agent> agentOpt = agentRepository.findByTenantIdAndAgentId(tenantId, username);
+
         if (agentOpt.isPresent()) {
             Agent agent = agentOpt.get();
-            
+
             // Check if agent is active
             if (agent.getIsActive() == null || !agent.getIsActive()) {
                 return Optional.empty();
             }
-            
+
             // Verify password with BCrypt
             if (passwordEncoder.matches(password, agent.getPassword())) {
                 return agentOpt;
             }
-            
+
             // Legacy plaintext password support (migrate on login)
             if (password.equals(agent.getPassword())) {
                 agent.setPassword(passwordEncoder.encode(password));
@@ -68,8 +74,8 @@ public class AgentService {
         return Optional.empty();
     }
 
-    public Optional<Agent> validateLogin(String username, String password) {
-        return authenticate(username, password);
+    public Optional<Agent> validateLogin(Long tenantId, String username, String password) {
+        return authenticate(tenantId, username, password);
     }
 
     // ===== CRUD OPERATIONS =====

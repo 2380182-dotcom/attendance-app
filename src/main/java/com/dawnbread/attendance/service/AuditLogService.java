@@ -28,6 +28,19 @@ public class AuditLogService {
     }
 
     /**
+     * For call sites that already know the real tenant before TenantContext
+     * would otherwise be available — e.g. AuthController.login(), which
+     * resolves the Company Code's tenant itself before logging the attempt.
+     * Passing null here falls back to the same bridge as the 5-arg overload
+     * (e.g. an unknown company code truly has no tenant to attribute to).
+     */
+    public AuditLog logAction(String action, String username, String details, String ipAddress, String status, Long explicitTenantId) {
+        AuditLog log = new AuditLog(action, username, details, ipAddress, LocalDateTime.now(), status);
+        log.setTenantId(explicitTenantId != null ? explicitTenantId : resolveTenantId());
+        return auditLogRepository.save(log);
+    }
+
+    /**
      * Audit logging must never block a request. Most calls happen inside an
      * authenticated request, where SecurityInterceptor already populated
      * TenantContext from the caller's JWT. The one exception is

@@ -15,6 +15,14 @@ import java.util.stream.Collectors;
  */
 public final class AccessControl {
 
+    /**
+     * The one role that lives outside the tenant system entirely. Never add
+     * this to a tenant-data controller's allowed-roles list — Super Admin
+     * tokens carry no tenantId claim, so a controller that granted it access
+     * would be querying with no Hibernate tenant filter enabled at all.
+     */
+    public static final String SUPER_ADMIN_ROLE = "SUPER_ADMIN";
+
     private AccessControl() {
     }
 

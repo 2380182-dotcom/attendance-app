@@ -2,6 +2,8 @@ package com.dawnbread.attendance.controller;
 
 import com.dawnbread.attendance.dto.ApiResponse;
 import com.dawnbread.attendance.entity.Agent;
+import com.dawnbread.attendance.entity.Tenant;
+import com.dawnbread.attendance.repository.TenantRepository;
 import com.dawnbread.attendance.security.TokenProvider;
 import com.dawnbread.attendance.service.AgentService;
 import com.dawnbread.attendance.service.AuditLogService;
@@ -21,6 +23,9 @@ public class AuthController {
 
     @Autowired
     private AgentService agentService;
+
+    @Autowired
+    private TenantRepository tenantRepository;
 
     @Autowired
     private TokenProvider tokenProvider;
@@ -64,26 +69,42 @@ public class AuthController {
     }
 
     /**
-     * Login agent
+     * Login agent. Company Code identifies the tenant first — agent_id is
+     * only unique per-tenant (V14), so the same agentId/password pair
+     * resolves to a completely different (or no) account depending on which
+     * company's login this is. A right agentId/password under the wrong
+     * company code must fail exactly like a wrong password: AgentService
+     * looks the agent up scoped to the resolved tenant, so it simply won't
+     * find a match.
      */
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Map<String, Object>>> login(@RequestBody Map<String, String> loginRequest) {
+        String companyCode = loginRequest.get("companyCode");
         String agentId = loginRequest.get("agentId");
         String password = loginRequest.get("password");
         String ip = request != null ? request.getRemoteAddr() : "0.0.0.0";
-        
-        if (agentId == null || password == null) {
+
+        if (companyCode == null || agentId == null || password == null) {
             auditLogService.logAction("LOGIN", "UNKNOWN", "Missing credentials", ip, "FAILED");
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("AgentId and password are required"));
+                    .body(ApiResponse.error("Company code, agentId, and password are required"));
         }
-        
-        Optional<Agent> agent = agentService.validateLogin(agentId, password);
-        
+
+        Optional<Tenant> tenantOpt = tenantRepository.findByCompanyCodeIgnoreCase(companyCode);
+        if (tenantOpt.isEmpty() || !Boolean.TRUE.equals(tenantOpt.get().getIsActive())) {
+            // Deliberately the same generic message as a wrong agentId/password
+            // below — doesn't confirm or deny whether a company code exists.
+            auditLogService.logAction("LOGIN", agentId, "Unknown or inactive company code: " + companyCode, ip, "FAILED");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Invalid company code, agentId, or password"));
+        }
+        Tenant tenant = tenantOpt.get();
+
+        Optional<Agent> agent = agentService.validateLogin(tenant.getId(), agentId, password);
+
         if (agent.isPresent()) {
-            // Generate custom token
-            String token = tokenProvider.generateToken(agent.get().getId(), agent.get().getAgentId(), agent.get().getRole());
-            
+            String token = tokenProvider.generateToken(agent.get().getId(), agent.get().getAgentId(), agent.get().getRole(), tenant.getId());
+
             Map<String, Object> response = new HashMap<>();
             response.put("id", agent.get().getId());
             response.put("agentId", agent.get().getAgentId());
@@ -93,15 +114,17 @@ public class AuthController {
             response.put("role", agent.get().getRole());
             response.put("department", agent.get().getDepartment());
             response.put("token", token);
+            response.put("companyCode", tenant.getCompanyCode());
+            response.put("tenantName", tenant.getName());
             response.put("message", "Login successful");
-            
-            auditLogService.logAction("LOGIN", agentId, "Login successful", ip, "SUCCESS");
-            
+
+            auditLogService.logAction("LOGIN", agentId, "Login successful", ip, "SUCCESS", tenant.getId());
+
             return ResponseEntity.ok(ApiResponse.success("Login successful", response));
         } else {
-            auditLogService.logAction("LOGIN", agentId, "Invalid agentId or password or user is inactive", ip, "FAILED");
+            auditLogService.logAction("LOGIN", agentId, "Invalid agentId or password or user is inactive", ip, "FAILED", tenant.getId());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.error("Invalid agentId or password"));
+                    .body(ApiResponse.error("Invalid company code, agentId, or password"));
         }
     }
 

@@ -52,10 +52,10 @@ export const AuthProvider = ({ children }) => {
     bootstrapAsync();
   }, []);
 
-  const login = async (agentId, password) => {
+  const login = async (companyCode, agentId, password) => {
     setIsLoading(true);
     try {
-      const data = await apiService.auth.login(agentId, password);
+      const data = await apiService.auth.login(companyCode, agentId, password);
       const token = data.token;
       if (!token) {
         throw new Error('No authentication token received from server');

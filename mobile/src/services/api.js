@@ -89,9 +89,9 @@ const handleApiError = (error) => {
 export const apiService = {
   // Authentication APIs
   auth: {
-    async login(agentId, password) {
+    async login(companyCode, agentId, password) {
       try {
-        const response = await api.post('/auth/login', { agentId, password });
+        const response = await api.post('/auth/login', { companyCode, agentId, password });
         return handleResponse(response);
       } catch (error) {
         return handleApiError(error);

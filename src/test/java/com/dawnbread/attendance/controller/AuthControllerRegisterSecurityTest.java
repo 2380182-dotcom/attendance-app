@@ -119,6 +119,7 @@ class AuthControllerRegisterSecurityTest {
     @Test
     void loginRemainsPubliclyReachableWithoutAToken() {
         Map<String, String> badLogin = new HashMap<>();
+        badLogin.put("companyCode", "DOES_NOT_EXIST");
         badLogin.put("agentId", "DOES_NOT_EXIST");
         badLogin.put("password", "whatever");
 

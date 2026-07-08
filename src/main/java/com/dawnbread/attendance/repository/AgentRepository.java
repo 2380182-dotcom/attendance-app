@@ -16,6 +16,14 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
     // ===== CUSTOM FINDER METHODS =====
     
     Optional<Agent> findByAgentId(String agentId);
+
+    /**
+     * Login must resolve an agent within a specific tenant, not globally —
+     * agent_id is only unique per-tenant now (V14), and this lookup runs
+     * pre-authentication, before any Hibernate tenant filter could possibly
+     * be enabled for the request.
+     */
+    Optional<Agent> findByTenantIdAndAgentId(Long tenantId, String agentId);
     List<Agent> findByNameContainingIgnoreCase(String name);
     Optional<Agent> findByEmail(String email);
     List<Agent> findByPhone(String phone);

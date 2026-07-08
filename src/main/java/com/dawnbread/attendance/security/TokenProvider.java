@@ -50,6 +50,23 @@ public class TokenProvider {
         return createToken(claims, username);
     }
 
+    /**
+     * Dedicated Super Admin token issuance — deliberately takes no tenantId
+     * parameter at all, so it is structurally impossible to mint a Super
+     * Admin token carrying a tenant scope. Role is hardcoded, not passed in,
+     * for the same reason: this method can only ever produce one kind of
+     * token. SecurityInterceptor treats AccessControl.SUPER_ADMIN_ROLE
+     * specially — it never resolves a tenant or enables the Hibernate
+     * tenant filter for it, and no tenant-data controller's role allowlist
+     * includes it.
+     */
+    public String generateSuperAdminToken(Long id, String username) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("id", id);
+        claims.put("role", AccessControl.SUPER_ADMIN_ROLE);
+        return createToken(claims, username);
+    }
+
     private String createToken(Map<String, Object> claims, String subject) {
         return Jwts.builder()
                 .setClaims(claims)
