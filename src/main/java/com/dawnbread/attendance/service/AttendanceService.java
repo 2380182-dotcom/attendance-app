@@ -85,8 +85,14 @@ public class AttendanceService {
         LocalDateTime now = LocalDateTime.now();
         AttendanceWithShiftDTO shiftResult = shiftValidationService.validateAttendanceWithShift(request.getAgentId(), now);
 
+        // mart.getRadius() is stored in meters (see AdminMartScreen.js: "Radius
+        // (meters)"), and calculateDistance() already returns meters — no unit
+        // conversion needed here, matching GeoFencingService's own
+        // distance <= mart.getRadius() comparison. The old "* 1000" treated
+        // the radius as kilometers, inflating a 100m mart's late-threshold to
+        // 100km and making this check effectively never trigger.
         String status = "IN";
-        if ("LATE".equals(shiftResult.getShiftCompliance()) || distance > mart.getRadius() * 1000) {
+        if ("LATE".equals(shiftResult.getShiftCompliance()) || distance > mart.getRadius()) {
             status = "LATE";
         }
         if (!shiftResult.isWorkingDay()) {

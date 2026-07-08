@@ -37,14 +37,16 @@ public class SecurityInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // Only login and the agentId-existence check are public. Registration
-        // creates accounts (including admin accounts) and must go through the
-        // normal token check below, so it can be gated to admins only in
-        // AuthController. Super Admin login is a wholly separate, deliberately
-        // public endpoint — see SuperAdminController — never mixed with the
-        // regular tenant-scoped agent login flow above it.
-        if (path.equals("/api/auth/login") || path.startsWith("/api/auth/exists")
-                || path.equals("/api/super-admin/login")) {
+        // Only login is public. Registration creates accounts (including
+        // admin accounts) and must go through the normal token check below,
+        // so it can be gated to admins only in AuthController. Super Admin
+        // login is a wholly separate, deliberately public endpoint — see
+        // SuperAdminController — never mixed with the regular tenant-scoped
+        // agent login flow above it. (The old /api/auth/exists/{agentId}
+        // public bypass was removed along with the endpoint itself — it was
+        // dead code referencing a stale global-agentId-uniqueness
+        // assumption that no longer holds post-multi-tenancy.)
+        if (path.equals("/api/auth/login") || path.equals("/api/super-admin/login")) {
             return true;
         }
 

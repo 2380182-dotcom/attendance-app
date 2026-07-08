@@ -68,8 +68,28 @@ public class NotificationController {
         }
     }
 
+    /**
+     * Self-or-management, not strictly self-only: confirmed HRReportScreen is
+     * a real, live use case where HR marks-as-read/deletes notifications
+     * about OTHER agents from the shared HR queue (the notification's
+     * "owner" for this purpose is who it's ABOUT — Notification.agent — not
+     * who's viewing it). Kept ADMIN/HR/SALES symmetric with every other
+     * elevated-role check in this controller (GET /agent/{agentId} already
+     * uses the same three), even though only the HR screen currently
+     * exercises it — /notifications/sales is an equally real department
+     * queue with no reason to be less capable than HR's.
+     */
     @PatchMapping("/{id}/read")
     public ResponseEntity<ApiResponse<Void>> markAsRead(@PathVariable Long id) {
+        var notification = notificationService.getNotificationById(id);
+        if (notification.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("Notification not found with id: " + id));
+        }
+        Long ownerAgentId = notification.get().getAgent() != null ? notification.get().getAgent().getId() : null;
+        if (!AccessControl.isSelfOrRole(request, ownerAgentId, "ADMIN", "HR", "SALES")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("You can only manage your own notifications."));
+        }
         try {
             notificationService.markAsRead(id);
             return ResponseEntity.ok(ApiResponse.success("Notification marked as read", null));
@@ -80,6 +100,15 @@ public class NotificationController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteNotification(@PathVariable Long id) {
+        var notification = notificationService.getNotificationById(id);
+        if (notification.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("Notification not found with id: " + id));
+        }
+        Long ownerAgentId = notification.get().getAgent() != null ? notification.get().getAgent().getId() : null;
+        if (!AccessControl.isSelfOrRole(request, ownerAgentId, "ADMIN", "HR", "SALES")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("You can only manage your own notifications."));
+        }
         try {
             notificationService.deleteNotification(id);
             return ResponseEntity.ok(ApiResponse.success("Notification deleted", null));

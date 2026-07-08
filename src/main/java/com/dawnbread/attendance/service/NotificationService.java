@@ -196,6 +196,10 @@ public class NotificationService {
         return notificationRepository.findByAgentIdOrderByCreatedAtDesc(agentId);
     }
 
+    public java.util.Optional<Notification> getNotificationById(Long id) {
+        return notificationRepository.findById(id);
+    }
+
     public void markAsRead(Long id) {
         notificationRepository.findById(id).ifPresent(notif -> {
             notif.setIsRead(true);

@@ -128,12 +128,4 @@ public class AuthController {
         }
     }
 
-    /**
-     * Check if agent exists
-     */
-    @GetMapping("/exists/{agentId}")
-    public ResponseEntity<ApiResponse<Boolean>> checkAgentExists(@PathVariable String agentId) {
-        boolean exists = agentService.existsByAgentId(agentId);
-        return ResponseEntity.ok(ApiResponse.success("Agent exists check", exists));
-    }
 }

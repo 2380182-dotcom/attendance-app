@@ -210,10 +210,6 @@ public class AgentService {
         return agentRepository.count();
     }
 
-    public boolean existsByAgentId(String agentId) {
-        return agentRepository.existsByAgentId(agentId);
-    }
-
     public boolean existsByEmail(String email) {
         return agentRepository.existsByEmail(email);
     }

@@ -251,6 +251,18 @@ public class SalesService {
     }
 
     /**
+     * Manual sync trigger from the controller — loads the real, fully
+     * populated record by id first. The controller previously passed a stub
+     * SalesRecord with only its id set, which NPE'd here on
+     * record.getAgent().getName() since a stub has no agent at all.
+     */
+    public void syncToSalesDepartment(Long saleRecordId) {
+        SalesRecord record = salesRecordRepository.findById(saleRecordId)
+                .orElseThrow(() -> new RuntimeException("Sales record not found with id: " + saleRecordId));
+        syncToSalesDepartment(record);
+    }
+
+    /**
      * Real-time sync to HR Department
      */
     public void syncToHRDepartment(SalesRecord record) {
@@ -262,6 +274,20 @@ public class SalesService {
         log.setSyncMessage("Sales sync to HR completed for attendance correlation.");
         salesSyncLogRepository.save(log);
         logger.info("[SYNC-HR] Saved sync log for sale ID: {}", record.getId());
+    }
+
+    /**
+     * Manual sync trigger from the controller — same fix as
+     * syncToSalesDepartment(Long): this had the identical stub-record bug,
+     * it just never surfaced as an NPE because this method's sync message
+     * never dereferences record.getAgent(). It still never verified the
+     * record actually existed, so a bogus saleRecordId would silently log a
+     * fake "success" sync. Loading the real record here closes that too.
+     */
+    public void syncToHRDepartment(Long saleRecordId) {
+        SalesRecord record = salesRecordRepository.findById(saleRecordId)
+                .orElseThrow(() -> new RuntimeException("Sales record not found with id: " + saleRecordId));
+        syncToHRDepartment(record);
     }
 
     /**
