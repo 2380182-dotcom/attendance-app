@@ -6,6 +6,7 @@ import com.dawnbread.attendance.entity.SalesRecord;
 import com.dawnbread.attendance.repository.AgentRepository;
 import com.dawnbread.attendance.repository.ProductRepository;
 import com.dawnbread.attendance.repository.SalesRecordRepository;
+import com.dawnbread.attendance.repository.TenantRepository;
 import com.dawnbread.attendance.security.TokenProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,6 +56,9 @@ class SalesControllerOverrideSecurityTest {
     @Autowired
     private AgentRepository agentRepository;
 
+    @Autowired
+    private TenantRepository tenantRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String url(String path) {
@@ -63,6 +67,7 @@ class SalesControllerOverrideSecurityTest {
 
     private Agent seedAgent(String agentId) {
         Agent agent = new Agent();
+        agent.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
         agent.setAgentId(agentId);
         agent.setName("Seed " + agentId);
         agent.setEmail(agentId.toLowerCase() + "@example.com");
@@ -74,6 +79,7 @@ class SalesControllerOverrideSecurityTest {
     private SalesRecord seedSalesRecord() {
         Agent agent = seedAgent("OVERRIDE_SUBJECT_" + System.nanoTime());
         SalesRecord record = new SalesRecord();
+        record.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
         record.setAgent(agent);
         record.setStoreName("Test Store");
         record.setTotalAmount(0.0);
@@ -88,6 +94,7 @@ class SalesControllerOverrideSecurityTest {
 
     private Product seedProduct() {
         Product product = new Product();
+        product.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
         product.setName("Override Test Bread");
         product.setPrice(50.0);
         product.setCreatedAt(LocalDateTime.now());

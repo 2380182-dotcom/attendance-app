@@ -2,6 +2,7 @@ package com.dawnbread.attendance.controller;
 
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.repository.AgentRepository;
+import com.dawnbread.attendance.repository.TenantRepository;
 import com.dawnbread.attendance.security.TokenProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,6 +48,9 @@ class AgentControllerUpdateDeleteSecurityTest {
     @Autowired
     private AgentRepository agentRepository;
 
+    @Autowired
+    private TenantRepository tenantRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private String url(String path) {
@@ -55,6 +59,7 @@ class AgentControllerUpdateDeleteSecurityTest {
 
     private Agent seedAgent(String agentId, String role) {
         Agent agent = new Agent();
+        agent.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
         agent.setAgentId(agentId);
         agent.setName("Seed " + agentId);
         agent.setEmail(agentId.toLowerCase() + "@example.com");

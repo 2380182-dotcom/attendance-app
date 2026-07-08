@@ -1,6 +1,10 @@
 package com.dawnbread.attendance.security;
 
+import com.dawnbread.attendance.entity.Tenant;
+import com.dawnbread.attendance.repository.TenantRepository;
 import io.jsonwebtoken.Claims;
+import jakarta.persistence.EntityManager;
+import org.hibernate.Session;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -13,6 +17,12 @@ public class SecurityInterceptor implements HandlerInterceptor {
 
     @Autowired
     private TokenProvider tokenProvider;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private TenantRepository tenantRepository;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -44,7 +54,7 @@ public class SecurityInterceptor implements HandlerInterceptor {
         }
 
         String token = authHeader.substring(7);
-        
+
         try {
             // Validate token
             if (!tokenProvider.validateToken(token)) {
@@ -65,11 +75,43 @@ public class SecurityInterceptor implements HandlerInterceptor {
                 request.setAttribute("id", Long.valueOf(idClaim.toString()));
             }
 
+            // Tenant scoping: every tenant-scoped controller call needs the
+            // caller's tenantId to (a) scope the Hibernate filter for every
+            // read on this request and (b) let TenantEntityListener stamp it
+            // on anything newly created. Super Admin tokens (added in a later
+            // step) never carry this claim and must never get the filter
+            // enabled — they have no role-check pass on any tenant-data
+            // endpoint, so there is nothing here for them to leak into.
+            Object tenantIdClaim = claims.get("tenantId");
+            Long tenantId = tenantIdClaim != null ? Long.valueOf(tenantIdClaim.toString()) : null;
+            if (tenantId == null && !"SUPER_ADMIN".equals(claims.get("role"))) {
+                // Bridge: tokens issued before the Company Code login flow
+                // shipped carry no tenantId claim at all. There is exactly one
+                // tenant in existence during this rollout window, so this is
+                // provably correct today and becomes moot as old tokens expire
+                // and get reissued with a real claim.
+                tenantId = tenantRepository.findFirstByOrderByIdAsc().map(Tenant::getId).orElse(null);
+            }
+            if (tenantId != null) {
+                TenantContext.setTenantId(tenantId);
+                Session session = entityManager.unwrap(Session.class);
+                session.enableFilter("tenantFilter").setParameter("tenantId", tenantId);
+            }
+
             return true;
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Token validation failed: " + e.getMessage());
             return false;
         }
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        // Must clear even though the Hibernate Session itself closes at the
+        // end of the request (open-in-view) — Tomcat reuses worker threads
+        // across requests, and this ThreadLocal would otherwise leak one
+        // tenant's context into the next unrelated request on that thread.
+        TenantContext.clear();
     }
 }

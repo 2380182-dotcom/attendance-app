@@ -2,6 +2,7 @@ package com.dawnbread.attendance.controller;
 
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.repository.AgentRepository;
+import com.dawnbread.attendance.repository.TenantRepository;
 import com.dawnbread.attendance.security.TokenProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,12 +41,16 @@ class AttendanceControllerSecurityTest {
     @Autowired
     private AgentRepository agentRepository;
 
+    @Autowired
+    private TenantRepository tenantRepository;
+
     private String url(String path) {
         return "http://localhost:" + port + path;
     }
 
     private Agent seedAgent(String agentId) {
         Agent agent = new Agent();
+        agent.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
         agent.setAgentId(agentId);
         agent.setName("Seed " + agentId);
         agent.setEmail(agentId.toLowerCase() + "@example.com");

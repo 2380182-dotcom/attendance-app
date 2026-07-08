@@ -39,6 +39,17 @@ public class TokenProvider {
         return createToken(claims, username);
     }
 
+    // Generate token with id, username, role and tenantId — the shape every
+    // tenant-scoped login (regular agents) will use once the Company Code
+    // login flow lands. Super Admin tokens never carry a tenantId claim.
+    public String generateToken(Long id, String username, String role, Long tenantId) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("id", id);
+        claims.put("role", role);
+        claims.put("tenantId", tenantId);
+        return createToken(claims, username);
+    }
+
     private String createToken(Map<String, Object> claims, String subject) {
         return Jwts.builder()
                 .setClaims(claims)

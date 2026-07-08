@@ -2,8 +2,10 @@ package com.dawnbread.attendance.config;
 
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Product;
+import com.dawnbread.attendance.entity.Tenant;
 import com.dawnbread.attendance.repository.AgentRepository;
 import com.dawnbread.attendance.repository.ProductRepository;
+import com.dawnbread.attendance.repository.TenantRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
@@ -23,13 +25,31 @@ public class DataInitializer implements CommandLineRunner {
     private ProductRepository productRepository;
 
     @Autowired
+    private TenantRepository tenantRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) throws Exception {
+        // This runs at app startup, outside any HTTP request, so there is no
+        // TenantContext yet — resolve/create the default tenant explicitly
+        // and stamp it on everything seeded below, same as tests do.
+        Tenant defaultTenant = tenantRepository.findByCompanyCodeIgnoreCase("DAWNBREAD")
+                .orElseGet(() -> {
+                    Tenant t = new Tenant();
+                    t.setCompanyCode("DAWNBREAD");
+                    t.setName("Dawn Bread");
+                    t.setIsActive(true);
+                    t.setCreatedAt(LocalDateTime.now());
+                    t.setCreatedBy("SYSTEM");
+                    return tenantRepository.save(t);
+                });
+
         // Seed Admin user if absent
         if (!agentRepository.existsByAgentId("ADMIN001")) {
             Agent admin = new Agent();
+            admin.setTenantId(defaultTenant.getId());
             admin.setAgentId("ADMIN001");
             admin.setName("System Admin");
             admin.setEmail("admin@attendance.com");
@@ -47,6 +67,7 @@ public class DataInitializer implements CommandLineRunner {
         // Seed Demo Agent user if absent
         if (!agentRepository.existsByAgentId("DEMO001")) {
             Agent agent = new Agent();
+            agent.setTenantId(defaultTenant.getId());
             agent.setAgentId("DEMO001");
             agent.setName("Demo Agent");
             agent.setEmail("demo@attendance.com");
@@ -96,6 +117,7 @@ public class DataInitializer implements CommandLineRunner {
 
             for (int i = 0; i < names.length; i++) {
                 Product p = new Product();
+                p.setTenantId(defaultTenant.getId());
                 p.setName(names[i]);
                 p.setPrice(prices[i]);
                 p.setDescription(descriptions[i]);

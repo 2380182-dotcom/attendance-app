@@ -2,6 +2,7 @@ package com.dawnbread.attendance.controller;
 
 import com.dawnbread.attendance.entity.Mart;
 import com.dawnbread.attendance.repository.MartRepository;
+import com.dawnbread.attendance.repository.TenantRepository;
 import com.dawnbread.attendance.security.TokenProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,12 +42,16 @@ class MartControllerSecurityTest {
     @Autowired
     private MartRepository martRepository;
 
+    @Autowired
+    private TenantRepository tenantRepository;
+
     private String url(String path) {
         return "http://localhost:" + port + path;
     }
 
     private Mart seedMart(String name) {
         Mart mart = new Mart();
+        mart.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
         mart.setName(name);
         mart.setAddress("1 Test Street");
         mart.setLatitude(31.5);

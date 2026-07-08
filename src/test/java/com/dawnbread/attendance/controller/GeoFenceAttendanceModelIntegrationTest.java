@@ -8,6 +8,7 @@ import com.dawnbread.attendance.repository.AttendanceRepository;
 import com.dawnbread.attendance.repository.GeoFenceLogRepository;
 import com.dawnbread.attendance.repository.MartRepository;
 import com.dawnbread.attendance.repository.NotificationRepository;
+import com.dawnbread.attendance.repository.TenantRepository;
 import com.dawnbread.attendance.security.TokenProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,12 +67,16 @@ class GeoFenceAttendanceModelIntegrationTest {
     @Autowired
     private NotificationRepository notificationRepository;
 
+    @Autowired
+    private TenantRepository tenantRepository;
+
     private String url(String path) {
         return "http://localhost:" + port + path;
     }
 
     private Agent seedAgent(String agentId) {
         Agent agent = new Agent();
+        agent.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
         agent.setAgentId(agentId);
         agent.setName("Seed " + agentId);
         agent.setEmail(agentId.toLowerCase() + "@example.com");
@@ -82,6 +87,7 @@ class GeoFenceAttendanceModelIntegrationTest {
 
     private Mart seedMart(String name, double lat, double lon) {
         Mart mart = new Mart();
+        mart.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
         mart.setName(name);
         mart.setAddress("Test Address");
         mart.setLatitude(lat);

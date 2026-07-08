@@ -1,30 +1,37 @@
 package com.dawnbread.attendance.entity;
 
+import com.dawnbread.attendance.security.TenantEntityListener;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "notifications")
-public class Notification {
-    
+@Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
+@EntityListeners(TenantEntityListener.class)
+public class Notification implements TenantAware {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
 
     @ManyToOne
     @JoinColumn(name = "agent_id")
     private Agent agent;
 
     private String agentName;
-    
+
     @Column(columnDefinition = "TEXT")
     private String message;
-    
+
     private String type; // 'CHECK_IN', 'CHECK_OUT', 'LATE', 'ABSENT', 'AUTO_CHECK_IN', 'AUTO_CHECK_OUT'
     private String department; // 'SALES', 'HR'
-    
+
     private Boolean isRead = false;
-    
+
     private LocalDateTime createdAt;
 
     public Notification() {}
@@ -32,6 +39,9 @@ public class Notification {
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public Agent getAgent() { return agent; }
     public void setAgent(Agent agent) { this.agent = agent; }

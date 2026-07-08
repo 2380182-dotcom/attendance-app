@@ -1,6 +1,8 @@
 package com.dawnbread.attendance.entity;
 
+import com.dawnbread.attendance.security.TenantEntityListener;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -11,19 +13,26 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "agent")
-public class Agent {
+@Table(name = "agent", uniqueConstraints = {
+        @UniqueConstraint(name = "ux_agent_tenant_agent_id", columnNames = {"tenant_id", "agent_id"}),
+        @UniqueConstraint(name = "ux_agent_tenant_email", columnNames = {"tenant_id", "email"})
+})
+@Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
+@EntityListeners(TenantEntityListener.class)
+public class Agent implements TenantAware {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false)
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
+
+    @Column(nullable = false)
     private String agentId;
 
     private String name;
 
-    @Column(unique = true)
     private String email;
 
     private String phone;
@@ -97,6 +106,9 @@ public class Agent {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public String getAgentId() { return agentId; }
     public void setAgentId(String agentId) { this.agentId = agentId; }

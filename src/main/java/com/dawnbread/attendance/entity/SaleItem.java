@@ -1,14 +1,21 @@
 package com.dawnbread.attendance.entity;
 
+import com.dawnbread.attendance.security.TenantEntityListener;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
 
 @Entity
 @Table(name = "sale_items")
-public class SaleItem {
+@Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
+@EntityListeners(TenantEntityListener.class)
+public class SaleItem implements TenantAware {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
 
     @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
@@ -44,6 +51,9 @@ public class SaleItem {
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public SalesRecord getSalesRecord() { return salesRecord; }
     public void setSalesRecord(SalesRecord salesRecord) { this.salesRecord = salesRecord; }

@@ -32,7 +32,10 @@
       "Bash(grep -rn \"FACE_CONFIDENCE_THRESHOLD\" app.json eas.json)",
       "Bash(cat .env)",
       "Bash(cat eas.json)",
-      "Bash(npx eas *)"
+      "Bash(npx eas *)",
+      "Bash(docker run *)",
+      "Bash(docker exec *)",
+      "Bash(timeout 30 pg_dump \"postgresql://attendance_user:jXKlkyQNNjXoIVpsvLbJ6jyWEaK7A9Zd@dpg-d939b95ckfvc73aj3qhg-a.ohio-postgres.render.com/attendance_db_j8ef?sslmode=require\" --schema-only --no-owner --no-privileges -f /tmp/claude-1000/-home-rafay-attendance/b4d971e4-dcb0-4244-9fd5-8786fa68c4fd/scratchpad/prod_schema.sql)"
     ]
   }
 }

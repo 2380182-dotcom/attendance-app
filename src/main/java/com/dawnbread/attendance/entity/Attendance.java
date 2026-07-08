@@ -1,16 +1,23 @@
 package com.dawnbread.attendance.entity;
 
+import com.dawnbread.attendance.security.TenantEntityListener;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
 @Table(name = "attendance")
-public class Attendance {
+@Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
+@EntityListeners(TenantEntityListener.class)
+public class Attendance implements TenantAware {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
 
     @ManyToOne
     @JoinColumn(name = "agent_id", nullable = false)
@@ -40,6 +47,9 @@ public class Attendance {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
     public Agent getAgent() { return agent; }
     public void setAgent(Agent agent) { this.agent = agent; }
