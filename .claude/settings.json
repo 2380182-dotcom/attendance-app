@@ -66,7 +66,6 @@
       "Bash(curl -s \"https://raw.githubusercontent.com/2380182-dotcom/attendance-app/main/.claude/settings.json\")",
       "Bash(python3 -m json.tool .claude/settings.local.json)",
       "Bash(cp ~/.bash_history ~/.bash_history.bak_before_credential_cleanup)",
-      "Bash(sed -i '/jXKlkyQNNjXoIVpsvLbJ6jyWEaK7A9Zd/d' ~/.bash_history)",
       "Bash(history -r ~/.bash_history)",
       "Bash(diff ~/.bash_history.bak_before_credential_cleanup ~/.bash_history | grep \"^<\" | wc -l *)",
       "Bash(curl -s \"https://search.maven.org/solrsearch/select?q=g:com.fasterxml.jackson+AND+a:jackson-bom&core=gav&rows=200&wt=json\")",
@@ -77,7 +76,19 @@
       "Bash(mvn dependency:tree)",
       "Bash(curl -s \"https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-dependencies/3.5.3/spring-boot-dependencies-3.5.3.pom\")",
       "Bash(curl -s \"https://search.maven.org/solrsearch/select?q=g:org.springframework+AND+a:spring-core&core=gav&rows=200&wt=json\")",
-      "Bash(awk '{print $1}')"
+      "Bash(awk '{print $1}')",
+      "Bash(git commit -m ' *)",
+      "Bash(python3 -m json.tool /home/rafay/attendance/.claude/settings.json)",
+      "Bash(git -C /home/rafay/attendance status --short .claude/settings.json)",
+      "Bash(curl -s -w \"\\\\nHTTP Status: %{http_code}\\\\nTotal time: %{time_total}s\\\\n\" \"https://attendance-app-rn2m.onrender.com/actuator/health\")",
+      "Bash(curl -s -w '\\\\nHTTP Status: %{http_code}\\\\n' -X POST https://attendance-app-rn2m.onrender.com/api/auth/login -H 'Content-Type: application/json' -d '{\"companyCode\":\"DAWNBREAD\",\"agentId\":\"ADMIN001\",\"password\":\"deliberately-wrong-password-to-force-a-real-db-lookup\"}')",
+      "Bash(chmod 600 /tmp/claude-1000/-home-rafay-attendance/b4d971e4-dcb0-4244-9fd5-8786fa68c4fd/scratchpad/pgcreds/pgpass)",
+      "Bash(export PGPASSFILE=/tmp/claude-1000/-home-rafay-attendance/b4d971e4-dcb0-4244-9fd5-8786fa68c4fd/scratchpad/pgcreds/pgpass)",
+      "Bash(psql 'host=dpg-d939b95ckfvc73aj3qhg-a.ohio-postgres.render.com port=5432 dbname=attendance_db_j8ef user=attendance_user sslmode=require' -c ' *)",
+      "Bash(psql \"host=dpg-d939b95ckfvc73aj3qhg-a.ohio-postgres.render.com port=5432 dbname=attendance_db_j8ef user=attendance_user sslmode=require\" -c \"DROP ROLE IF EXISTS attendance_user_v2;\")",
+      "Bash(shred -u /tmp/claude-1000/-home-rafay-attendance/b4d971e4-dcb0-4244-9fd5-8786fa68c4fd/scratchpad/pgcreds/pgpass)",
+      "Bash(git fetch *)",
+      "Bash(grep -v -iE \"password.*=.*\\\\$\\\\{|password.*Placeholder|// |^\\\\s*\\\\*|placeholder|masked|redact\")"
     ],
     "additionalDirectories": [
       "/home/rafay"
