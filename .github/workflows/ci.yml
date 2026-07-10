@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend — build & full test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Compile
+        run: mvn -B -q compile test-compile
+
+      - name: Run full test suite
+        run: mvn -B test
+
+      - name: Check for expired DIAG() markers
+        run: |
+          today=$(date +%Y-%m-%d)
+          expired=0
+          while IFS=: read -r file line rest; do
+            marker_date=$(echo "$rest" | grep -oE 'DIAG\(([0-9]{4}-[0-9]{2}-[0-9]{2})\)' | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+            if [ -n "$marker_date" ] && [[ "$marker_date" < "$today" ]]; then
+              echo "::error file=$file,line=$line::Expired DIAG marker (was due $marker_date): $rest"
+              expired=1
+            fi
+          done < <(grep -rn "DIAG([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\})" src/main/java/ || true)
+          if [ "$expired" -eq 1 ]; then
+            echo "## ❌ Expired DIAG() marker(s) in backend code" >> "$GITHUB_STEP_SUMMARY"
+            echo "Temporary code has outlived its stated removal date — see annotations above." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "No expired DIAG markers."
+
+      - name: Fail loudly on any test failure
+        if: failure()
+        run: |
+          echo "::error::Backend build or test suite failed. Scroll up to 'Run full test suite' for the specific failing test(s) — this must be green before merging."
+          echo "## ❌ Backend CI failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Compile or \`mvn test\` failed — see the job log above for which test(s)." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+  mobile:
+    name: Mobile — verify (lint + theme-color check + DIAG-marker check)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run verify (ESLint no-console rule, theme-color check, DIAG-marker expiry check)
+        run: npm run verify
+
+      - name: Fail loudly on any violation
+        if: failure()
+        run: |
+          echo "::error::Mobile verify failed. This is either a lint violation (check no-console/bare console.log), a theme-color reference bug, or an expired DIAG() marker — see the job log above."
+          echo "## ❌ Mobile CI failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`npm run verify\` failed — see the job log above for lint / theme-color / DIAG-marker specifics." >> "$GITHUB_STEP_SUMMARY"
+          exit 1

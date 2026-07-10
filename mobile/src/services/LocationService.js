@@ -3,6 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 import { storage } from '../utils/storage';
 import NotificationService from './NotificationService';
 import { apiService } from './api';
+import { debugLog } from '../utils/debugLog';
 
 const BACKGROUND_LOCATION_TASK = 'BACKGROUND_LOCATION';
 
@@ -16,7 +17,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     if (locations && locations.length > 0) {
       const location = locations[0];
       const { latitude, longitude } = location.coords;
-      console.log(`[Background Location Update] Lat: ${latitude}, Lon: ${longitude}`);
+      debugLog('BackgroundLocation', `Lat: ${latitude}, Lon: ${longitude}`);
 
       try {
         const user = await storage.getUser();
@@ -66,7 +67,7 @@ export const LocationService = {
     try {
       const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
       if (isRegistered) {
-        console.log('Background location task already registered.');
+        debugLog('LocationService', 'Background location task already registered.');
       }
 
       await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
@@ -79,7 +80,7 @@ export const LocationService = {
           notificationColor: '#2196F3',
         },
       });
-      console.log('Background location tracking started.');
+      debugLog('LocationService', 'Background location tracking started.');
       return true;
     } catch (e) {
       console.error('Error starting location updates:', e);
@@ -92,7 +93,7 @@ export const LocationService = {
       const hasStarted = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       if (hasStarted) {
         await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
-        console.log('Background location tracking stopped.');
+        debugLog('LocationService', 'Background location tracking stopped.');
       }
       return true;
     } catch (e) {

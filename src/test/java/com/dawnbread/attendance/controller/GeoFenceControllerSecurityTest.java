@@ -20,8 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * /api/geo-fence/check stays open to any authenticated role (agents call it
- * during check-in/out). The log-reading endpoints expose other agents'
- * location history and are Admin/HR only.
+ * during check-in/out), but is self-or-management: an agent may only check
+ * their own geofence status, not another agent's, on-behalf-of Admin/HR
+ * still works. The log-reading endpoints expose other agents' location
+ * history and are Admin/HR only.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class GeoFenceControllerSecurityTest {
@@ -66,6 +68,49 @@ class GeoFenceControllerSecurityTest {
         // matching mart/attendance) — either way it must not be blocked by role.
         assertEquals(false, response.getStatusCode().equals(HttpStatus.FORBIDDEN),
                 "checkGeoFence must stay open to any authenticated role");
+    }
+
+    /**
+     * Before the ownership check was added, checkGeoFence trusted whatever
+     * agentId the client sent in the body — any authenticated agent could
+     * poll another agent's geofence status/location by just changing the id.
+     */
+    @Test
+    void agentCannotCallCheckGeoFenceForAnotherAgent() {
+        String agentToken = tokenProvider.generateToken(53L, "GEOFENCE_SELF_AGENT", "AGENT");
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("agentId", 54); // a different agent's id
+        body.put("latitude", 31.5);
+        body.put("longitude", 74.3);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(agentToken);
+
+        ResponseEntity<String> response = restTemplate.exchange(
+                url("/api/geo-fence/check"), HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode(),
+                "An agent must not be able to check geofence status on another agent's behalf: " + response.getBody());
+    }
+
+    @Test
+    void managementCanCallCheckGeoFenceOnBehalfOfAnyAgent() {
+        String hrToken = tokenProvider.generateToken(55L, "GEOFENCE_HR", "HR");
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("agentId", 56); // any agent, not the caller
+        body.put("latitude", 31.5);
+        body.put("longitude", 74.3);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(hrToken);
+
+        ResponseEntity<String> response = restTemplate.exchange(
+                url("/api/geo-fence/check"), HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+        assertEquals(false, response.getStatusCode().equals(HttpStatus.FORBIDDEN),
+                "HR must be able to call checkGeoFence on any agent's behalf: " + response.getBody());
     }
 
     @Test

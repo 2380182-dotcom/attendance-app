@@ -1,6 +1,7 @@
 package com.dawnbread.attendance.controller;
 
 import com.dawnbread.attendance.dto.AgentDTO;
+import com.dawnbread.attendance.dto.AgentRegistrationDTO;
 import com.dawnbread.attendance.dto.ApiResponse;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.security.AccessControl;
@@ -30,19 +31,26 @@ public class AgentController {
      * runs, so the role check below only trusts a role claim the server itself
      * verified, never the client-submitted request body. Same pattern as
      * AuthController.register().
+     *
+     * Binds to AgentRegistrationDTO, not the Agent entity directly — the
+     * entity's tenantId field has no client-facing use, and TenantEntityListener
+     * only auto-stamps the caller's real tenant if that field is still null, so
+     * a raw-entity binding here would let a client-supplied tenantId in the
+     * JSON body silently plant a row in a different company's tenant. The DTO
+     * has no tenantId field at all, so there's nothing for a client to set.
      */
     @PostMapping
-    public ResponseEntity<ApiResponse<AgentDTO>> createAgent(@RequestBody Agent agent) {
+    public ResponseEntity<ApiResponse<AgentDTO>> createAgent(@RequestBody AgentRegistrationDTO dto) {
         String callerRole = (String) request.getAttribute("role");
         if (!"ADMIN".equals(callerRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error("Only an administrator can create new accounts."));
         }
         try {
-            Agent created = agentService.createAgent(agent);
-            AgentDTO dto = convertToDTO(created);
+            Agent created = agentService.createAgent(dto);
+            AgentDTO agentDto = convertToDTO(created);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success("Agent created successfully", dto));
+                    .body(ApiResponse.success("Agent created successfully", agentDto));
         } catch (Exception e) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(e.getMessage()));
@@ -218,8 +226,7 @@ public class AgentController {
                 agent.getFaceVerifyOnCheckIn(),
                 agent.getFaceVerifyOnCheckOut(),
                 agent.getFaceVerifyAnytime(),
-                agent.getFaceRegistered(),
-                agent.getFaceTemplate()
+                agent.getFaceRegistered()
         );
         dto.setShiftStartTime(agent.getShiftStartTime());
         dto.setShiftEndTime(agent.getShiftEndTime());

@@ -4,8 +4,12 @@ import com.dawnbread.attendance.security.TenantEntityListener;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Filter;
 
+import java.time.LocalDate;
+
 @Entity
-@Table(name = "sale_items")
+@Table(name = "sale_items", uniqueConstraints = {
+        @UniqueConstraint(name = "ux_sale_items_agent_product_date", columnNames = {"agent_id", "product_id", "sale_date"})
+})
 @Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
 @EntityListeners(TenantEntityListener.class)
 public class SaleItem implements TenantAware {
@@ -21,6 +25,18 @@ public class SaleItem implements TenantAware {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sales_record_id")
     private SalesRecord salesRecord;
+
+    // Denormalized from the parent SalesRecord at creation time (see
+    // SalesService) specifically so the database can enforce "one row per
+    // agent/product/day" directly — sale_date otherwise only lives on the
+    // parent, which can't back a unique constraint on this table. Closes
+    // the race where two concurrent submissions could both pass the
+    // in-memory duplicate check before either commits (audit Finding 09).
+    @Column(name = "agent_id", nullable = false)
+    private Long agentId;
+
+    @Column(name = "sale_date", nullable = false)
+    private LocalDate saleDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")
@@ -51,6 +67,12 @@ public class SaleItem implements TenantAware {
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getAgentId() { return agentId; }
+    public void setAgentId(Long agentId) { this.agentId = agentId; }
+
+    public LocalDate getSaleDate() { return saleDate; }
+    public void setSaleDate(LocalDate saleDate) { this.saleDate = saleDate; }
 
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }

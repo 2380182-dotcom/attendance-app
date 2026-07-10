@@ -22,6 +22,7 @@ import { storage } from '../../utils/storage';
 import config from '../../config';
 import { connectSalesWebSocket } from '../../services/WebSocketService';
 import { useTheme } from '../../theme';
+import { debugLog } from '../../utils/debugLog';
 
 export default function SalesDashboardScreen({ navigation }) {
   const { colors } = useTheme();
@@ -72,7 +73,7 @@ export default function SalesDashboardScreen({ navigation }) {
         const savedUrl = await storage.getServerUrl();
         const base = savedUrl || config.API_URL;
         disconnectStomp = connectSalesWebSocket(base, () => {
-          console.log('[STOMP] Sales update received, refreshing dashboard...');
+          debugLog('STOMP', 'Sales update received, refreshing dashboard...');
           fetchData();
         });
       } catch (err) {

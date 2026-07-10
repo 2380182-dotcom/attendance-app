@@ -1,6 +1,7 @@
 package com.dawnbread.attendance.controller;
 
 import com.dawnbread.attendance.dto.ApiResponse;
+import com.dawnbread.attendance.dto.MartCreateDTO;
 import com.dawnbread.attendance.dto.MartDTO;
 import com.dawnbread.attendance.entity.Mart;
 import com.dawnbread.attendance.security.AccessControl;
@@ -32,14 +33,18 @@ public class MartController {
     /**
      * Create a new mart. Admin-only — reads stay open to any authenticated
      * role (agents need the mart list to check in), but mutations don't.
+     *
+     * Binds to MartCreateDTO, not the Mart entity — the entity's tenantId
+     * field would otherwise be directly settable from client JSON (see the
+     * identical note on AgentController.createAgent).
      */
     @PostMapping
-    public ResponseEntity<ApiResponse<MartDTO>> createMart(@RequestBody Mart mart) {
+    public ResponseEntity<ApiResponse<MartDTO>> createMart(@RequestBody MartCreateDTO dto) {
         if (!AccessControl.hasRole(request, "ADMIN")) {
             return adminOnly();
         }
         try {
-            Mart created = martService.createMart(mart);
+            Mart created = martService.createMart(dto);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponse.success("Mart created successfully", convertToDTO(created)));
         } catch (Exception e) {

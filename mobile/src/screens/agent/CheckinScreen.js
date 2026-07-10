@@ -185,14 +185,15 @@ export default function CheckinScreen({ navigation }) {
       );
 
       const isLate = result.status === 'LATE';
-      // TEMP DIAGNOSTIC: surface the raw cosine similarity AND the raw-value
-      // identity check in the persistent Alert (not just the face modal, which
-      // auto-dismisses after ~1.2s) so it's actually readable on a real device
-      // during the impersonation test.
-      const confidenceNote = confidence != null
+      // Dev-only: a real agent's own similarity score/diagnostics have no
+      // reason to appear on their check-in screen in production — beyond
+      // just being unpolished, it hands anyone attempting to spoof a
+      // check-in direct feedback on how close their attempt scored to the
+      // pass threshold (security audit Finding 05).
+      const confidenceNote = __DEV__ && confidence != null
         ? ` [Face match similarity: ${confidence.toFixed(4)}]`
         : '';
-      const diagNote = diag
+      const diagNote = __DEV__ && diag
         ? ` [identical=${diag.identical} maxAbsDiff=${diag.maxAbsDiff?.toExponential?.(3)} refConst=${diag.refConstant} liveConst=${diag.liveConstant}]`
         : '';
       const msg = (isLate
@@ -324,10 +325,13 @@ export default function CheckinScreen({ navigation }) {
         }}
         onFailure={({ confidence, diag } = {}) => {
           setFaceModalVisible(false);
-          const confidenceNote = confidence != null
+          // Dev-only — see the identical note on the success path above:
+          // showing a failed attempt its own similarity score is direct
+          // feedback for anyone probing how close a spoof attempt scored.
+          const confidenceNote = __DEV__ && confidence != null
             ? ` [Face match similarity: ${confidence.toFixed(4)}]`
             : '';
-          const diagNote = diag
+          const diagNote = __DEV__ && diag
             ? ` [identical=${diag.identical} maxAbsDiff=${diag.maxAbsDiff?.toExponential?.(3)} refConst=${diag.refConstant} liveConst=${diag.liveConstant}]`
             : '';
           Alert.alert(

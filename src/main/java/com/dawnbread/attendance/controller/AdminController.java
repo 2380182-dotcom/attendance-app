@@ -48,21 +48,21 @@ public class AdminController {
     }
 
     @PostMapping("/agents")
-    public ResponseEntity<ApiResponse<Agent>> createAgent(@RequestBody AgentRegistrationDTO dto) {
+    public ResponseEntity<ApiResponse<AgentDTO>> createAgent(@RequestBody AgentRegistrationDTO dto) {
         if (!AccessControl.hasRole(request, "ADMIN")) {
             return adminOnly();
         }
         try {
             Agent created = adminService.createAgent(dto);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success("Agent created successfully", created));
+                    .body(ApiResponse.success("Agent created successfully", convertToDTO(created)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
     @GetMapping("/agents")
-    public ResponseEntity<ApiResponse<List<Agent>>> listAgents(
+    public ResponseEntity<ApiResponse<List<AgentDTO>>> listAgents(
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String department,
             @RequestParam(required = false) Boolean active) {
@@ -71,14 +71,15 @@ public class AdminController {
         }
         try {
             List<Agent> agents = adminService.listAgents(role, department, active);
-            return ResponseEntity.ok(ApiResponse.success("Agents retrieved", agents));
+            List<AgentDTO> dtos = agents.stream().map(this::convertToDTO).collect(java.util.stream.Collectors.toList());
+            return ResponseEntity.ok(ApiResponse.success("Agents retrieved", dtos));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
     @PutMapping("/agents/{id}/face-config")
-    public ResponseEntity<ApiResponse<Agent>> updateFaceConfig(
+    public ResponseEntity<ApiResponse<AgentDTO>> updateFaceConfig(
             @PathVariable Long id,
             @RequestBody FaceConfigDTO config) {
         if (!AccessControl.hasRole(request, "ADMIN")) {
@@ -86,14 +87,14 @@ public class AdminController {
         }
         try {
             Agent updated = adminService.updateFaceConfig(id, config);
-            return ResponseEntity.ok(ApiResponse.success("Face config updated", updated));
+            return ResponseEntity.ok(ApiResponse.success("Face config updated", convertToDTO(updated)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
     @PutMapping("/agents/{id}/shift")
-    public ResponseEntity<ApiResponse<Agent>> updateShift(
+    public ResponseEntity<ApiResponse<AgentDTO>> updateShift(
             @PathVariable Long id,
             @RequestBody ShiftScheduleDTO shift) {
         if (!AccessControl.hasRole(request, "ADMIN")) {
@@ -101,7 +102,7 @@ public class AdminController {
         }
         try {
             Agent updated = adminService.updateShift(id, shift);
-            return ResponseEntity.ok(ApiResponse.success("Shift updated", updated));
+            return ResponseEntity.ok(ApiResponse.success("Shift updated", convertToDTO(updated)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
@@ -144,13 +145,18 @@ public class AdminController {
                         .body(ApiResponse.error("Mart not found with id: " + id)));
     }
 
+    /**
+     * Binds to MartCreateDTO, not the Mart entity — see the identical note
+     * on AgentController.createAgent for why a raw-entity binding here would
+     * let a client-supplied tenantId field plant a row in another tenant.
+     */
     @PostMapping("/marts")
-    public ResponseEntity<ApiResponse<Mart>> createMart(@RequestBody Mart mart) {
+    public ResponseEntity<ApiResponse<Mart>> createMart(@RequestBody MartCreateDTO dto) {
         if (!AccessControl.hasRole(request, "ADMIN")) {
             return adminOnly();
         }
         try {
-            Mart created = adminService.createMart(mart);
+            Mart created = adminService.createMart(dto);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponse.success("Mart created successfully", created));
         } catch (Exception e) {
@@ -210,5 +216,33 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
+    }
+
+    /**
+     * Never return the Agent entity directly — password, faceTemplate, and
+     * faceEmbedding are the sensitive fields this guards against, and while
+     * they now also carry field-level @JsonIgnore, that's a floor, not a
+     * substitute for keeping entities off the wire entirely.
+     */
+    private AgentDTO convertToDTO(Agent agent) {
+        AgentDTO dto = new AgentDTO(
+                agent.getId(),
+                agent.getAgentId(),
+                agent.getName(),
+                agent.getEmail(),
+                agent.getPhone(),
+                agent.getRole(),
+                agent.getDepartment(),
+                agent.getCreatedAt(),
+                agent.getFaceVerifyOnCheckIn(),
+                agent.getFaceVerifyOnCheckOut(),
+                agent.getFaceVerifyAnytime(),
+                agent.getFaceRegistered()
+        );
+        dto.setShiftStartTime(agent.getShiftStartTime());
+        dto.setShiftEndTime(agent.getShiftEndTime());
+        dto.setGracePeriodMinutes(agent.getGracePeriodMinutes());
+        dto.setWorkingDays(agent.getWorkingDays());
+        return dto;
     }
 }

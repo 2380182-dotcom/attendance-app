@@ -1,0 +1,58 @@
+version: 2
+updates:
+  # Backend — Maven (pom.xml)
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 8
+    labels:
+      - "dependencies"
+      - "backend"
+    groups:
+      # Batches routine patch/minor bumps into one PR instead of one-per-package,
+      # so a normal week is a couple of PRs to review, not a couple of dozen.
+      # Security updates are unaffected by grouping/ignore below — they open
+      # immediately and individually regardless of this schedule.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Mobile — npm (mobile/package.json)
+  - package-ecosystem: "npm"
+    directory: "/mobile"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 8
+    labels:
+      - "dependencies"
+      - "mobile"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Expo pins these to a specific SDK-compatible version matrix (SDK 51
+      # here) — a routine Dependabot semver bump can silently produce a
+      # combination Expo never tested and doesn't support. These are meant to
+      # be bumped via `npx expo install <pkg>` during a deliberate SDK
+      # upgrade, not a background dependency PR. This does NOT suppress
+      # security PRs for these packages — see the security-updates config
+      # below, which alerts on all packages including these.
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-native"
+
+  # GitHub Actions workflow dependencies, if/when CI workflows are added —
+  # cheap to include now so it's not forgotten later.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"

@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.entity;
 
+import com.dawnbread.attendance.security.AuditEntityListener;
 import com.dawnbread.attendance.security.TenantEntityListener;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Filter;
@@ -18,7 +19,7 @@ import java.util.List;
         @UniqueConstraint(name = "ux_agent_tenant_email", columnNames = {"tenant_id", "email"})
 })
 @Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
-@EntityListeners(TenantEntityListener.class)
+@EntityListeners({TenantEntityListener.class, AuditEntityListener.class})
 public class Agent implements TenantAware {
 
     @Id
@@ -37,6 +38,10 @@ public class Agent implements TenantAware {
 
     private String phone;
 
+    // Never serialize the password hash — see the audit note on
+    // faceTemplate/faceEmbedding below for why field-level @JsonIgnore is the
+    // floor, not the fix; controllers must also return AgentDTO, not Agent.
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String password;
 
     private String role;
@@ -70,11 +75,25 @@ public class Agent implements TenantAware {
 
     private Boolean faceRegistered = false;
 
+    // Biometric data — never serialize this, in any response, to any role.
+    // Field-level @JsonIgnore is a floor against an entity leaking by accident
+    // (e.g. through a nested @ManyToOne on another entity, as GeoFenceLog.agent
+    // did); it is not a substitute for controllers returning AgentDTO instead
+    // of the raw entity, which is the actual fix applied at every call site.
+    //
+    // @Convert(FaceDataEncryptionConverter): AES-256-GCM at rest, transparent
+    // to every other line of code that reads/writes this field — see the
+    // approved design doc. Dual-read during migration: a legacy plaintext row
+    // (no "ENCv" prefix) still reads correctly; every write always encrypts.
     @Column(columnDefinition = "TEXT")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @jakarta.persistence.Convert(converter = com.dawnbread.attendance.security.FaceDataEncryptionConverter.class)
     private String faceTemplate;
 
     /** Base64-encoded float32 array — enrolled on-device via ML Kit */
     @Column(columnDefinition = "TEXT")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @jakarta.persistence.Convert(converter = com.dawnbread.attendance.security.FaceDataEncryptionConverter.class)
     private String faceEmbedding;
 
     private LocalDateTime faceTemplateUpdatedAt;

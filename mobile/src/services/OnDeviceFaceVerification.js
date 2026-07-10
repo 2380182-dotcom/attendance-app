@@ -1,6 +1,7 @@
 import FaceDetection from '@react-native-ml-kit/face-detection';
 import config from '../config';
 import { apiService } from './api';
+import { debugLog } from '../utils/debugLog';
 import {
   getFaceEmbedding,
   cosineSimilarity,
@@ -69,18 +70,13 @@ export async function verifyAgainstReference(imageUri, referenceBase64, threshol
   const embedding = await getFaceEmbedding(imageUri, face);
   const confidence = cosineSimilarity(embedding, reference);
 
-  // TEMP DIAGNOSTIC: a similarity of exactly 1.0000 between two supposedly
-  // different captures is only mathematically possible if the two arrays
-  // are (anywhere from exactly to almost-exactly) identical. The previous
-  // version of this check used strict `===` on floating-point doubles,
-  // which gives a FALSE NEGATIVE for arrays that agree to 5+ decimal places
-  // but differ in the last bit or two (e.g. from a redundant normalize()
-  // pass) — exactly the case that showed up in testing: printed values
-  // matched, cosine was exactly 1.0000, but identical still printed false.
-  // This version reports the actual maximum absolute difference across all
-  // 384 elements, which can't give a false negative — "identical" here
-  // means "within float32 rounding noise", a real content comparison, not
-  // an exact-bits comparison that tiny, expected FP noise can defeat.
+  // Content-comparison diagnostics for the reference-vs-live investigation:
+  // "identical" here means "within float32 rounding noise" (a tolerance
+  // comparison), not strict `===`, which gives false negatives on arrays
+  // that agree to 5+ decimals but differ in the last bit or two. Computing
+  // this is cheap and stays on always — what's gated below is where the
+  // result is allowed to go: never to production logs or a real agent's
+  // screen, since it's raw biometric data and internal debug detail.
   const EPSILON = 1e-6;
   let maxAbsDiff = embedding.length === reference.length ? 0 : Infinity;
   if (embedding.length === reference.length) {
@@ -95,16 +91,27 @@ export async function verifyAgainstReference(imageUri, referenceBase64, threshol
   const liveConstant = isConstantArray(embedding);
   const refFirst5 = reference.slice(0, 5).map((v) => v.toFixed(5));
   const liveFirst5 = embedding.slice(0, 5).map((v) => v.toFixed(5));
+  const diag = { identical, maxAbsDiff, refConstant, liveConstant, refFirst5, liveFirst5 };
 
-  console.log('[FaceDiag] reference (full):', JSON.stringify(reference));
-  console.log('[FaceDiag] live capture (full):', JSON.stringify(embedding));
-  console.log('[FaceDiag] identical (within', EPSILON, '):', identical, 'maxAbsDiff:', maxAbsDiff,
+  // DIAG(2026-08-15): the full 384-value vectors (raw biometric data) must
+  // never reach a production device's system log, readable via adb or by any
+  // app with legacy log-read access — see the security audit's Finding 05.
+  // debugLog is __DEV__-gated internally, so this can't ship by omission.
+  // Remove once the face-verification pixel/embedding investigation closes.
+  debugLog('FaceDiag', 'reference (full):', JSON.stringify(reference));
+  debugLog('FaceDiag', 'live capture (full):', JSON.stringify(embedding));
+  debugLog('FaceDiag', 'identical (within', EPSILON, '):', identical, 'maxAbsDiff:', maxAbsDiff,
     'refConstant:', refConstant, 'liveConstant:', liveConstant);
 
-  const diag = { identical, maxAbsDiff, refConstant, liveConstant, refFirst5, liveFirst5 };
-  const diagNote = ` [diag: identical=${identical} maxAbsDiff=${maxAbsDiff.toExponential(3)} ` +
-    `refConst=${refConstant} liveConst=${liveConstant} ` +
-    `ref0-4=${refFirst5.join(',')} live0-4=${liveFirst5.join(',')}]`;
+  // Dev-only, and only appended to `reason` (an internal string surfaced by
+  // the caller) — never shown to a real agent in production. Also closes a
+  // second issue: a spoofing attempt could otherwise read its own live
+  // similarity score/diagnostics directly off the check-in screen.
+  const diagNote = __DEV__
+    ? ` [diag: identical=${identical} maxAbsDiff=${maxAbsDiff.toExponential(3)} ` +
+      `refConst=${refConstant} liveConst=${liveConstant} ` +
+      `ref0-4=${refFirst5.join(',')} live0-4=${liveFirst5.join(',')}]`
+    : '';
 
   if (confidence < confidenceThreshold) {
     return {

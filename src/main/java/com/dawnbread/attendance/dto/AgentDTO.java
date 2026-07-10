@@ -16,8 +16,10 @@ public class AgentDTO {
     private Boolean faceVerifyOnCheckIn;
     private Boolean faceVerifyOnCheckOut;
     private Boolean faceVerifyAnytime;
+    // faceRegistered (a boolean) is the field consumers actually need — the
+    // raw faceTemplate/faceEmbedding must never leave the server. Confirmed
+    // zero mobile callers of .faceTemplate before removing it from here.
     private Boolean faceRegistered;
-    private String faceTemplate;
     private LocalTime shiftStartTime;
     private LocalTime shiftEndTime;
     private Integer gracePeriodMinutes;
@@ -38,7 +40,7 @@ public class AgentDTO {
     }
 
     public AgentDTO(Long id, String agentId, String name, String email, String phone, String role, String department, LocalDateTime createdAt,
-                    Boolean faceVerifyOnCheckIn, Boolean faceVerifyOnCheckOut, Boolean faceVerifyAnytime, Boolean faceRegistered, String faceTemplate) {
+                    Boolean faceVerifyOnCheckIn, Boolean faceVerifyOnCheckOut, Boolean faceVerifyAnytime, Boolean faceRegistered) {
         this.id = id;
         this.agentId = agentId;
         this.name = name;
@@ -51,7 +53,6 @@ public class AgentDTO {
         this.faceVerifyOnCheckOut = faceVerifyOnCheckOut;
         this.faceVerifyAnytime = faceVerifyAnytime;
         this.faceRegistered = faceRegistered;
-        this.faceTemplate = faceTemplate;
     }
     
     // Getters
@@ -67,7 +68,6 @@ public class AgentDTO {
     public Boolean getFaceVerifyOnCheckOut() { return faceVerifyOnCheckOut; }
     public Boolean getFaceVerifyAnytime() { return faceVerifyAnytime; }
     public Boolean getFaceRegistered() { return faceRegistered; }
-    public String getFaceTemplate() { return faceTemplate; }
     public LocalTime getShiftStartTime() { return shiftStartTime; }
     public LocalTime getShiftEndTime() { return shiftEndTime; }
     public Integer getGracePeriodMinutes() { return gracePeriodMinutes; }
@@ -86,7 +86,6 @@ public class AgentDTO {
     public void setFaceVerifyOnCheckOut(Boolean faceVerifyOnCheckOut) { this.faceVerifyOnCheckOut = faceVerifyOnCheckOut; }
     public void setFaceVerifyAnytime(Boolean faceVerifyAnytime) { this.faceVerifyAnytime = faceVerifyAnytime; }
     public void setFaceRegistered(Boolean faceRegistered) { this.faceRegistered = faceRegistered; }
-    public void setFaceTemplate(String faceTemplate) { this.faceTemplate = faceTemplate; }
     public void setShiftStartTime(LocalTime shiftStartTime) { this.shiftStartTime = shiftStartTime; }
     public void setShiftEndTime(LocalTime shiftEndTime) { this.shiftEndTime = shiftEndTime; }
     public void setGracePeriodMinutes(Integer gracePeriodMinutes) { this.gracePeriodMinutes = gracePeriodMinutes; }

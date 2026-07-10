@@ -4,28 +4,31 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  * Simple in-memory rate limiter per client IP address.
+ *
+ * Backed by BoundedKeyedRateLimiter, not a raw map: even after ClientIpResolver
+ * closed the spoofable-first-entry bug, a single-hop X-Forwarded-For with no
+ * commas is still client-supplied text with no length limit — an attacker
+ * could otherwise send an oversized garbage value on every request and grow
+ * this map's memory footprint without bound, key by key.
  */
 @Component
 public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final boolean enabled;
-    private final int requestsPerMinute;
-    private final Map<String, RateLimitBucket> buckets = new ConcurrentHashMap<>();
+    private final BoundedKeyedRateLimiter limiter;
 
     public RateLimitInterceptor(
             @Value("${rate-limit.enabled:true}") boolean enabled,
-            @Value("${rate-limit.requests-per-minute:300}") int requestsPerMinute) {
+            @Value("${rate-limit.requests-per-minute:300}") int requestsPerMinute,
+            @Value("${rate-limit.max-tracked-keys:10000}") int maxEntries) {
         this.enabled = enabled;
-        this.requestsPerMinute = requestsPerMinute;
+        this.limiter = new BoundedKeyedRateLimiter(requestsPerMinute, 60_000L, maxEntries);
     }
 
     @Override
@@ -35,9 +38,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
 
         String clientKey = resolveClientKey(request);
-        RateLimitBucket bucket = buckets.computeIfAbsent(clientKey, k -> new RateLimitBucket(requestsPerMinute));
 
-        if (!bucket.tryConsume()) {
+        if (!limiter.allow(clientKey)) {
             response.setStatus(429);
             response.setContentType("application/json");
             response.getWriter().write("{\"success\":false,\"message\":\"Rate limit exceeded. Try again later.\"}");
@@ -48,29 +50,12 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     }
 
     private String resolveClientKey(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        return ClientIpResolver.resolve(request);
     }
 
-    private static class RateLimitBucket {
-        private final int limit;
-        private final AtomicInteger count = new AtomicInteger(0);
-        private volatile long windowStartMs = System.currentTimeMillis();
-
-        RateLimitBucket(int limit) {
-            this.limit = limit;
-        }
-
-        synchronized boolean tryConsume() {
-            long now = System.currentTimeMillis();
-            if (now - windowStartMs >= 60_000L) {
-                windowStartMs = now;
-                count.set(0);
-            }
-            return count.incrementAndGet() <= limit;
-        }
+    /** Every 5 minutes — well inside the 1-minute window, so stale entries don't linger. */
+    @Scheduled(fixedRate = 5 * 60 * 1000L)
+    public void sweepExpiredBuckets() {
+        limiter.sweepExpired();
     }
 }

@@ -12,6 +12,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import config from '../config';
+import { debugLog } from '../utils/debugLog';
 import {
   fetchReferenceEmbedding,
   verifyWithLiveness,
@@ -56,6 +57,10 @@ export default function FaceVerificationModal({
   const [registerEmbeddings, setRegisterEmbeddings] = useState([]);
   const [registerFaces, setRegisterFaces] = useState([]);
   const cameraRef = useRef(null);
+  // Guards against a double-tap firing handleCapture twice before the first
+  // call's setStatus('capturing') re-render lands and hides the button —
+  // a ref (not state) so the check is never stale across renders.
+  const capturingRef = useRef(false);
   const maxAttempts = config.FACE_MAX_ATTEMPTS;
 
   useEffect(() => {
@@ -76,7 +81,7 @@ export default function FaceVerificationModal({
 
   const loadReference = async () => {
     if (isRegistration) {
-      console.log("[FaceVerificationModal] Registration mode - skipping reference load.");
+      debugLog('FaceVerificationModal', 'Registration mode - skipping reference load.');
       return;
     }
     if (!agentId) return;
@@ -102,18 +107,20 @@ export default function FaceVerificationModal({
 
   const handleCapture = useCallback(async () => {
     if (!cameraRef.current) return;
+    if (capturingRef.current) return;
     if (!isRegistration && !referenceEmbedding) return;
 
-    const hasPermission = await ensurePermission();
-    if (!hasPermission) {
-      Alert.alert('Camera Required', 'Camera permission is needed for face verification.');
-      return;
-    }
-
-    setStatus('capturing');
-    setMessage(isRegistration ? 'Capturing face...' : 'Hold still...');
-
+    capturingRef.current = true;
     try {
+      const hasPermission = await ensurePermission();
+      if (!hasPermission) {
+        Alert.alert('Camera Required', 'Camera permission is needed for face verification.');
+        return;
+      }
+
+      setStatus('capturing');
+      setMessage(isRegistration ? 'Capturing face...' : 'Hold still...');
+
       if (isRegistration) {
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.6,
@@ -241,6 +248,8 @@ export default function FaceVerificationModal({
         setStatus('ready');
         setMessage(`${e.message}. Attempt ${newAttempts}/${maxAttempts}.`);
       }
+    } finally {
+      capturingRef.current = false;
     }
   }, [
     agentId,

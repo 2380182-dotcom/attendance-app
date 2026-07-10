@@ -2,6 +2,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import jpeg from 'jpeg-js';
 import FaceRecognitionModel from './FaceRecognitionModel';
+import { debugLog } from '../utils/debugLog';
 
 /**
  * On-device face embedding utilities using MobileFaceNet TFLite model.
@@ -120,23 +121,22 @@ export async function getFaceEmbedding(imageUri, face) {
       inputPixels[inputIdx++] = (data[i + 2] - 127.5) / 128.0; // B
     }
 
-    // TEMP DIAGNOSTIC: prove whether the CROP itself is capturing genuinely
-    // different image content before it ever reaches the model. If two
-    // different people's captures produce near-identical pixel summaries
-    // here, the bug is upstream (camera/crop). If the pixels clearly differ
-    // but the resulting embeddings still don't, the bug is the model itself
-    // (react-native-fast-tflite's model.run(), or the .tflite file not being
-    // a genuinely discriminative face model).
+    // DIAG(2026-08-15): distinguishes an upstream crop/camera bug (near-identical
+    // pixel summaries for two different people's captures) from a broken
+    // model (pixels clearly differ but the resulting embeddings still
+    // don't). debugLog is __DEV__-gated internally — this pixel data derived
+    // directly from a face capture has no reason to touch a device log
+    // outside active investigation (security audit Finding 05).
     let pixelSum = 0;
     for (let i = 0; i < inputPixels.length; i++) pixelSum += inputPixels[i];
     const pixelMean = pixelSum / inputPixels.length;
-    console.log('[FaceDiag] cropped input pixels — first5:',
+    debugLog('FaceDiag', 'cropped input pixels — first5:',
       Array.from(inputPixels.slice(0, 5)).map((v) => v.toFixed(5)),
       'mean:', pixelMean.toFixed(5), 'imageUri:', imageUri);
 
     // 7. Feed normalized pixels to TFLite model and return embedding
     const rawEmbedding = await FaceRecognitionModel.getEmbedding(inputPixels);
-    console.log('[FaceDiag] raw model output — first5:',
+    debugLog('FaceDiag', 'raw model output — first5:',
       rawEmbedding.slice(0, 5).map((v) => v.toFixed(5)));
     return normalize(rawEmbedding);
   } catch (error) {

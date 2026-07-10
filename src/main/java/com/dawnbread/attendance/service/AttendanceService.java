@@ -38,7 +38,34 @@ public class AttendanceService {
     private FaceVerificationService faceVerificationService;
 
     @Autowired
+    private com.dawnbread.attendance.repository.FaceVerificationLogRepository faceVerificationLogRepository;
+
+    @Autowired
     private ShiftValidationService shiftValidationService;
+
+    /**
+     * The server never sees a face image — on-device verification is a
+     * deliberate architectural choice (see FaceVerificationService's own
+     * docs). But CheckInRequest/CheckOutRequest.faceVerified is a plain
+     * client-supplied boolean, and until this method existed it was stored
+     * verbatim with no corroboration at all: any authenticated agent could
+     * call the API directly with "faceVerified": true and no on-device
+     * match ever ran, defeating the one control this whole subsystem exists
+     * to enforce. This cross-checks the claim against FaceVerificationLog —
+     * populated independently by POST /attendance/face-result, which the
+     * mobile app calls right before check-in/out on a real successful
+     * verification — within a short trailing window.
+     */
+    private boolean corroboratedFaceVerification(Long agentId, Boolean clientClaim) {
+        if (!Boolean.TRUE.equals(clientClaim)) {
+            return false;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        return faceVerificationLogRepository
+                .findByAgentIdAndVerificationTimeBetween(agentId, now.minusMinutes(5), now)
+                .stream()
+                .anyMatch(log -> Boolean.TRUE.equals(log.getSuccess()));
+    }
 
     /**
      * Calculate distance between two coordinates (Haversine formula)
@@ -110,9 +137,20 @@ public class AttendanceService {
         attendance.setShiftStartTime(agent.getShiftStartTime());
         attendance.setShiftEndTime(agent.getShiftEndTime());
         attendance.setLateMinutes(shiftResult.getLateMinutes());
-        attendance.setFaceVerifiedCheckin(Boolean.TRUE.equals(request.getFaceVerified()));
+        attendance.setFaceVerifiedCheckin(corroboratedFaceVerification(agent.getId(), request.getFaceVerified()));
 
-        Attendance saved = attendanceRepository.save(attendance);
+        // The open-attendance read above is a genuine check-then-act race —
+        // two concurrent check-ins can both pass it before either commits.
+        // ux_attendance_agent_open (V16) is the actual guard; this just turns
+        // its violation into the same clean message the read-based check
+        // above already produces, instead of a raw constraint-violation
+        // stack trace reaching the client.
+        Attendance saved;
+        try {
+            saved = attendanceRepository.save(attendance);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw new RuntimeException("Agent already checked in. Please check out first.");
+        }
         notificationService.sendCheckInNotification(saved);
         return saved;
     }
@@ -127,7 +165,7 @@ public class AttendanceService {
         attendance.setCheckOutTime(LocalDateTime.now());
         attendance.setCheckOutLatitude(request.getLatitude());
         attendance.setCheckOutLongitude(request.getLongitude());
-        attendance.setFaceVerifiedCheckout(Boolean.TRUE.equals(request.getFaceVerified()));
+        attendance.setFaceVerifiedCheckout(corroboratedFaceVerification(request.getAgentId(), request.getFaceVerified()));
 
         Attendance saved = attendanceRepository.save(attendance);
         notificationService.sendCheckOutNotification(saved);

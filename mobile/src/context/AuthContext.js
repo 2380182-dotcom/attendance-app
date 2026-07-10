@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import { apiService } from '../services/api';
+import { apiService, setSessionExpiredHandler } from '../services/api';
 import { storage } from '../utils/storage';
 import LocationService from '../services/LocationService';
 
@@ -50,6 +50,17 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     bootstrapAsync();
+  }, []);
+
+  // Registered with the axios response interceptor (api.js) so a 401 from any
+  // authenticated request — not just an explicit logout — clears session state.
+  // Storage is already cleared by the interceptor before this fires.
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      LocationService.stopBackgroundTracking().catch(() => {});
+      setUserToken(null);
+      setUser(null);
+    });
   }, []);
 
   const login = async (companyCode, agentId, password) => {

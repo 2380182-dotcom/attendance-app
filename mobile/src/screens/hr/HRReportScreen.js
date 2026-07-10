@@ -5,6 +5,7 @@ import {
   Text,
   FlatList,
   RefreshControl,
+  ActivityIndicator,
   Alert,
   SafeAreaView
 } from 'react-native';
@@ -15,17 +16,24 @@ import Loading from '../../components/Loading';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
 
+const PAGE_SIZE = 20;
+
 export default function HRReportScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const [notifications, setNotifications] = useState([]);
+  const [page, setPage] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const fetchNotifs = useCallback(async () => {
     try {
-      const logs = await apiService.notifications.getHR();
-      setNotifications(logs);
+      const result = await apiService.notifications.getHR(0, PAGE_SIZE);
+      setNotifications(result.content);
+      setPage(0);
+      setHasNext(result.hasNext);
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Unable to retrieve HR warnings logs.');
@@ -34,6 +42,22 @@ export default function HRReportScreen() {
       setRefreshing(false);
     }
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasNext) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const result = await apiService.notifications.getHR(nextPage, PAGE_SIZE);
+      setNotifications((prev) => [...prev, ...result.content]);
+      setPage(nextPage);
+      setHasNext(result.hasNext);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [page, hasNext, loadingMore]);
 
   useEffect(() => {
     fetchNotifs();
@@ -81,6 +105,11 @@ export default function HRReportScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
         }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={
+          loadingMore ? <ActivityIndicator style={styles.footerLoader} color={colors.primary} /> : null
+        }
         ListEmptyComponent={
           <EmptyState
             icon="notifications-off"
@@ -105,5 +134,8 @@ const createStyles = (colors) => StyleSheet.create({
   },
   emptyContainer: {
     paddingTop: 100,
+  },
+  footerLoader: {
+    paddingVertical: 16,
   },
 });

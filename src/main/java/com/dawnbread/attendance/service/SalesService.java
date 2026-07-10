@@ -95,6 +95,8 @@ public class SalesService {
             item.setUnitPrice(product.getPrice());
             item.setTotalPrice(itemTotal);
             item.setProductImageUrl(product.getImageUrl());
+            item.setAgentId(agent.getId());
+            item.setSaleDate(saleDate);
             itemsToSave.add(item);
 
             itemDetails.add(new SalesEntryResponseDTO.ItemDetail(
@@ -118,7 +120,17 @@ public class SalesService {
             record.addItem(item);
         }
 
-        SalesRecord saved = salesRecordRepository.save(record);
+        // The existingProductIds read above is a check-then-act race — two
+        // concurrent submissions can both pass it before either commits.
+        // ux_sale_items_agent_product_date (V17) is the actual guard; this
+        // turns its violation into the same message the read-based check
+        // above already produces.
+        SalesRecord saved;
+        try {
+            saved = salesRecordRepository.save(record);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("Duplicate entry: product already recorded for this date.");
+        }
         syncToSalesDepartment(saved);
         syncToHRDepartment(saved);
         broadcastSaleUpdate(saved);
@@ -203,6 +215,8 @@ public class SalesService {
             item.setUnitPrice(product.getPrice());
             item.setTotalPrice(itemTotal);
             item.setProductImageUrl(product.getImageUrl());
+            item.setAgentId(agent.getId());
+            item.setSaleDate(today);
             itemsToSave.add(item);
         }
 
@@ -221,7 +235,14 @@ public class SalesService {
             record.addItem(item);
         }
 
-        SalesRecord saved = salesRecordRepository.save(record);
+        // Same check-then-act race as submitSalesEntry() above —
+        // ux_sale_items_agent_product_date (V17) is the real guard.
+        SalesRecord saved;
+        try {
+            saved = salesRecordRepository.save(record);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("Duplicate entry: a product in this submission has already been recorded today.");
+        }
 
         // 5. Trigger Real-time synchronization
         syncToSalesDepartment(saved);
@@ -465,6 +486,8 @@ public class SalesService {
             item.setUnitPrice(product.getPrice());
             item.setTotalPrice(itemTotal);
             item.setProductImageUrl(product.getImageUrl());
+            item.setAgentId(record.getAgent().getId());
+            item.setSaleDate(record.getSaleDate());
             record.addItem(item);
         }
 

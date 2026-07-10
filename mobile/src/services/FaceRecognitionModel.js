@@ -1,4 +1,5 @@
 import { loadTensorflowModel } from 'react-native-fast-tflite';
+import { debugLog } from '../utils/debugLog';
 
 let modelInstance = null;
 let loadPromise = null;
@@ -19,10 +20,10 @@ export function loadModel() {
 
   loadPromise = (async () => {
     try {
-      console.log('Loading MobileFaceNet TFLite model...');
+      debugLog('FaceRecognitionModel', 'Loading MobileFaceNet TFLite model...');
       const modelSource = require('../../assets/models/mobilefacenet.tflite');
       modelInstance = await loadTensorflowModel(modelSource);
-      console.log('MobileFaceNet TFLite model loaded successfully.');
+      debugLog('FaceRecognitionModel', 'MobileFaceNet TFLite model loaded successfully.');
       return modelInstance;
     } catch (error) {
       console.error('Failed to load MobileFaceNet TFLite model:', error);

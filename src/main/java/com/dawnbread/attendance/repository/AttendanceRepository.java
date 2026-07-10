@@ -21,6 +21,7 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     List<Attendance> findByCheckInTimeBetween(LocalDateTime startDateTime, LocalDateTime endDateTime);
     List<Attendance> findByCheckOutTimeBetween(LocalDateTime startDateTime, LocalDateTime endDateTime);
     List<Attendance> findByAgentIdAndCheckInTimeBetween(Long agentId, LocalDateTime startDateTime, LocalDateTime endDateTime);
+    List<Attendance> findByAgentIdInAndCheckInTimeBetween(List<Long> agentIds, LocalDateTime startDateTime, LocalDateTime endDateTime);
     List<Attendance> findByMartIdAndCheckInTimeBetween(Long martId, LocalDateTime startDateTime, LocalDateTime endDateTime);
     List<Attendance> findByAgentIdAndStatus(Long agentId, String status);
     

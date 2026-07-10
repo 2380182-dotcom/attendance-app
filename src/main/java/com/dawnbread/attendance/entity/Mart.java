@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.entity;
 
+import com.dawnbread.attendance.security.AuditEntityListener;
 import com.dawnbread.attendance.security.TenantEntityListener;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Filter;
@@ -9,7 +10,7 @@ import java.util.List;
 
 @Entity
 @Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
-@EntityListeners(TenantEntityListener.class)
+@EntityListeners({TenantEntityListener.class, AuditEntityListener.class})
 public class Mart implements TenantAware {
 
     @Id

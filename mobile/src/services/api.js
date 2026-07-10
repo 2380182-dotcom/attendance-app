@@ -45,7 +45,16 @@ api.interceptors.request.use(
 
 let alertShowing = false;
 
-// Response Interceptor: Handle network errors and route to settings
+// Set by AuthContext on mount so this module (outside the React tree) can
+// clear auth state when the backend reports the token is no longer valid.
+let sessionExpiredHandler = null;
+export function setSessionExpiredHandler(handler) {
+  sessionExpiredHandler = handler;
+}
+
+let sessionExpiredAlertShowing = false;
+
+// Response Interceptor: Handle network errors, expired sessions, and route to settings
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -58,17 +67,39 @@ api.interceptors.response.use(
         `Unable to reach the server at:\n${error.config?.baseURL || dynamicBaseUrl}\n\nIf you switched Wi-Fi networks, the server IP address might have changed. Would you like to update your Server Settings?`,
         [
           { text: 'Cancel', style: 'cancel', onPress: () => { alertShowing = false; } },
-          { 
-            text: 'Server Settings', 
+          {
+            text: 'Server Settings',
             onPress: () => {
               alertShowing = false;
               navigate('ServerSettings');
-            } 
+            }
           }
         ],
         { cancelable: true }
       );
     }
+
+    // Session expiration: a 401 on an already-authenticated request means the
+    // token expired/was revoked server-side. Exclude the login/register calls
+    // themselves — a 401 there just means "wrong password", not "session expired".
+    const requestUrl = error.config?.url || '';
+    const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+    if (error.response?.status === 401 && !isAuthEndpoint) {
+      await storage.clearAll();
+      if (sessionExpiredHandler) {
+        sessionExpiredHandler();
+      }
+      if (!sessionExpiredAlertShowing) {
+        sessionExpiredAlertShowing = true;
+        Alert.alert(
+          'Session Expired',
+          'Your session has expired. Please log in again.',
+          [{ text: 'OK', onPress: () => { sessionExpiredAlertShowing = false; } }],
+          { cancelable: false }
+        );
+      }
+    }
+
     return Promise.reject(error);
   }
 );
@@ -355,26 +386,29 @@ export const apiService = {
   },
 
   // Notifications APIs
+  // getSales/getHR/getAgent return a page envelope: { content, page, size,
+  // totalElements, totalPages, hasNext } — not a raw array. Pass page/size to
+  // fetch further pages (defaults: page 0, size 20).
   notifications: {
-    async getSales() {
+    async getSales(page = 0, size = 20) {
       try {
-        const response = await api.get('/notifications/sales');
+        const response = await api.get(`/notifications/sales?page=${page}&size=${size}`);
         return handleResponse(response);
       } catch (error) {
         return handleApiError(error);
       }
     },
-    async getHR() {
+    async getHR(page = 0, size = 20) {
       try {
-        const response = await api.get('/notifications/hr');
+        const response = await api.get(`/notifications/hr?page=${page}&size=${size}`);
         return handleResponse(response);
       } catch (error) {
         return handleApiError(error);
       }
     },
-    async getAgent(agentId) {
+    async getAgent(agentId, page = 0, size = 20) {
       try {
-        const response = await api.get(`/notifications/agent/${agentId}`);
+        const response = await api.get(`/notifications/agent/${agentId}?page=${page}&size=${size}`);
         return handleResponse(response);
       } catch (error) {
         return handleApiError(error);

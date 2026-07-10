@@ -28,13 +28,15 @@ export default function AppCard({ children, onPress, style, padding = spacing.lg
     style,
   ];
 
-  if (!onPress) {
-    return <View style={cardStyle}>{children}</View>;
-  }
-
+  // Hooks must run unconditionally on every render — this is computed either
+  // way, and only actually applied in the animated branch below.
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
+
+  if (!onPress) {
+    return <View style={cardStyle}>{children}</View>;
+  }
 
   return (
     <AnimatedPressable

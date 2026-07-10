@@ -49,6 +49,24 @@ public class AdminService {
         return martRepository.findById(id);
     }
 
+    /**
+     * The only path allowed to build a Mart for creation — see
+     * AgentService's matching DTO overload for why controllers must never
+     * bind @RequestBody straight to a TenantAware entity.
+     */
+    public Mart createMart(com.dawnbread.attendance.dto.MartCreateDTO dto) {
+        Mart mart = new Mart();
+        mart.setName(dto.getName());
+        mart.setAddress(dto.getAddress());
+        mart.setLatitude(dto.getLatitude());
+        mart.setLongitude(dto.getLongitude());
+        mart.setRadius(dto.getRadius());
+        if (dto.getGeoFencingEnabled() != null) {
+            mart.setGeoFencingEnabled(dto.getGeoFencingEnabled());
+        }
+        return createMart(mart);
+    }
+
     public Mart createMart(Mart mart) {
         if (martRepository.existsByName(mart.getName())) {
             throw new RuntimeException("Mart with name already exists: " + mart.getName());

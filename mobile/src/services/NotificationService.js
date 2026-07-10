@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { debugLog } from '../utils/debugLog';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -28,14 +29,17 @@ export const NotificationService = {
       finalStatus = status;
     }
     if (finalStatus !== 'granted') {
-      console.log('Failed to get push token for push notification!');
+      console.warn('Failed to get push token for push notification!');
       return;
     }
     try {
+      // A push token is a device-targeting credential — don't put it in a
+      // production log where any app with legacy log-read access could
+      // harvest it and use it to send notifications to this device.
       token = (await Notifications.getDevicePushTokenAsync()).data;
-      console.log('Device push token:', token);
+      debugLog('NotificationService', 'Device push token:', token);
     } catch (e) {
-      console.log('Error getting push token, probably running on emulator without play services', e);
+      console.error('Error getting push token, probably running on emulator without play services', e);
     }
     return token;
   },
@@ -51,7 +55,7 @@ export const NotificationService = {
         trigger: null,
       });
     } catch (e) {
-      console.log('Failed to schedule local notification', e);
+      console.error('Failed to schedule local notification', e);
     }
   }
 };

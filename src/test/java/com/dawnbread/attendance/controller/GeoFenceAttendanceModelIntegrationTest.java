@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -68,6 +69,9 @@ class GeoFenceAttendanceModelIntegrationTest {
     private NotificationRepository notificationRepository;
 
     @Autowired
+    private com.dawnbread.attendance.repository.FaceVerificationLogRepository faceVerificationLogRepository;
+
+    @Autowired
     private TenantRepository tenantRepository;
 
     private String url(String path) {
@@ -83,6 +87,22 @@ class GeoFenceAttendanceModelIntegrationTest {
         agent.setRole("AGENT");
         agent.setCreatedAt(LocalDateTime.now());
         return agentRepository.save(agent);
+    }
+
+    /**
+     * AttendanceService now corroborates a claimed faceVerified: true against
+     * a real, recent successful FaceVerificationLog entry (audit Finding 04)
+     * — mirrors what POST /attendance/face-result actually writes, since
+     * that's what the mobile app calls right before check-in in real use.
+     */
+    private void seedSuccessfulFaceVerification(Long agentId) {
+        com.dawnbread.attendance.entity.FaceVerificationLog log = new com.dawnbread.attendance.entity.FaceVerificationLog();
+        log.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
+        log.setAgentId(agentId);
+        log.setVerificationTime(LocalDateTime.now());
+        log.setSuccess(true);
+        log.setSimilarityScore(0.97);
+        faceVerificationLogRepository.save(log);
     }
 
     private Mart seedMart(String name, double lat, double lon) {
@@ -113,13 +133,15 @@ class GeoFenceAttendanceModelIntegrationTest {
     }
 
     private long countHrNotificationsFor(Long agentId) {
-        return notificationRepository.findByAgentIdOrderByCreatedAtDesc(agentId).stream()
+        return notificationRepository.findByAgentIdOrderByCreatedAtDesc(agentId, PageRequest.of(0, 1000))
+                .stream()
                 .filter(n -> "HR".equals(n.getDepartment()))
                 .count();
     }
 
     private long countSalesGeofenceActivityNotificationsFor(Long agentId) {
-        return notificationRepository.findByAgentIdOrderByCreatedAtDesc(agentId).stream()
+        return notificationRepository.findByAgentIdOrderByCreatedAtDesc(agentId, PageRequest.of(0, 1000))
+                .stream()
                 .filter(n -> "SALES".equals(n.getDepartment()) && "GEOFENCE_ACTIVITY".equals(n.getType()))
                 .count();
     }
@@ -150,6 +172,7 @@ class GeoFenceAttendanceModelIntegrationTest {
                 "HR must not be notified until a real verified check-in happens");
 
         // --- (a) Duty only starts once a real, verified check-in is submitted ---
+        seedSuccessfulFaceVerification(agent.getId());
         Map<String, Object> checkInBody = new HashMap<>();
         checkInBody.put("agentId", agent.getId());
         checkInBody.put("martId", mart.getId());

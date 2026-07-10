@@ -7,6 +7,8 @@ import com.dawnbread.attendance.repository.NotificationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -184,16 +186,16 @@ public class NotificationService {
         saveNotification(hrNotif);
     }
 
-    public List<Notification> getSalesNotifications() {
-        return notificationRepository.findByDepartmentOrderByCreatedAtDesc("SALES");
+    public Page<Notification> getSalesNotifications(Pageable pageable) {
+        return notificationRepository.findByDepartmentOrderByCreatedAtDesc("SALES", pageable);
     }
 
-    public List<Notification> getHRNotifications() {
-        return notificationRepository.findByDepartmentOrderByCreatedAtDesc("HR");
+    public Page<Notification> getHRNotifications(Pageable pageable) {
+        return notificationRepository.findByDepartmentOrderByCreatedAtDesc("HR", pageable);
     }
 
-    public List<Notification> getAgentNotifications(Long agentId) {
-        return notificationRepository.findByAgentIdOrderByCreatedAtDesc(agentId);
+    public Page<Notification> getAgentNotifications(Long agentId, Pageable pageable) {
+        return notificationRepository.findByAgentIdOrderByCreatedAtDesc(agentId, pageable);
     }
 
     public java.util.Optional<Notification> getNotificationById(Long id) {

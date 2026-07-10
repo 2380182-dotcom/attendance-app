@@ -79,7 +79,31 @@ public class AgentService {
     }
 
     // ===== CRUD OPERATIONS =====
-    
+
+    /**
+     * The only path allowed to build an Agent for creation. Controllers pass
+     * a DTO, never a JPA entity bound straight from the request body — a
+     * client-supplied tenantId on the entity would otherwise silently win
+     * over the caller's real tenant (TenantEntityListener only stamps a
+     * tenant_id that's still null). Building the entity here, server-side,
+     * means there is no field on the incoming object for a client to smuggle
+     * a foreign tenantId through in the first place.
+     */
+    public Agent createAgent(com.dawnbread.attendance.dto.AgentRegistrationDTO dto) {
+        Agent agent = new Agent();
+        agent.setAgentId(dto.getAgentId());
+        agent.setName(dto.getName());
+        agent.setEmail(dto.getEmail());
+        agent.setPhone(dto.getPhone());
+        agent.setPassword(dto.getPassword());
+        agent.setRole(dto.getRole() != null ? dto.getRole() : "AGENT");
+        agent.setDepartment(dto.getDepartment());
+        if (dto.getIsActive() != null) {
+            agent.setIsActive(dto.getIsActive());
+        }
+        return createAgent(agent);
+    }
+
     public Agent createAgent(Agent agent) {
         if (agent.getPassword() != null && !agent.getPassword().isEmpty()) {
             agent.setPassword(passwordEncoder.encode(agent.getPassword()));

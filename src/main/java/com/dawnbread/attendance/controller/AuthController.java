@@ -1,9 +1,12 @@
 package com.dawnbread.attendance.controller;
 
+import com.dawnbread.attendance.dto.AgentRegistrationDTO;
 import com.dawnbread.attendance.dto.ApiResponse;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Tenant;
 import com.dawnbread.attendance.repository.TenantRepository;
+import com.dawnbread.attendance.security.AuthRateLimiter;
+import com.dawnbread.attendance.security.ClientIpResolver;
 import com.dawnbread.attendance.security.TokenProvider;
 import com.dawnbread.attendance.service.AgentService;
 import com.dawnbread.attendance.service.AuditLogService;
@@ -34,23 +37,48 @@ public class AuthController {
     private AuditLogService auditLogService;
 
     @Autowired
+    private AuthRateLimiter authRateLimiter;
+
+    @Autowired
     private HttpServletRequest request;
+
+    private <T> ResponseEntity<ApiResponse<T>> tooManyAttempts() {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ApiResponse.error("Too many attempts. Please try again later."));
+    }
 
     /**
      * Register a new agent. Requires an authenticated admin — SecurityInterceptor
      * validates the bearer token and attaches its role to the request before this
      * runs, so the role check below only trusts a role claim the server itself
      * verified, never the client-submitted request body.
+     *
+     * Binds to AgentRegistrationDTO, not the Agent entity — see the identical
+     * note on AgentController.createAgent for why a raw-entity binding here
+     * would let a client plant a row in a different tenant via a
+     * client-supplied tenantId field.
      */
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> register(@RequestBody Agent agent) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> register(@RequestBody AgentRegistrationDTO dto) {
+        String callerIp = ClientIpResolver.resolve(request);
+        if (!authRateLimiter.allowByIp(callerIp)) {
+            return tooManyAttempts();
+        }
+        // Per-account here means "the target agentId being registered" — guards
+        // against spamming repeated create attempts for the same id (audit
+        // finding: /auth/register was open to account-creation spam), even
+        // from a caller that rotates IPs to dodge the check above.
+        if (dto.getAgentId() != null && !authRateLimiter.allowByAccount("register:" + dto.getAgentId())) {
+            return tooManyAttempts();
+        }
+
         String callerRole = (String) request.getAttribute("role");
         if (!"ADMIN".equals(callerRole)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error("Only an administrator can register new accounts."));
         }
         try {
-            Agent created = agentService.createAgent(agent);
+            Agent created = agentService.createAgent(dto);
             
             Map<String, Object> response = new HashMap<>();
             response.put("id", created.getId());
@@ -82,7 +110,18 @@ public class AuthController {
         String companyCode = loginRequest.get("companyCode");
         String agentId = loginRequest.get("agentId");
         String password = loginRequest.get("password");
-        String ip = request != null ? request.getRemoteAddr() : "0.0.0.0";
+        String ip = request != null ? ClientIpResolver.resolve(request) : "0.0.0.0";
+
+        if (!authRateLimiter.allowByIp(ip)) {
+            return tooManyAttempts();
+        }
+        // Keyed on companyCode+agentId, not agentId alone — agentId is only
+        // unique per-tenant, so two different companies' accounts that happen
+        // to share an agentId string must not share a rate-limit bucket.
+        String accountKey = "login:" + String.valueOf(companyCode).toLowerCase() + ":" + agentId;
+        if (!authRateLimiter.allowByAccount(accountKey)) {
+            return tooManyAttempts();
+        }
 
         if (companyCode == null || agentId == null || password == null) {
             auditLogService.logAction("LOGIN", "UNKNOWN", "Missing credentials", ip, "FAILED");

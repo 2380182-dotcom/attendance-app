@@ -178,4 +178,45 @@ class TenantIsolationIntegrationTest {
         assertEquals(tenantA.getId(), created.getTenantId(),
                 "A new agent created by Tenant A's admin must be auto-stamped with Tenant A's own tenant_id, not left null or defaulted elsewhere");
     }
+
+    /**
+     * Audit Finding 01: before AgentController.createAgent bound
+     * AgentRegistrationDTO instead of the raw Agent entity, a client-supplied
+     * `tenantId` field in the request body was accepted verbatim — any admin
+     * could plant a row in an arbitrary tenant by simply setting the field.
+     * AgentRegistrationDTO has no tenantId field at all, so this must now be
+     * silently ignored and the real caller's tenant used instead, no matter
+     * what the request body claims.
+     */
+    @Test
+    void tenantIdInTheRequestBodyIsIgnoredWhenCreatingAnAgent() {
+        Tenant tenantA = seedTenant("ISOD_A", "Isolation Co D-A");
+        Tenant tenantB = seedTenant("ISOD_B", "Isolation Co D-B");
+        Agent adminA = seedAgent(tenantA.getId(), "INJECT_ADMIN", "ADMIN");
+        String tokenA = tokenProvider.generateToken(adminA.getId(), adminA.getAgentId(), "ADMIN", tenantA.getId());
+
+        Map<String, Object> maliciousBody = new HashMap<>();
+        maliciousBody.put("agentId", "INJECTED_HIRE_001");
+        maliciousBody.put("name", "Injected Hire");
+        maliciousBody.put("email", "injected.hire@example.com");
+        maliciousBody.put("phone", "03001234567");
+        maliciousBody.put("password", "Password123");
+        maliciousBody.put("role", "AGENT");
+        maliciousBody.put("department", "SALES");
+        maliciousBody.put("tenantId", tenantB.getId()); // attacker-controlled — must be ignored
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(tokenA);
+
+        ResponseEntity<String> createResponse = restTemplate.exchange(
+                url("/api/agents"), HttpMethod.POST, new HttpEntity<>(maliciousBody, headers), String.class);
+        assertEquals(HttpStatus.CREATED, createResponse.getStatusCode(), "Create must succeed: " + createResponse.getBody());
+
+        Agent created = agentRepository.findByAgentId("INJECTED_HIRE_001").orElseThrow();
+        assertEquals(tenantA.getId(), created.getTenantId(),
+                "A tenantId supplied in the request body must never override the caller's real tenant");
+        assertFalse(created.getTenantId().equals(tenantB.getId()),
+                "The agent must not have been planted in the attacker-targeted tenant");
+    }
 }

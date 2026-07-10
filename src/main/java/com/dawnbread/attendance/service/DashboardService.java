@@ -59,20 +59,23 @@ public class DashboardService {
         LocalDateTime start = today.atStartOfDay();
         LocalDateTime end = today.atTime(23, 59, 59);
 
+        List<Long> agentIds = allAgents.stream().map(Agent::getId).collect(Collectors.toList());
+        Map<Long, List<SalesRecord>> salesByAgentId = todaySales.stream()
+                .collect(Collectors.groupingBy(sr -> sr.getAgent().getId()));
+        Map<Long, List<Attendance>> attendanceByAgentId = fetchAttendanceByAgentId(agentIds, start, end);
+
         List<SalesDashboardDTO.AgentSalesSummary> salesByAgent = new ArrayList<>();
         int activeAgentsCount = 0;
 
         for (Agent agent : allAgents) {
-            List<SalesRecord> agentRecords = todaySales.stream()
-                    .filter(sr -> sr.getAgent().getId().equals(agent.getId()))
-                    .collect(Collectors.toList());
+            List<SalesRecord> agentRecords = salesByAgentId.getOrDefault(agent.getId(), List.of());
 
             double revenue = agentRecords.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
             int units = agentRecords.stream()
                     .flatMap(sr -> sr.getItems().stream())
                     .mapToInt(SaleItem::getQuantity).sum();
 
-            List<Attendance> attendances = attendanceRepository.findByAgentIdAndCheckInTimeBetween(agent.getId(), start, end);
+            List<Attendance> attendances = attendanceByAgentId.getOrDefault(agent.getId(), List.of());
             String status = "Absent";
             if (!attendances.isEmpty()) {
                 activeAgentsCount++;
@@ -173,11 +176,18 @@ public class DashboardService {
 
         List<SalesRecord> todaySales = salesRecordRepository.findBySaleDate(today);
 
+        List<Long> agentIds = allAgents.stream().map(Agent::getId).collect(Collectors.toList());
+        Map<Long, List<SalesRecord>> salesByAgentId = todaySales.stream()
+                .collect(Collectors.groupingBy(sr -> sr.getAgent().getId()));
+        Map<Long, List<Attendance>> attendanceByAgentId = fetchAttendanceByAgentId(agentIds, start, end);
+
+        LocalDate monthStart = today.withDayOfMonth(1);
+        Map<Long, List<Attendance>> monthAttendanceByAgentId = fetchAttendanceByAgentId(
+                agentIds, monthStart.atStartOfDay(), today.atTime(23, 59, 59));
+
         for (Agent agent : allAgents) {
-            List<Attendance> attendances = attendanceRepository.findByAgentIdAndCheckInTimeBetween(agent.getId(), start, end);
-            List<SalesRecord> agentSales = todaySales.stream()
-                    .filter(s -> s.getAgent().getId().equals(agent.getId()))
-                    .collect(Collectors.toList());
+            List<Attendance> attendances = attendanceByAgentId.getOrDefault(agent.getId(), List.of());
+            List<SalesRecord> agentSales = salesByAgentId.getOrDefault(agent.getId(), List.of());
 
             int unitsSold = agentSales.stream()
                     .flatMap(s -> s.getItems().stream())
@@ -235,7 +245,8 @@ public class DashboardService {
 
             // Overall attendance performance for the current month-to-date, based on the
             // agent's actual working-day schedule (not a lifetime-checkin-count placeholder).
-            double attPercent = calculateAttendancePercentage(agent, today.withDayOfMonth(1), today);
+            double attPercent = calculateAttendancePercentage(agent, monthStart, today,
+                    monthAttendanceByAgentId.getOrDefault(agent.getId(), List.of()));
 
             String status = "Absent";
             if (!attendances.isEmpty()) {
@@ -297,8 +308,13 @@ public class DashboardService {
      * Real attendance percentage: days actually present ÷ days the agent was scheduled
      * to work (per their workingDays field) within [periodStart, periodEnd], inclusive.
      * Replaces the old checkins-count * 5% placeholder.
+     *
+     * Takes the agent's attendance for the period as an already-fetched list rather than
+     * querying itself, so callers can batch-fetch across all agents in one query instead
+     * of one query per agent (see fetchAttendanceByAgentId).
      */
-    private double calculateAttendancePercentage(Agent agent, LocalDate periodStart, LocalDate periodEnd) {
+    private double calculateAttendancePercentage(Agent agent, LocalDate periodStart, LocalDate periodEnd,
+                                                   List<Attendance> periodAttendance) {
         List<String> workingDays = agent.getWorkingDays();
         if (workingDays == null || workingDays.isEmpty()) {
             return 0.0;
@@ -314,13 +330,24 @@ public class DashboardService {
             return 0.0;
         }
 
-        List<Attendance> periodAttendance = attendanceRepository.findByAgentIdAndCheckInTimeBetween(
-                agent.getId(), periodStart.atStartOfDay(), periodEnd.atTime(23, 59, 59));
         long daysPresent = periodAttendance.stream()
                 .map(a -> a.getCheckInTime().toLocalDate())
                 .distinct()
                 .count();
 
         return Math.min(daysPresent * 100.0 / expectedDays, 100.0);
+    }
+
+    /**
+     * Batch-fetches attendance for a set of agents in one query and groups by agent id,
+     * instead of the N+1 pattern of querying per-agent inside a loop. Empty agentIds
+     * short-circuits rather than issuing an `IN ()` query.
+     */
+    private Map<Long, List<Attendance>> fetchAttendanceByAgentId(List<Long> agentIds, LocalDateTime start, LocalDateTime end) {
+        if (agentIds.isEmpty()) {
+            return Map.of();
+        }
+        return attendanceRepository.findByAgentIdInAndCheckInTimeBetween(agentIds, start, end).stream()
+                .collect(Collectors.groupingBy(a -> a.getAgent().getId()));
     }
 }

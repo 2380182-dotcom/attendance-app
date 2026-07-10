@@ -1,5 +1,6 @@
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import { debugLog } from '../utils/debugLog';
 
 /**
  * Resolve the STOMP/SockJS endpoint from an API base URL.
@@ -30,7 +31,7 @@ export function connectStompTopic(apiBaseUrl, topic, onMessage) {
     heartbeatIncoming: 10000,
     heartbeatOutgoing: 10000,
     onConnect: () => {
-      console.log(`[STOMP] Connected to ${wsBase}, subscribing to ${topic}`);
+      debugLog('STOMP', `Connected to ${wsBase}, subscribing to ${topic}`);
       client.subscribe(topic, () => {
         if (onMessage) {
           onMessage();
@@ -44,7 +45,7 @@ export function connectStompTopic(apiBaseUrl, topic, onMessage) {
       console.error('[STOMP] WebSocket error:', event?.message || event);
     },
     onDisconnect: () => {
-      console.log('[STOMP] Disconnected');
+      debugLog('STOMP', 'Disconnected');
     },
   });
 

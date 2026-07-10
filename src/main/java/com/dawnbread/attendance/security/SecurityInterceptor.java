@@ -99,6 +99,11 @@ public class SecurityInterceptor implements HandlerInterceptor {
                 request.setAttribute("id", Long.valueOf(idClaim.toString()));
             }
 
+            // Lets AuditEntityListener attribute entity writes to the real
+            // caller — it runs inside Hibernate's lifecycle callbacks, which
+            // have no HttpServletRequest to read this from directly.
+            AuditContext.setActor(username, ClientIpResolver.resolve(request));
+
             // Tenant scoping: every tenant-scoped controller call needs the
             // caller's tenantId to (a) scope the Hibernate filter for every
             // read on this request and (b) let TenantEntityListener stamp it
@@ -140,5 +145,6 @@ public class SecurityInterceptor implements HandlerInterceptor {
         // across requests, and this ThreadLocal would otherwise leak one
         // tenant's context into the next unrelated request on that thread.
         TenantContext.clear();
+        AuditContext.clear();
     }
 }
