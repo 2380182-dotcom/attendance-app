@@ -6,10 +6,13 @@ import { debugLog } from '../utils/debugLog';
 
 /**
  * On-device face embedding utilities using MobileFaceNet TFLite model.
- * Embeddings are 384-dim normalized vectors.
+ * Embedding dimensionality is read from the model itself at runtime (see
+ * FaceRecognitionModel.getExpectedEmbeddingSize) — not a fixed constant,
+ * since this .tflite file's declared shape turned out not to match the
+ * originally-assumed 384 (see the DIAG note in FaceRecognitionModel.js).
  */
 
-const EMBEDDING_SIZE = 384;
+export const getExpectedEmbeddingSize = FaceRecognitionModel.getExpectedEmbeddingSize;
 
 function normalize(vec) {
   const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0));
@@ -266,4 +269,4 @@ export function checkLiveness(face1, face2 = null) {
   return { passed: true };
 }
 
-export { averageEmbeddings, EMBEDDING_SIZE };
+export { averageEmbeddings };

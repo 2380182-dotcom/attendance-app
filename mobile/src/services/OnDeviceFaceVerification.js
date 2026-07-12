@@ -7,6 +7,7 @@ import {
   cosineSimilarity,
   base64ToFloatArray,
   checkLiveness,
+  getExpectedEmbeddingSize,
 } from './FaceEmbeddingService';
 
 const DETECT_OPTIONS = {
@@ -47,9 +48,12 @@ export async function extractEmbeddingFromImage(imageUri) {
 export async function verifyAgainstReference(imageUri, referenceBase64, threshold) {
   const confidenceThreshold = threshold ?? config.FACE_CONFIDENCE_THRESHOLD;
   const reference = base64ToFloatArray(referenceBase64);
-  
+
   // Check for face model profile backward compatibility (dimension mismatch)
-  if (reference.length !== 384) {
+  // — expected size comes from the model itself, not a hardcoded constant,
+  // since a re-exported/updated model could legitimately change this.
+  const expectedSize = await getExpectedEmbeddingSize();
+  if (reference.length !== expectedSize) {
     throw new Error('Face profile update required. Please re-enroll your face under Settings.');
   }
 

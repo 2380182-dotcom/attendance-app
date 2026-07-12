@@ -24,6 +24,7 @@ import {
   floatArrayToBase64,
   averageEmbeddings,
   checkLiveness,
+  getExpectedEmbeddingSize,
 } from '../services/FaceEmbeddingService';
 
 const REGISTRATION_INSTRUCTIONS = [
@@ -88,7 +89,8 @@ export default function FaceVerificationModal({
     try {
       const embedding = await fetchReferenceEmbedding(agentId);
       const floats = base64ToFloatArray(embedding);
-      if (floats.length !== 384) {
+      const expectedSize = await getExpectedEmbeddingSize();
+      if (floats.length !== expectedSize) {
         throw new Error('Face profile update required. Please re-enroll your face under Settings.');
       }
       setReferenceEmbedding(embedding);
