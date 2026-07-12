@@ -20,6 +20,8 @@ import AppCard from '../../components/AppCard';
 import AppButton from '../../components/AppButton';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
+// DIAG(2026-07-26): temporary, see modelDiagnostic.js — remove both together.
+import { diagnoseModel } from '../../utils/modelDiagnostic';
 
 export default function CheckinScreen({ navigation }) {
   const { colors } = useTheme();
@@ -163,6 +165,28 @@ export default function CheckinScreen({ navigation }) {
     if (!location) {
       Alert.alert('Location Error', 'Still waiting for coordinates. Please refresh location.');
       return;
+    }
+
+    // DIAG(2026-08-10): pre-flight only, not the security boundary — the
+    // server independently rejects this in AttendanceService.checkIn() and
+    // is what actually can't be bypassed. This just avoids a round-trip and
+    // gives a friendlier message. Recomputed fresh here (not read off
+    // selectedMart.distance) since GPS may have been refreshed since the
+    // mart was selected.
+    if (selectedMart.radius != null) {
+      const freshDistance = calculateDistance(
+        location.latitude,
+        location.longitude,
+        selectedMart.latitude,
+        selectedMart.longitude
+      );
+      if (freshDistance > selectedMart.radius) {
+        Alert.alert(
+          'Too Far From Mart',
+          `You must be within ${Math.round(selectedMart.radius)}m of ${selectedMart.name} to check in. You are currently ${Math.round(freshDistance)}m away.`
+        );
+        return;
+      }
     }
 
     if (isFaceRequired()) {
@@ -313,6 +337,20 @@ export default function CheckinScreen({ navigation }) {
           variant="success"
           disabled={!selectedMart || checkingIn || !locationPermissionGranted}
         />
+        {
+          // DIAG(2026-07-26): temporary — face-verification model diagnostic
+          // (Finding 2, the input-insensitive-model investigation).
+          // Deliberately NOT __DEV__-gated: this needs to render and log on
+          // the preview-profile build under active investigation, where
+          // __DEV__ is false. Remove this block and modelDiagnostic.js
+          // together once root-caused.
+        }
+        <TouchableOpacity
+          style={styles.devDiagBtn}
+          onPress={() => diagnoseModel()}
+        >
+          <Text style={styles.devDiagBtnText}>Run Model Diagnostic (DEV) — check logcat</Text>
+        </TouchableOpacity>
       </View>
 
       <FaceVerificationModal
@@ -470,5 +508,20 @@ const createStyles = (colors) => StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  // DIAG(2026-07-26): temporary, see modelDiagnostic.js — remove together.
+  devDiagBtn: {
+    marginTop: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    borderStyle: 'dashed',
+  },
+  devDiagBtnText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: colors.textMuted,
   },
 });
