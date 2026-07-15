@@ -228,10 +228,13 @@ class GeoFenceAttendanceModelIntegrationTest {
                 "HR must not be notified for mid-day presence blips, only the two official bookends");
 
         // --- (c) End Duty (POST /attendance/checkout) finalizes the official check-out ---
+        // Checkout is now geofence-gated the same as check-in (agents are
+        // expected to still be at the mart when they end duty) — uses
+        // insideLat/insideLon, not outsideLat/outsideLon, on purpose.
         Map<String, Object> checkoutBody = new HashMap<>();
         checkoutBody.put("agentId", agent.getId());
-        checkoutBody.put("latitude", outsideLat);
-        checkoutBody.put("longitude", outsideLon);
+        checkoutBody.put("latitude", insideLat);
+        checkoutBody.put("longitude", insideLon);
         checkoutBody.put("faceVerified", true);
 
         HttpHeaders headers = new HttpHeaders();

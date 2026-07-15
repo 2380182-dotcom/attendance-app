@@ -9,6 +9,7 @@ import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.entity.Mart;
 import com.dawnbread.attendance.repository.AttendanceRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +43,19 @@ public class AttendanceService {
 
     @Autowired
     private ShiftValidationService shiftValidationService;
+
+    // DIAG(2026-08-10): OFF by default on purpose — every currently-stored
+    // faceEmbedding was captured through a since-confirmed-broken TFLite
+    // pipeline (constant output regardless of input; see the face-model
+    // investigation), so every agent's reference is the same non-
+    // discriminative vector right now. Flipping this on before that's fixed
+    // AND every agent has re-enrolled would lock out 100% of check-ins.
+    // The geofence gate below has no such dependency and is unconditional.
+    // Turn on only once the model fix is verified and re-enrollment
+    // coverage is confirmed; remove this flag (and hardcode "true") once
+    // that's durably true and this has been live a while.
+    @Value("${face.verification.hard-gate.enabled:false}")
+    private boolean faceHardGateEnabled;
 
     /**
      * The server never sees a face image — on-device verification is a
@@ -109,17 +123,37 @@ public class AttendanceService {
         double distance = calculateDistance(request.getLatitude(), request.getLongitude(),
                 mart.getLatitude(), mart.getLongitude());
 
+        // Hard gate — was previously only folded into the "LATE" status
+        // below, which meant an agent outside the mart's radius still
+        // checked in successfully. mart.getGeoFencingEnabled() is a genuine,
+        // existing per-mart admin opt-out (defaults true); everything else
+        // is unconditional and server-side, so it can't be bypassed by a
+        // client that skips its own pre-flight check.
+        if (Boolean.TRUE.equals(mart.getGeoFencingEnabled()) && distance > mart.getRadius()) {
+            throw new RuntimeException(String.format(
+                    "You must be within %.0fm of %s to check in — you are %.0fm away.",
+                    mart.getRadius(), mart.getName(), distance));
+        }
+
+        boolean faceVerified = corroboratedFaceVerification(agent.getId(), request.getFaceVerified());
+        if (faceHardGateEnabled
+                && faceVerificationService.isFaceVerificationRequired(agent.getId(), "CHECKIN")
+                && !faceVerified) {
+            throw new RuntimeException(
+                    "Face verification is required and was not confirmed. Please verify your face and try again.");
+        }
+
         LocalDateTime now = LocalDateTime.now();
         AttendanceWithShiftDTO shiftResult = shiftValidationService.validateAttendanceWithShift(request.getAgentId(), now);
 
         // mart.getRadius() is stored in meters (see AdminMartScreen.js: "Radius
         // (meters)"), and calculateDistance() already returns meters — no unit
         // conversion needed here, matching GeoFencingService's own
-        // distance <= mart.getRadius() comparison. The old "* 1000" treated
-        // the radius as kilometers, inflating a 100m mart's late-threshold to
-        // 100km and making this check effectively never trigger.
+        // distance <= mart.getRadius() comparison. Distance is no longer part
+        // of this check — being outside the radius now rejects the request
+        // outright (above) rather than merely downgrading status.
         String status = "IN";
-        if ("LATE".equals(shiftResult.getShiftCompliance()) || distance > mart.getRadius()) {
+        if ("LATE".equals(shiftResult.getShiftCompliance())) {
             status = "LATE";
         }
         if (!shiftResult.isWorkingDay()) {
@@ -137,7 +171,7 @@ public class AttendanceService {
         attendance.setShiftStartTime(agent.getShiftStartTime());
         attendance.setShiftEndTime(agent.getShiftEndTime());
         attendance.setLateMinutes(shiftResult.getLateMinutes());
-        attendance.setFaceVerifiedCheckin(corroboratedFaceVerification(agent.getId(), request.getFaceVerified()));
+        attendance.setFaceVerifiedCheckin(faceVerified);
 
         // The open-attendance read above is a genuine check-then-act race —
         // two concurrent check-ins can both pass it before either commits.
@@ -162,10 +196,31 @@ public class AttendanceService {
         Attendance attendance = attendanceRepository.findOpenAttendanceByAgentId(request.getAgentId())
                 .orElseThrow(() -> new RuntimeException("No active check-in found for agent id: " + request.getAgentId()));
 
+        // Same AND-gate as checkIn(), reusing the mart the agent originally
+        // checked into (CheckOutRequest carries no martId of its own).
+        Mart mart = attendance.getMart();
+        if (mart != null && Boolean.TRUE.equals(mart.getGeoFencingEnabled())) {
+            double distance = calculateDistance(request.getLatitude(), request.getLongitude(),
+                    mart.getLatitude(), mart.getLongitude());
+            if (distance > mart.getRadius()) {
+                throw new RuntimeException(String.format(
+                        "You must be within %.0fm of %s to check out — you are %.0fm away.",
+                        mart.getRadius(), mart.getName(), distance));
+            }
+        }
+
+        boolean faceVerified = corroboratedFaceVerification(request.getAgentId(), request.getFaceVerified());
+        if (faceHardGateEnabled
+                && faceVerificationService.isFaceVerificationRequired(request.getAgentId(), "CHECKOUT")
+                && !faceVerified) {
+            throw new RuntimeException(
+                    "Face verification is required and was not confirmed. Please verify your face and try again.");
+        }
+
         attendance.setCheckOutTime(LocalDateTime.now());
         attendance.setCheckOutLatitude(request.getLatitude());
         attendance.setCheckOutLongitude(request.getLongitude());
-        attendance.setFaceVerifiedCheckout(corroboratedFaceVerification(request.getAgentId(), request.getFaceVerified()));
+        attendance.setFaceVerifiedCheckout(faceVerified);
 
         Attendance saved = attendanceRepository.save(attendance);
         notificationService.sendCheckOutNotification(saved);

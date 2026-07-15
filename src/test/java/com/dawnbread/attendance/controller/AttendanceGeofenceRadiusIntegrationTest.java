@@ -25,21 +25,20 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Proves the AttendanceService.checkIn() distance-based LATE check now
- * compares meters against meters, matching mart.radius's real unit (see
- * AdminMartScreen.js: "Radius (meters)") and GeoFencingService's own
- * distance <= mart.getRadius() comparison. Before the fix, "distance >
- * mart.getRadius() * 1000" inflated a 100m mart's late-threshold to 100km,
- * so checking in 1+ km away from the mart would still silently report "IN".
+ * Proves AttendanceService.checkIn() actually REJECTS a check-in attempt
+ * from outside the mart's geofence radius, rather than merely flagging it
+ * LATE and letting it through. (Earlier revisions of this test — and of
+ * the service — treated "outside the radius" as a lateness signal only;
+ * that was itself the bug: an agent anywhere on Earth could check in as
+ * long as they hit the endpoint, with no server-side location enforcement
+ * at all. See the geofence-gating security finding.)
  *
- * Isolates the distance effect from the separate shift-timing LATE trigger
- * (AttendanceService ORs the two together) by comparing a near check-in
- * against a far check-in for the SAME mart, moments apart in the same test
- * — shift compliance is effectively constant between the two calls, so any
- * difference in outcome is attributable to distance alone.
+ * mart.radius is stored in meters (see AdminMartScreen.js: "Radius
+ * (meters)"), matching calculateDistance()'s return unit — no conversion
+ * needed, and no more "* 1000" unit-inflation bug either.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AttendanceGeofenceRadiusIntegrationTest {
@@ -125,42 +124,103 @@ class AttendanceGeofenceRadiusIntegrationTest {
         return restTemplate.exchange(url("/api/attendance/checkin"), HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
     }
 
+    private ResponseEntity<String> checkOut(String token, Long agentId, double lat, double lon) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("agentId", agentId);
+        body.put("latitude", lat);
+        body.put("longitude", lon);
+        body.put("faceVerified", true);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(token);
+
+        return restTemplate.exchange(url("/api/attendance/checkout"), HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+    }
+
     @Test
-    void checkInBeyondMartRadiusIsFlaggedLateNotIn() throws Exception {
+    void checkInWithinMartRadiusSucceeds() throws Exception {
         // 100m radius, exactly matching the real-world unit (meters) the
         // Admin UI collects and displays.
         Mart mart = seedMart("Radius Test Mart", 31.5000, 74.3000, 100.0);
-
         Agent nearAgent = seedAgent("RADIUS_NEAR_AGENT");
-        Agent farAgent = seedAgent("RADIUS_FAR_AGENT");
         String nearToken = tokenProvider.generateToken(nearAgent.getId(), nearAgent.getAgentId(), "AGENT", tenantId());
-        String farToken = tokenProvider.generateToken(farAgent.getId(), farAgent.getAgentId(), "AGENT", tenantId());
 
-        // Near: exactly at the mart's own coordinates — distance ~0m, well inside 100m.
+        // Exactly at the mart's own coordinates — distance ~0m, well inside 100m.
         ResponseEntity<String> nearResponse = checkIn(nearToken, nearAgent.getId(), mart.getId(),
                 mart.getLatitude(), mart.getLongitude());
         assertEquals(HttpStatus.CREATED, nearResponse.getStatusCode(), nearResponse.getBody());
         JsonNode nearData = objectMapper.readTree(nearResponse.getBody()).get("data");
-        double nearDistance = nearData.get("distanceFromMart").asDouble();
         assertEquals("IN", nearData.get("status").asText(),
-                "Checking in right at the mart (distance=" + nearDistance + "m) must not be LATE: " + nearResponse.getBody());
+                "Checking in right at the mart must succeed as IN: " + nearResponse.getBody());
+    }
 
-        // Far: ~0.01 degrees away (~1.1km at this latitude) — far outside the
-        // 100m radius, but nowhere near the OLD buggy 100km threshold
-        // (radius * 1000), so this specifically proves the fix and not just
-        // an extreme distance that would have failed either way.
+    @Test
+    void checkInBeyondMartRadiusIsRejected() throws Exception {
+        Mart mart = seedMart("Radius Test Mart", 31.5000, 74.3000, 100.0);
+        Agent farAgent = seedAgent("RADIUS_FAR_AGENT");
+        String farToken = tokenProvider.generateToken(farAgent.getId(), farAgent.getAgentId(), "AGENT", tenantId());
+
+        // ~0.01 degrees away (~1.1km at this latitude) — far outside the
+        // 100m radius. Must be REJECTED outright, not merely flagged LATE —
+        // that "flag but still let through" behavior was the bug this test
+        // now proves is fixed: no attendance row should ever be written for
+        // a check-in attempt from outside the geofence.
         ResponseEntity<String> farResponse = checkIn(farToken, farAgent.getId(), mart.getId(),
                 mart.getLatitude() + 0.01, mart.getLongitude() + 0.01);
-        assertEquals(HttpStatus.CREATED, farResponse.getStatusCode(), farResponse.getBody());
-        JsonNode farData = objectMapper.readTree(farResponse.getBody()).get("data");
-        double farDistance = farData.get("distanceFromMart").asDouble();
-        assertEquals("LATE", farData.get("status").asText(),
-                "Checking in " + farDistance + "m from a 100m-radius mart must be flagged LATE: " + farResponse.getBody());
+        assertEquals(HttpStatus.BAD_REQUEST, farResponse.getStatusCode(), farResponse.getBody());
+        assertTrue(farResponse.getBody().contains("You must be within"),
+                "Rejection message should explain the geofence requirement: " + farResponse.getBody());
+    }
 
-        // The two calls happen moments apart in the same test, so shift
-        // compliance (the OTHER thing that can trigger LATE) is effectively
-        // identical for both — the differing outcome is attributable to
-        // distance alone, proving this isn't just shift-based lateness.
-        assertNotEquals(nearData.get("status").asText(), farData.get("status").asText());
+    @Test
+    void checkInIsAllowedWhenMartHasGeoFencingDisabled() throws Exception {
+        // The per-mart opt-out (Mart.geoFencingEnabled) must still work —
+        // the hard gate only applies when a mart has opted in (the default).
+        Mart mart = seedMart("No-Geofence Mart", 31.5000, 74.3000, 100.0);
+        mart.setGeoFencingEnabled(false);
+        martRepository.save(mart);
+
+        Agent farAgent = seedAgent("RADIUS_EXEMPT_AGENT");
+        String farToken = tokenProvider.generateToken(farAgent.getId(), farAgent.getAgentId(), "AGENT", tenantId());
+
+        ResponseEntity<String> farResponse = checkIn(farToken, farAgent.getId(), mart.getId(),
+                mart.getLatitude() + 0.01, mart.getLongitude() + 0.01);
+        assertEquals(HttpStatus.CREATED, farResponse.getStatusCode(),
+                "A mart with geoFencingEnabled=false must not enforce the radius: " + farResponse.getBody());
+    }
+
+    @Test
+    void checkOutBeyondMartRadiusIsRejected() throws Exception {
+        // Checkout is gated the same as check-in — agents are expected to
+        // still be at the mart when they end duty.
+        Mart mart = seedMart("Radius Test Mart", 31.5000, 74.3000, 100.0);
+        Agent agent = seedAgent("RADIUS_CHECKOUT_AGENT");
+        String token = tokenProvider.generateToken(agent.getId(), agent.getAgentId(), "AGENT", tenantId());
+
+        ResponseEntity<String> checkInResponse = checkIn(token, agent.getId(), mart.getId(),
+                mart.getLatitude(), mart.getLongitude());
+        assertEquals(HttpStatus.CREATED, checkInResponse.getStatusCode(), checkInResponse.getBody());
+
+        ResponseEntity<String> checkOutResponse = checkOut(token, agent.getId(),
+                mart.getLatitude() + 0.01, mart.getLongitude() + 0.01);
+        assertEquals(HttpStatus.BAD_REQUEST, checkOutResponse.getStatusCode(), checkOutResponse.getBody());
+        assertTrue(checkOutResponse.getBody().contains("You must be within"),
+                "Rejection message should explain the geofence requirement: " + checkOutResponse.getBody());
+    }
+
+    @Test
+    void checkOutWithinMartRadiusSucceeds() throws Exception {
+        Mart mart = seedMart("Radius Test Mart", 31.5000, 74.3000, 100.0);
+        Agent agent = seedAgent("RADIUS_CHECKOUT_OK_AGENT");
+        String token = tokenProvider.generateToken(agent.getId(), agent.getAgentId(), "AGENT", tenantId());
+
+        ResponseEntity<String> checkInResponse = checkIn(token, agent.getId(), mart.getId(),
+                mart.getLatitude(), mart.getLongitude());
+        assertEquals(HttpStatus.CREATED, checkInResponse.getStatusCode(), checkInResponse.getBody());
+
+        ResponseEntity<String> checkOutResponse = checkOut(token, agent.getId(),
+                mart.getLatitude(), mart.getLongitude());
+        assertEquals(HttpStatus.OK, checkOutResponse.getStatusCode(), checkOutResponse.getBody());
     }
 }
