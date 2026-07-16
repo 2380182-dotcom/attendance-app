@@ -18,14 +18,15 @@ import java.util.Base64;
  * @Convert on exactly the two fields it's meant for, nothing else.
  *
  * Stored format: "ENCv<version>:" + base64(12-byte GCM nonce + ciphertext + tag).
- * The version prefix is what makes key rotation and this migration possible —
- * a stored value announces which key decrypts it, so old and new keys (or,
- * during migration, encrypted and legacy-plaintext rows) can coexist.
+ * The version prefix is what makes key rotation possible — a stored value
+ * announces which key decrypts it, so old and new keys can coexist across
+ * a rotation.
  *
- * Dual-read: a stored value with no "ENCv" prefix is legacy plaintext (the
- * only format that ever existed before this feature) and is returned as-is
- * — this is what makes the Stage 2 deploy non-breaking with zero downtime.
- * Every write always encrypts, once a key is configured.
+ * Legacy-plaintext dual-read has been removed: production was confirmed to
+ * have zero legacy-format rows (every agent was re-created after this
+ * feature shipped), so every stored value is now expected to carry the
+ * ENCv prefix — anything else fails loudly as a regression rather than
+ * silently passing through as plaintext.
  */
 @Converter
 public class FaceDataEncryptionConverter implements AttributeConverter<String, String> {
@@ -69,14 +70,10 @@ public class FaceDataEncryptionConverter implements AttributeConverter<String, S
             return null;
         }
         if (!stored.startsWith(PREFIX)) {
-            // DIAG(2026-07-25): legacy-plaintext dual-read fallback, kept only
-            // for the Stage 3 backfill's bake-in window (encryption design
-            // doc, Stage 4). Once the backfill has been stable for a couple
-            // of weeks and a fresh production check confirms zero legacy-
-            // format rows remain, remove this branch entirely — a value
-            // reaching here afterward would mean something regressed, and
-            // should fail loudly instead of silently accepting plaintext.
-            return stored;
+            throw new IllegalStateException(
+                    "Stored face data does not carry the expected ENCv<version>: prefix — legacy "
+                            + "plaintext support was removed after production was confirmed to have "
+                            + "zero legacy-format rows. This indicates a regression, not expected data.");
         }
 
         int colonIdx = stored.indexOf(':');

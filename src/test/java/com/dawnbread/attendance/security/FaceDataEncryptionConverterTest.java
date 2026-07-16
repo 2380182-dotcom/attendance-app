@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -73,9 +74,12 @@ class FaceDataEncryptionConverterTest {
     }
 
     @Test
-    void legacyPlaintextWithNoPrefixIsReturnedAsIs() {
+    void legacyPlaintextWithNoPrefixNowFailsLoudly() {
+        // Dual-read support was removed once production was confirmed to have
+        // zero legacy-format rows — a value reaching here now means a
+        // regression, so it must fail loudly, not silently pass through.
         String legacyValue = "cGxhaW4tYmFzZTY0LWZsb2F0LWFycmF5LXdpdGgtbm8tcHJlZml4";
-        assertEquals(legacyValue, CONVERTER.convertToEntityAttribute(legacyValue));
+        assertThrows(IllegalStateException.class, () -> CONVERTER.convertToEntityAttribute(legacyValue));
     }
 
     @Test

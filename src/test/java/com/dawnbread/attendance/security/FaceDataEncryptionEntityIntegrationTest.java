@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -25,10 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * path via the real test key really does end up encrypted in the real
  * (H2, for this suite) database.
  *
- * Also proves the dual-read migration path: a row written as legacy
- * plaintext (bypassing the converter entirely, via a native SQL UPDATE — the
- * same shape production rows are in today) still reads back correctly
- * through the entity.
+ * Also proves legacy-plaintext dual-read has been removed: a row written as
+ * legacy plaintext (bypassing the converter entirely, via a native SQL
+ * UPDATE) now fails loudly when read through the entity, rather than
+ * silently passing through — production was confirmed to have zero such
+ * rows before this was removed, so a value reaching here is a regression.
  */
 @SpringBootTest
 class FaceDataEncryptionEntityIntegrationTest {
@@ -95,18 +97,18 @@ class FaceDataEncryptionEntityIntegrationTest {
 
     @Test
     @Transactional
-    void aLegacyPlaintextRowWrittenOutsideTheConverterStillReadsCorrectly() {
+    void aLegacyPlaintextRowWrittenOutsideTheConverterNowFailsLoudlyOnRead() {
         Agent agent = seedAgent("ENC_LEGACY_CHECK");
         String legacyPlaintextEmbedding = "legacy-base64-embedding-written-before-this-feature-existed";
 
-        // Simulates the real production shape today: a value written by the
-        // OLD code path, with no "ENCv" prefix — direct SQL, bypassing the
-        // converter, exactly as if this row had never gone through it.
+        // Simulates a value with no "ENCv" prefix reaching the converter —
+        // direct SQL, bypassing the converter, the same shape a pre-encryption
+        // row would have had. Dual-read support for this has been removed:
+        // production was confirmed to have zero such rows, so this must now
+        // fail loudly rather than silently pass through.
         jdbcTemplate.update("UPDATE agent SET face_embedding = ? WHERE id = ?", legacyPlaintextEmbedding, agent.getId());
         entityManager.clear();
 
-        Agent reloaded = agentRepository.findById(agent.getId()).orElseThrow();
-        assertEquals(legacyPlaintextEmbedding, reloaded.getFaceEmbedding(),
-                "A legacy plaintext row (no ENCv prefix) must still be readable through the entity — this is what makes the migration non-breaking");
+        assertThrows(RuntimeException.class, () -> agentRepository.findById(agent.getId()).orElseThrow());
     }
 }
