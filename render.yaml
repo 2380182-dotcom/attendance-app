@@ -46,6 +46,24 @@ services:
         value: "true"
     dockerCommand: java -jar app.jar
 
+  - type: web
+    name: attendance-staff-dashboard
+    runtime: static
+    rootDir: dashboard
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # Stage 7 (planned): tighten CORS_ALLOWED_ORIGINS on the backend from
+      # "*" to this dashboard's real Render URL once it's known.
+      - key: VITE_API_URL
+        value: https://attendance-app-rn2m.onrender.com/api
+    routes:
+      # React Router does client-side routing — every path must fall back to
+      # index.html, or a hard refresh on e.g. /hr/agents 404s.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
   - type: cronjob
     name: database-backup
     runtime: image
