@@ -5,7 +5,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import HRLayout from './layouts/HRLayout';
 import SalesLayout from './layouts/SalesLayout';
-import HRHomePage from './pages/hr/HRHomePage';
+import TodayBoardPage from './pages/hr/TodayBoardPage';
+import AttendanceHistoryPage from './pages/hr/AttendanceHistoryPage';
 import SalesHomePage from './pages/sales/SalesHomePage';
 
 export default function App() {
@@ -22,7 +23,8 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<HRHomePage />} />
+          <Route index element={<TodayBoardPage />} />
+          <Route path="history" element={<AttendanceHistoryPage />} />
         </Route>
 
         <Route
