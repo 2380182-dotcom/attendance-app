@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +24,15 @@ import java.util.Optional;
 @Service
 @Transactional
 public class AttendanceService {
+
+    // Users are in Pakistan; the container this runs on is UTC (confirmed
+    // via a real check-in: 06:14 stored for an actual 11:14am PKT action).
+    // Every checkInTime/checkOutTime/etc. is and remains stored as a naive
+    // UTC-equivalent LocalDateTime — that does NOT change here. This zone
+    // is used only to compute "what does Pakistan's calendar day boundary
+    // correspond to in UTC," so a day-boundary comparison against that
+    // stored data lines up with Pakistan's actual calendar, not UTC's.
+    private static final ZoneId KARACHI_ZONE = ZoneId.of("Asia/Karachi");
 
     @Autowired
     private AttendanceRepository attendanceRepository;
@@ -246,8 +257,13 @@ public class AttendanceService {
     }
 
     public List<AttendanceWithShiftDTO> getDailyReportWithShift(LocalDate date) {
-        LocalDateTime start = date.atStartOfDay();
-        LocalDateTime end = date.atTime(23, 59, 59);
+        // date is a Pakistan calendar date (e.g. from the dashboard, which
+        // now passes Asia/Karachi's "today" explicitly). Converting through
+        // the zone before comparing against the UTC-stored checkInTime is
+        // what makes an early-morning (~midnight-5am PKT) check-in land in
+        // the right day's report instead of the previous UTC day's.
+        LocalDateTime start = date.atStartOfDay(KARACHI_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+        LocalDateTime end = date.atTime(23, 59, 59).atZone(KARACHI_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
         List<Attendance> records = attendanceRepository.findByCheckInTimeBetween(start, end);
         List<AttendanceWithShiftDTO> report = new ArrayList<>();
 

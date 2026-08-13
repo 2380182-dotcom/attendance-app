@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,6 +31,12 @@ import java.util.stream.Collectors;
 public class FaceVerificationService {
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+
+    // Same rationale as AttendanceService.KARACHI_ZONE: the schedule strings
+    // ("09:00"/"17:00") are Pakistan-local by intent, and "today" for
+    // matching against stored (UTC-equivalent) FaceVerificationLog rows
+    // must be Pakistan's calendar day, not the container's UTC one.
+    private static final ZoneId KARACHI_ZONE = ZoneId.of("Asia/Karachi");
 
     @Autowired
     private FaceVerificationLogRepository faceVerificationLogRepository;
@@ -128,7 +136,7 @@ public class FaceVerificationService {
                 .orElseThrow(() -> new RuntimeException("Agent not found with id: " + agentId));
 
         VerificationRequiredDTO dto = new VerificationRequiredDTO();
-        dto.setDate(LocalDate.now());
+        dto.setDate(LocalDate.now(KARACHI_ZONE));
         dto.setSchedule(getVerificationSchedule(agentId));
 
         if (!Boolean.TRUE.equals(agent.getFaceVerificationEnabled())
@@ -140,7 +148,7 @@ public class FaceVerificationService {
 
         ensureDailyCounterReset(agent);
         List<String> times = resolveVerificationTimes(agent);
-        LocalTime now = LocalTime.now();
+        LocalTime now = LocalTime.now(KARACHI_ZONE);
         List<FaceVerificationLog> todayLogs = getTodaySuccessfulLogs(agentId);
 
         for (String timeStr : times) {
@@ -172,7 +180,7 @@ public class FaceVerificationService {
         ensureDailyCounterReset(agent);
         List<String> times = resolveVerificationTimes(agent);
         List<FaceVerificationLog> todayLogs = getTodaySuccessfulLogs(agentId);
-        LocalTime now = LocalTime.now();
+        LocalTime now = LocalTime.now(KARACHI_ZONE);
 
         List<FaceVerificationStatusDTO.VerificationSlot> slots = new ArrayList<>();
         String nextRequired = null;
@@ -201,7 +209,7 @@ public class FaceVerificationService {
 
         FaceVerificationStatusDTO dto = new FaceVerificationStatusDTO();
         dto.setAgentId(agentId);
-        dto.setDate(LocalDate.now());
+        dto.setDate(LocalDate.now(KARACHI_ZONE));
         dto.setRegistered(hasFaceEmbedding(agent) || Boolean.TRUE.equals(agent.getFaceRegistered()));
         dto.setVerificationRequired(required.isRequired());
         dto.setNextRequiredTime(nextRequired != null ? nextRequired : required.getNextRequiredTime());
@@ -349,8 +357,12 @@ public class FaceVerificationService {
     }
 
     private List<FaceVerificationLog> getTodaySuccessfulLogs(Long agentId) {
-        LocalDateTime start = LocalDate.now().atStartOfDay();
-        LocalDateTime end = LocalDate.now().atTime(23, 59, 59);
+        // Same treatment as AttendanceService.getDailyReportWithShift(): compute
+        // Pakistan's actual "today" boundary, then convert to the UTC-equivalent
+        // naive value the stored verificationTime rows are comparable against.
+        LocalDate karachiToday = LocalDate.now(KARACHI_ZONE);
+        LocalDateTime start = karachiToday.atStartOfDay(KARACHI_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+        LocalDateTime end = karachiToday.atTime(23, 59, 59).atZone(KARACHI_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
         return faceVerificationLogRepository.findByAgentIdAndVerificationTimeBetween(agentId, start, end)
                 .stream()
                 .filter(l -> Boolean.TRUE.equals(l.getSuccess()))
