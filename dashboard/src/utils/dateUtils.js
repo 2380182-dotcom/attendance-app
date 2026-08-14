@@ -16,6 +16,7 @@ dayjs.extend(timezone);
 // a server timestamp in this app must go through parseServerUtc below,
 // never straight into `new Date(...)`.
 const KARACHI = 'Asia/Karachi';
+export const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 /** Parses a naive backend timestamp (no offset) as the UTC value it actually is. */
 function parseServerUtc(isoStringNoOffset) {
@@ -28,13 +29,21 @@ export function formatUtcToKarachi(isoStringNoOffset, pattern = 'MMM D, YYYY h:m
   return parseServerUtc(isoStringNoOffset).tz(KARACHI).format(pattern);
 }
 
+/** Server timestamp -> the Pakistan calendar date (YYYY-MM-DD) it falls on. For
+ * grouping/bucketing records by day correctly — a naive UTC-date split would
+ * misfile anything near a day boundary, same failure mode as everything else
+ * in this file. */
+export function karachiDateOf(isoStringNoOffset) {
+  if (!isoStringNoOffset) return null;
+  return parseServerUtc(isoStringNoOffset).tz(KARACHI).format('YYYY-MM-DD');
+}
+
 /** Today's date, as Pakistan's calendar sees it right now — NOT the browser's. */
 export function karachiToday() {
   return dayjs().tz(KARACHI);
 }
 
 export function karachiTodayDayCode() {
-  const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   return DAY_CODES[karachiToday().day()];
 }
 
