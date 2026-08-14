@@ -7,7 +7,8 @@ import HRLayout from './layouts/HRLayout';
 import SalesLayout from './layouts/SalesLayout';
 import TodayBoardPage from './pages/hr/TodayBoardPage';
 import AttendanceHistoryPage from './pages/hr/AttendanceHistoryPage';
-import SalesHomePage from './pages/sales/SalesHomePage';
+import SalesOverviewPage from './pages/sales/SalesOverviewPage';
+import SalesHistoryPage from './pages/sales/SalesHistoryPage';
 
 export default function App() {
   return (
@@ -35,7 +36,8 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<SalesHomePage />} />
+          <Route index element={<SalesOverviewPage />} />
+          <Route path="history" element={<SalesHistoryPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />

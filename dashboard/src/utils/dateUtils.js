@@ -53,3 +53,18 @@ export function karachiStartOfDayIso(calendarDateString) {
 export function karachiEndOfDayIso(calendarDateString) {
   return dayjs.tz(calendarDateString, KARACHI).endOf('day').utc().format('YYYY-MM-DDTHH:mm:ss');
 }
+
+/**
+ * SalesRecord.saleTime is a bare LocalTime (no date), also server-computed
+ * via LocalTime.now() with no zone — same root cause as checkInTime, applied
+ * to a field with no date component of its own to hang the conversion off.
+ * Borrows saleDate purely as a calendar anchor to run through the same
+ * UTC->Karachi math, then discards the date — this fixes DISPLAY only. The
+ * underlying saleDate itself can still be off by one day for a sale placed
+ * between midnight-5am Pakistan time, same class of bug as daily-report;
+ * that's a backend fix, tracked separately, not something this can correct.
+ */
+export function formatSaleTimeToKarachi(saleDate, saleTime) {
+  if (!saleDate || !saleTime) return null;
+  return dayjs.utc(`${saleDate}T${saleTime}`).tz(KARACHI).format('h:mm A');
+}
