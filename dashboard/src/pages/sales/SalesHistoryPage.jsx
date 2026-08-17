@@ -7,7 +7,7 @@ import {
   Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
   CircularProgress, Alert, Stack, MenuItem, Select, InputLabel, FormControl,
   ToggleButtonGroup, ToggleButton, TextField, InputAdornment, IconButton,
-  Collapse, TableSortLabel, Button,
+  Collapse, Button,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -16,35 +16,12 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { salesApi } from '../../services/salesApi';
 import { agentApi } from '../../services/attendanceApi';
 import { formatSaleTimeToKarachi } from '../../utils/dateUtils';
-import { sortRows } from '../../utils/sorting';
+import { sortRows, useSort } from '../../utils/sorting';
 import { aggregateProductMix, flattenSalesToLineItems } from '../../utils/salesAggregation';
 import { toCsv, downloadCsv } from '../../utils/csvExport';
+import SortableHeader from '../../components/SortableHeader';
 
 const ALL_AGENTS = 'ALL';
-
-function SortableHeader({ label, sortKey, sort, onSort, align }) {
-  return (
-    <TableCell align={align}>
-      <TableSortLabel
-        active={sort.key === sortKey}
-        direction={sort.key === sortKey ? sort.direction : 'asc'}
-        onClick={() => onSort(sortKey)}
-      >
-        {label}
-      </TableSortLabel>
-    </TableCell>
-  );
-}
-
-function useSort(initialKey, initialDirection = 'desc') {
-  const [sort, setSort] = useState({ key: initialKey, direction: initialDirection });
-  const onSort = (key) => {
-    setSort((prev) =>
-      prev.key === key ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }
-    );
-  };
-  return [sort, onSort];
-}
 
 function LineItemsTable({ items }) {
   if (!items || items.length === 0) {
@@ -99,12 +76,23 @@ function ExpandableRow({ collapsedCells, items, colSpan }) {
   );
 }
 
-function ProductMixTable({ rows, title }) {
+function ProductMixTable({ rows, title, searchActive }) {
   const [sort, onSort] = useSort('revenue', 'desc');
   const sorted = useMemo(() => sortRows(rows, sort.key, sort.direction), [rows, sort]);
+  const total = useMemo(
+    () => rows.reduce((acc, r) => ({ quantity: acc.quantity + r.quantity, revenue: acc.revenue + r.revenue }), { quantity: 0, revenue: 0 }),
+    [rows]
+  );
   return (
     <Paper sx={{ mt: 3 }}>
       <Typography variant="h6" sx={{ p: 2, pb: 0 }}>{title}</Typography>
+      {searchActive && (
+        <Typography variant="body2" color="text.secondary" sx={{ px: 2, pb: 1 }}>
+          {rows.length === 0
+            ? 'No matching products.'
+            : `Matching products — Total: ${total.quantity} units, PKR ${total.revenue.toLocaleString()}`}
+        </Typography>
+      )}
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -137,6 +125,7 @@ export default function SalesHistoryPage() {
   const [rangeStart, setRangeStart] = useState(dayjs().subtract(7, 'day'));
   const [rangeEnd, setRangeEnd] = useState(dayjs());
   const [search, setSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
 
   const [agentSort, onAgentSort] = useSort('revenue', 'desc');
   const [salesSort, onSalesSort] = useSort('saleDate', 'desc');
@@ -207,6 +196,14 @@ export default function SalesHistoryPage() {
       })),
     [companyReport.data]
   );
+
+  const filterByProductSearch = (rows) => {
+    if (!productSearch.trim()) return rows;
+    const q = productSearch.trim().toLowerCase();
+    return rows.filter((r) => (r.productName || '').toLowerCase().includes(q));
+  };
+  const filteredCompanyProductMix = useMemo(() => filterByProductSearch(companyProductMix), [companyProductMix, productSearch]);
+  const filteredAgentProductMix = useMemo(() => filterByProductSearch(agentProductMix), [agentProductMix, productSearch]);
 
   const canExpandAgentSummaries = period === 'daily';
 
@@ -320,6 +317,15 @@ export default function SalesHistoryPage() {
             sx={{ minWidth: 220 }}
           />
 
+          <TextField
+            size="small"
+            placeholder="Search product totals…"
+            value={productSearch}
+            onChange={(e) => setProductSearch(e.target.value)}
+            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+            sx={{ minWidth: 220 }}
+          />
+
           <Button
             startIcon={<DownloadIcon />}
             variant="outlined"
@@ -388,7 +394,7 @@ export default function SalesHistoryPage() {
                   </Table>
                 </Paper>
 
-                <ProductMixTable rows={companyProductMix} title="Product-wise Totals — All Agents" />
+                <ProductMixTable rows={filteredCompanyProductMix} title="Product-wise Totals — All Agents" searchActive={!!productSearch.trim()} />
               </>
             )}
           </>
@@ -432,7 +438,7 @@ export default function SalesHistoryPage() {
                   </Table>
                 </Paper>
 
-                <ProductMixTable rows={agentProductMix} title="Product Mix — this range" />
+                <ProductMixTable rows={filteredAgentProductMix} title="Product Mix — this range" searchActive={!!productSearch.trim()} />
               </>
             )}
           </>

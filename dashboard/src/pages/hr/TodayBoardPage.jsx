@@ -1,69 +1,20 @@
-import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React from 'react';
 import {
   Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
   Chip, CircularProgress, Alert, Stack,
 } from '@mui/material';
-import { attendanceApi, agentApi } from '../../services/attendanceApi';
-import { karachiToday, karachiTodayDayCode, formatUtcToKarachi } from '../../utils/dateUtils';
+import { useTodayBoard } from '../../hooks/useTodayBoard';
+import { karachiToday, formatUtcToKarachi } from '../../utils/dateUtils';
 
 const STATUS_COLOR = { IN: 'success', LATE: 'warning', ABSENT: 'error', OFF: 'default' };
 
 export default function TodayBoardPage() {
-  // Pass Pakistan's calendar date explicitly rather than omitting the param
-  // — the backend's own "today" default is LocalDate.now() on its UTC
-  // container, which can be a different calendar date than Pakistan's
-  // during the ~5-hour window after midnight PKT. This fixes the common
-  // case; the underlying day-boundary comparison being UTC-based (not just
-  // the default) is a separate backend issue, flagged below.
-  const todayDate = karachiToday().format('YYYY-MM-DD');
-  const dailyReport = useQuery({ queryKey: ['daily-report', todayDate], queryFn: () => attendanceApi.getDailyReport(todayDate) });
-  const activeAgents = useQuery({ queryKey: ['agents', 'active'], queryFn: () => agentApi.getActive() });
+  const { rows, counts, isLoading, isError } = useTodayBoard();
 
-  const rows = useMemo(() => {
-    if (!dailyReport.data || !activeAgents.data) return [];
-
-    const reportByAgentId = new Map(dailyReport.data.map((r) => [r.attendance.agentId, r]));
-    const todayCode = karachiTodayDayCode();
-
-    return activeAgents.data.map((agent) => {
-      const record = reportByAgentId.get(agent.id);
-      if (record) {
-        return {
-          agentId: agent.id,
-          name: agent.name,
-          department: agent.department,
-          status: record.attendance.status === 'NON_WORKING_DAY' ? 'OFF' : record.attendance.status,
-          checkInTime: record.attendance.checkInTime,
-          lateMinutes: record.lateMinutes,
-          faceVerified: record.faceVerified,
-        };
-      }
-      // No record at all today — absent only if today is actually one of
-      // their working days; otherwise they're legitimately off, not absent.
-      const isWorkingDay = !agent.workingDays || agent.workingDays.length === 0 || agent.workingDays.includes(todayCode);
-      return {
-        agentId: agent.id,
-        name: agent.name,
-        department: agent.department,
-        status: isWorkingDay ? 'ABSENT' : 'OFF',
-        checkInTime: null,
-        lateMinutes: null,
-        faceVerified: null,
-      };
-    });
-  }, [dailyReport.data, activeAgents.data]);
-
-  const counts = useMemo(() => {
-    const c = { IN: 0, LATE: 0, ABSENT: 0, OFF: 0 };
-    rows.forEach((r) => { c[r.status] = (c[r.status] || 0) + 1; });
-    return c;
-  }, [rows]);
-
-  if (dailyReport.isLoading || activeAgents.isLoading) {
+  if (isLoading) {
     return <CircularProgress />;
   }
-  if (dailyReport.isError || activeAgents.isError) {
+  if (isError) {
     return <Alert severity="error">Failed to load today's attendance. Try refreshing.</Alert>;
   }
 

@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import HRLayout from './layouts/HRLayout';
 import SalesLayout from './layouts/SalesLayout';
 import TodayBoardPage from './pages/hr/TodayBoardPage';
+import AgentStatusPage from './pages/hr/AgentStatusPage';
 import AttendanceHistoryPage from './pages/hr/AttendanceHistoryPage';
 import HRAnalyticsPage from './pages/hr/HRAnalyticsPage';
 import AgentDirectoryPage from './pages/hr/AgentDirectoryPage';
@@ -28,6 +29,7 @@ export default function App() {
           }
         >
           <Route index element={<TodayBoardPage />} />
+          <Route path="status" element={<AgentStatusPage />} />
           <Route path="history" element={<AttendanceHistoryPage />} />
           <Route path="analytics" element={<HRAnalyticsPage />} />
           <Route path="agents" element={<AgentDirectoryPage />} />
