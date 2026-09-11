@@ -5,10 +5,10 @@ import { karachiToday, karachiTodayDayCode } from '../utils/dateUtils';
 
 /**
  * Today's per-agent attendance status, computed client-side from daily-report
- * + active-roster — the same two calls Today's Board makes. Shared so every
- * view built on "who's IN/LATE/ABSENT/OFF today" (Today's Board, the HR
- * Analytics summary cards, Agent Status) agrees with each other by
- * construction, rather than each computing its own version of "today."
+ * + the full active-agent roster. Shared so every view built on "who's
+ * IN/LATE/ABSENT/OFF today" (Today's Board, the HR Analytics summary cards,
+ * Agent Status) agrees with each other by construction, rather than each
+ * computing its own version of "today."
  */
 export function useTodayBoard() {
   // Pass Pakistan's calendar date explicitly rather than omitting the param
@@ -17,7 +17,20 @@ export function useTodayBoard() {
   // during the ~5-hour window after midnight PKT.
   const todayDate = karachiToday().format('YYYY-MM-DD');
   const dailyReport = useQuery({ queryKey: ['daily-report', todayDate], queryFn: () => attendanceApi.getDailyReport(todayDate) });
-  const activeAgents = useQuery({ queryKey: ['agents', 'active'], queryFn: () => agentApi.getActive() });
+  // NOT agentApi.getActive() — despite the name, that's "checked in within
+  // the last 7 days," not the roster. GET /agents returns every agent row
+  // (all roles, all active states), filtered here to field agents who are
+  // actually employed — the same definition DashboardService already uses
+  // for the "Total Agents" stat elsewhere on this dashboard.
+  const allAgents = useQuery({ queryKey: ['agents', 'all'], queryFn: () => agentApi.getAll() });
+  const activeAgents = useMemo(
+    () => ({
+      data: allAgents.data?.filter((a) => a.role === 'AGENT' && a.isActive !== false),
+      isLoading: allAgents.isLoading,
+      isError: allAgents.isError,
+    }),
+    [allAgents.data, allAgents.isLoading, allAgents.isError]
+  );
 
   const rows = useMemo(() => {
     if (!dailyReport.data || !activeAgents.data) return [];

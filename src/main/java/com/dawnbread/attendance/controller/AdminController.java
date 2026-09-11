@@ -243,6 +243,7 @@ public class AdminController {
         dto.setShiftEndTime(agent.getShiftEndTime());
         dto.setGracePeriodMinutes(agent.getGracePeriodMinutes());
         dto.setWorkingDays(agent.getWorkingDays());
+        dto.setIsActive(agent.getIsActive());
         return dto;
     }
 }

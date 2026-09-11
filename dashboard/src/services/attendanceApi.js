@@ -25,8 +25,15 @@ export const attendanceApi = {
 };
 
 export const agentApi = {
+  /** Agents with attendance activity in the last 7 days — NOT the full roster, despite the name. */
   async getActive() {
     const response = await api.get('/agents/active');
+    return unwrap(response);
+  },
+
+  /** Every agent row (all roles, all active states) — callers filter down to the roster they need. */
+  async getAll() {
+    const response = await api.get('/agents');
     return unwrap(response);
   },
 };

@@ -24,7 +24,8 @@ public class AgentDTO {
     private LocalTime shiftEndTime;
     private Integer gracePeriodMinutes;
     private List<String> workingDays;
-    
+    private Boolean isActive;
+
     // Constructors
     public AgentDTO() {}
     
@@ -72,6 +73,7 @@ public class AgentDTO {
     public LocalTime getShiftEndTime() { return shiftEndTime; }
     public Integer getGracePeriodMinutes() { return gracePeriodMinutes; }
     public List<String> getWorkingDays() { return workingDays; }
+    public Boolean getIsActive() { return isActive; }
 
     // Setters
     public void setId(Long id) { this.id = id; }
@@ -90,4 +92,5 @@ public class AgentDTO {
     public void setShiftEndTime(LocalTime shiftEndTime) { this.shiftEndTime = shiftEndTime; }
     public void setGracePeriodMinutes(Integer gracePeriodMinutes) { this.gracePeriodMinutes = gracePeriodMinutes; }
     public void setWorkingDays(List<String> workingDays) { this.workingDays = workingDays; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 }
