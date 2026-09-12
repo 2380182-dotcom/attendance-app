@@ -45,6 +45,12 @@ public class SalesService {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    @Autowired
+    private CustomerShopService customerShopService;
+
+    @Autowired
+    private LmtSettingsService lmtSettingsService;
+
     @Value("${sales.max-quantity-limit:500}")
     private int maxQuantityLimit;
 
@@ -252,6 +258,157 @@ public class SalesService {
         broadcastSaleUpdate(saved);
 
         // 7. System notification logging
+        createSystemNotification(saved);
+
+        return saved;
+    }
+
+    /**
+     * Haversine distance in meters — deliberately a local copy rather than a
+     * shared util, matching this codebase's existing convention (Mart/
+     * CustomerShop repositories each have their own JPQL haversine query,
+     * and the mobile check-in/checkout screens each have their own inline
+     * copy too).
+     */
+    private double calculateDistanceMeters(double lat1, double lon1, double lat2, double lon2) {
+        final int earthRadiusKm = 6371;
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return earthRadiusKm * c * 1000;
+    }
+
+    /**
+     * LMT shop-visit submission (SALESMAN_LMT / ADMIN only, enforced at the
+     * controller). Distinct from addSalesWithImages/submitSalesEntry above —
+     * those two are the untouched legacy AGENT flow and this method never
+     * calls into them, by design (zero shared code path, zero regression
+     * risk to the 25 agents already using them daily).
+     *
+     * Shop resolved server-side by code — the mobile client's auto-fill is a
+     * UX convenience, never trusted as the source of truth. A real shop is
+     * mandatory for this endpoint (ShopVisitRequest.shopCode is @NotBlank)
+     * specifically so every SaleItem this method creates gets a real,
+     * non-sentinel customerShopId — the -1 sentinel on that column is
+     * reserved for the legacy flow (see SaleItem.customerShopId), and an
+     * LMT submission accidentally landing on it would collide with legacy
+     * rows under the widened V19 index.
+     */
+    public SalesRecord submitShopVisit(ShopVisitRequest request) {
+        Agent agent = agentService.getAgentById(request.getAgentId())
+                .orElseThrow(() -> new IllegalArgumentException("Agent not found with ID: " + request.getAgentId()));
+
+        CustomerShop shop = customerShopService.getByShopCode(request.getShopCode())
+                .orElseThrow(() -> new IllegalArgumentException("No customer shop registered with code: " + request.getShopCode()));
+        if (!Boolean.TRUE.equals(shop.getIsActive())) {
+            throw new IllegalArgumentException("Customer shop '" + request.getShopCode() + "' is not active.");
+        }
+
+        // Buffered hard-gate: only applies when the shop actually has a
+        // geofence configured. Distance is always recorded when it can be
+        // computed, whether or not the gate ends up blocking.
+        Double distance = null;
+        if (Boolean.TRUE.equals(shop.getGeoFencingEnabled())
+                && shop.getLatitude() != null && shop.getLongitude() != null && shop.getRadius() != null) {
+            distance = calculateDistanceMeters(request.getLatitude(), request.getLongitude(), shop.getLatitude(), shop.getLongitude());
+            double buffer = lmtSettingsService.getOrCreate().getGeofenceBufferMeters();
+            double allowedRadius = shop.getRadius() + buffer;
+            if (distance > allowedRadius) {
+                throw new IllegalArgumentException(String.format(
+                        "Too far from %s to record this visit: %.0fm away, allowed up to %.0fm (shop radius %.0fm + %.0fm buffer).",
+                        shop.getShopName(), distance, allowedRadius, shop.getRadius(), buffer));
+            }
+        }
+
+        LocalDate today = LocalDate.now();
+
+        // In-memory pre-check for a friendly error message — the widened
+        // V19 unique index (agent, product, date, shop, type) is the real,
+        // race-proof guard, same dual-layer pattern as addSalesWithImages.
+        List<SalesRecord> todayRecords = salesRecordRepository.findByAgentIdAndSaleDate(agent.getId(), today);
+        Set<String> existingKeys = todayRecords.stream()
+                .flatMap(sr -> sr.getItems().stream())
+                .map(item -> item.getProduct().getId() + ":" + item.getCustomerShopId() + ":" + item.getTransactionType())
+                .collect(Collectors.toSet());
+
+        double totalAmount = 0.0;
+        List<SaleItem> itemsToSave = new ArrayList<>();
+
+        for (ShopVisitItemRequest itemReq : request.getItems()) {
+            if (itemReq.getQuantity() > maxQuantityLimit) {
+                throw new IllegalArgumentException("Quantity for product ID " + itemReq.getProductId()
+                        + " exceeds maximum allowed limit of " + maxQuantityLimit);
+            }
+
+            TransactionType type;
+            try {
+                type = TransactionType.valueOf(itemReq.getTransactionType().trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("transactionType must be SALE, RETURN, or UNSOLD — got: " + itemReq.getTransactionType());
+            }
+
+            String key = itemReq.getProductId() + ":" + shop.getId() + ":" + type;
+            if (existingKeys.contains(key)) {
+                Product p = productRepository.findById(itemReq.getProductId()).orElse(null);
+                String pName = p != null ? p.getName() : String.valueOf(itemReq.getProductId());
+                throw new IllegalArgumentException("Duplicate entry: a " + type + " of '" + pName
+                        + "' for this shop has already been recorded today.");
+            }
+
+            Product product = productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
+
+            double itemTotal = product.getPrice() * itemReq.getQuantity();
+            // UNSOLD carries no revenue (it never left the shop); RETURN is
+            // tracked as a credit rather than folded into totalAmount, so
+            // that field keeps its existing meaning (SALE-line revenue only)
+            // for every report/export that already reads it.
+            if (type == TransactionType.SALE) {
+                totalAmount += itemTotal;
+            }
+
+            SaleItem item = new SaleItem();
+            item.setProduct(product);
+            item.setQuantity(itemReq.getQuantity());
+            item.setUnitPrice(product.getPrice());
+            item.setTotalPrice(itemTotal);
+            item.setProductImageUrl(product.getImageUrl());
+            item.setAgentId(agent.getId());
+            item.setSaleDate(today);
+            item.setCustomerShopId(shop.getId());
+            item.setTransactionType(type);
+            itemsToSave.add(item);
+        }
+
+        SalesRecord record = new SalesRecord();
+        record.setAgent(agent);
+        record.setCustomerShop(shop);
+        record.setDistanceFromShopMeters(distance);
+        record.setTotalAmount(totalAmount);
+        record.setSaleDate(today);
+        record.setSaleTime(LocalTime.now());
+        record.setLocation(shop.getShopName());
+        record.setCreatedAt(LocalDateTime.now());
+        record.setTotalUnits(itemsToSave.stream().mapToInt(SaleItem::getQuantity).sum());
+        record.setStatus("PENDING");
+
+        for (SaleItem item : itemsToSave) {
+            record.addItem(item);
+        }
+
+        SalesRecord saved;
+        try {
+            saved = salesRecordRepository.save(record);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("Duplicate entry: a product/transaction in this submission has already been recorded today for this shop.");
+        }
+
+        syncToSalesDepartment(saved);
+        syncToHRDepartment(saved);
+        broadcastSaleUpdate(saved);
         createSystemNotification(saved);
 
         return saved;
@@ -535,7 +692,7 @@ public class SalesService {
                 .map(this::convertToItemDTO)
                 .collect(Collectors.toList());
 
-        return new SalesDTO(
+        SalesDTO dto = new SalesDTO(
                 record.getId(),
                 record.getAgent().getId(),
                 record.getAgent().getName(),
@@ -549,10 +706,17 @@ public class SalesService {
                 record.getModifiedBy(),
                 record.getOverrideReason()
         );
+        if (record.getCustomerShop() != null) {
+            dto.setCustomerShopId(record.getCustomerShop().getId());
+            dto.setCustomerShopCode(record.getCustomerShop().getShopCode());
+            dto.setCustomerShopName(record.getCustomerShop().getShopName());
+        }
+        dto.setDistanceFromShopMeters(record.getDistanceFromShopMeters());
+        return dto;
     }
 
     private SaleItemDTO convertToItemDTO(SaleItem item) {
-        return new SaleItemDTO(
+        SaleItemDTO dto = new SaleItemDTO(
                 item.getProduct().getId(),
                 item.getProduct().getName(),
                 item.getQuantity(),
@@ -560,5 +724,7 @@ public class SalesService {
                 item.getTotalPrice(),
                 item.getProductImageUrl()
         );
+        dto.setTransactionType(item.getTransactionType() != null ? item.getTransactionType().name() : null);
+        return dto;
     }
 }

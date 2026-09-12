@@ -8,7 +8,8 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "sale_items", uniqueConstraints = {
-        @UniqueConstraint(name = "ux_sale_items_agent_product_date", columnNames = {"agent_id", "product_id", "sale_date"})
+        @UniqueConstraint(name = "ux_sale_items_agent_product_date_shop_type",
+                columnNames = {"agent_id", "product_id", "sale_date", "customer_shop_id", "transaction_type"})
 })
 @Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
 @EntityListeners(TenantEntityListener.class)
@@ -37,6 +38,26 @@ public class SaleItem implements TenantAware {
 
     @Column(name = "sale_date", nullable = false)
     private LocalDate saleDate;
+
+    // Denormalized from the parent SalesRecord for the same reason as
+    // agentId/saleDate above — the widened V19 unique index needs it on
+    // this table (no FK here, same as agentId — real referential integrity
+    // is enforced through the sales_record_id -> sales_records ->
+    // customer_shop_id chain instead). Defaults to -1 ("no shop") so the
+    // legacy /entry and /entry-with-images flow, which never sets this,
+    // keeps comparing equal to itself under the widened index exactly as
+    // it did under V17's narrower one — NULL would NOT do this (SQL never
+    // treats two NULLs as equal in a unique index), which is why this is a
+    // real sentinel rather than nullable + a NULL-tolerant index.
+    @Column(name = "customer_shop_id", nullable = false)
+    private Long customerShopId = -1L;
+
+    // Defaults to SALE so every row created by the untouched legacy flow
+    // keeps comparing equal to itself under the widened index, exactly as
+    // it did under V17's narrower one.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "transaction_type", nullable = false, length = 20)
+    private TransactionType transactionType = TransactionType.SALE;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")
@@ -73,6 +94,12 @@ public class SaleItem implements TenantAware {
 
     public LocalDate getSaleDate() { return saleDate; }
     public void setSaleDate(LocalDate saleDate) { this.saleDate = saleDate; }
+
+    public Long getCustomerShopId() { return customerShopId; }
+    public void setCustomerShopId(Long customerShopId) { this.customerShopId = customerShopId; }
+
+    public TransactionType getTransactionType() { return transactionType; }
+    public void setTransactionType(TransactionType transactionType) { this.transactionType = transactionType; }
 
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }

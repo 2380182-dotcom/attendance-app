@@ -29,6 +29,21 @@ public class SalesRecord implements TenantAware {
     @Column(name = "store_name")
     private String storeName;
 
+    // Header-level, real relation — one shop per visit. Null for every
+    // legacy /entry and /entry-with-images submission (they never set a
+    // shop); only the new /sales/shop-visit path populates this.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_shop_id")
+    private CustomerShop customerShop;
+
+    // Actual GPS distance from the shop's registered location at submission
+    // time, always recorded for shop-visit audit regardless of whether the
+    // buffered hard-gate allowed or blocked the submission. Null for the
+    // legacy flow and for any shop-visit submission where the shop has no
+    // geofence configured (nothing to measure against).
+    @Column(name = "distance_from_shop_meters")
+    private Double distanceFromShopMeters;
+
     @Column(name = "total_amount", nullable = false)
     private Double totalAmount;
 
@@ -88,6 +103,12 @@ public class SalesRecord implements TenantAware {
 
     public String getStoreName() { return storeName; }
     public void setStoreName(String storeName) { this.storeName = storeName; }
+
+    public CustomerShop getCustomerShop() { return customerShop; }
+    public void setCustomerShop(CustomerShop customerShop) { this.customerShop = customerShop; }
+
+    public Double getDistanceFromShopMeters() { return distanceFromShopMeters; }
+    public void setDistanceFromShopMeters(Double distanceFromShopMeters) { this.distanceFromShopMeters = distanceFromShopMeters; }
 
     public Double getTotalAmount() { return totalAmount; }
     public void setTotalAmount(Double totalAmount) { this.totalAmount = totalAmount; }

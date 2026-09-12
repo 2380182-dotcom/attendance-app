@@ -7,6 +7,7 @@ public class SaleItemDTO {
     private Double unitPrice;
     private Double totalPrice;
     private String productImageUrl;
+    private String transactionType;
 
     public SaleItemDTO() {}
 
@@ -37,4 +38,7 @@ public class SaleItemDTO {
 
     public String getProductImageUrl() { return productImageUrl; }
     public void setProductImageUrl(String productImageUrl) { this.productImageUrl = productImageUrl; }
+
+    public String getTransactionType() { return transactionType; }
+    public void setTransactionType(String transactionType) { this.transactionType = transactionType; }
 }

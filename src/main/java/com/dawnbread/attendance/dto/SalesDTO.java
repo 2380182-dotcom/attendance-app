@@ -18,6 +18,10 @@ public class SalesDTO {
     private LocalDateTime modifiedAt;
     private String modifiedBy;
     private String overrideReason;
+    private Long customerShopId;
+    private String customerShopCode;
+    private String customerShopName;
+    private Double distanceFromShopMeters;
 
     public SalesDTO() {}
 
@@ -72,4 +76,16 @@ public class SalesDTO {
 
     public String getOverrideReason() { return overrideReason; }
     public void setOverrideReason(String overrideReason) { this.overrideReason = overrideReason; }
+
+    public Long getCustomerShopId() { return customerShopId; }
+    public void setCustomerShopId(Long customerShopId) { this.customerShopId = customerShopId; }
+
+    public String getCustomerShopCode() { return customerShopCode; }
+    public void setCustomerShopCode(String customerShopCode) { this.customerShopCode = customerShopCode; }
+
+    public String getCustomerShopName() { return customerShopName; }
+    public void setCustomerShopName(String customerShopName) { this.customerShopName = customerShopName; }
+
+    public Double getDistanceFromShopMeters() { return distanceFromShopMeters; }
+    public void setDistanceFromShopMeters(Double distanceFromShopMeters) { this.distanceFromShopMeters = distanceFromShopMeters; }
 }

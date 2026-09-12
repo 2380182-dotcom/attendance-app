@@ -149,6 +149,34 @@ public class SalesController {
     }
 
     /**
+     * LMT shop-visit flow — SALESMAN_LMT submitting for themselves, or
+     * ADMIN on behalf of anyone. Deliberately NOT AccessControl.isSelfOrRole:
+     * that helper's "self" branch matches on id alone regardless of role,
+     * which would let a plain AGENT whose id happened to match the request
+     * through — this needs the caller to actually hold the SALESMAN_LMT
+     * role, not just be the named agent.
+     */
+    @PostMapping("/shop-visit")
+    public ResponseEntity<ApiResponse<SalesDTO>> submitShopVisit(@Valid @RequestBody ShopVisitRequest request) {
+        String callerRole = AccessControl.callerRole(this.request);
+        Long callerId = AccessControl.callerId(this.request);
+        boolean isAdmin = "ADMIN".equals(callerRole);
+        boolean isSelfSalesman = "SALESMAN_LMT".equals(callerRole)
+                && callerId != null && callerId.equals(request.getAgentId());
+        if (!isAdmin && !isSelfSalesman) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only a SALESMAN_LMT (for themselves) or an ADMIN can record a shop visit."));
+        }
+        try {
+            SalesRecord record = salesService.submitShopVisit(request);
+            SalesDTO dto = salesService.convertToDTO(record);
+            return ResponseEntity.ok(ApiResponse.success("Shop visit recorded successfully", dto));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    /**
      * Self-or-management. Confirmed via DashboardScreen (agent): always
      * called with the logged-in agent's own id. No management screen
      * currently calls this for a picked agent (SalesAgentReportScreen uses
