@@ -1,0 +1,13 @@
+-- Finding 03 (security audit): two concurrent check-in requests for the same
+-- agent could both pass the "am I already checked in" read before either
+-- commits its insert, leaving two open (check_out_time IS NULL) attendance
+-- rows for one agent. findOpenAttendanceByAgentId() returns a single
+-- Optional, so a second open row makes every subsequent checkout/verify
+-- call for that agent throw IncorrectResultSizeDataAccessException.
+--
+-- A partial unique index enforces "at most one open row per agent" at the
+-- database level, closing the race regardless of how many concurrent
+-- requests land. Confirmed via a read-only check against production first:
+-- zero agents currently have more than one open attendance row, so this
+-- applies cleanly.
+CREATE UNIQUE INDEX ux_attendance_agent_open ON attendance (agent_id) WHERE check_out_time IS NULL;

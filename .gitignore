@@ -63,3 +63,11 @@ mobile/android/app/debug.keystore
 .DS_Store
 Thumbs.db
 *.sql
+# ...except Flyway migrations, which must always be committed. This blanket
+# *.sql rule (meant for ad-hoc local dump/scratch files) silently excluded
+# V16 and V17 from git entirely — they were applied directly to the live
+# database but the files themselves were never pushed, which is exactly
+# what caused a fresh deploy to fail Flyway validation ("Detected applied
+# migration not resolved locally"). V18/V19 were caught and force-added
+# before that happened to them; V16/V17 were not so lucky.
+!src/main/resources/db/migration/*.sql
