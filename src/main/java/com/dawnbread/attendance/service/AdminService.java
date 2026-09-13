@@ -161,6 +161,16 @@ public class AdminService {
         if (dto.getFaceVerificationTimes() != null) {
             agent.setFaceVerificationTimes(dto.getFaceVerificationTimes());
         }
+        // SALESMAN_LMT verifies face once at start-of-shift check-in only —
+        // overrides the generic defaults above the same way AgentService's
+        // createAgent does, so both creation paths agree regardless of
+        // which one a given caller actually hits. Every other role's
+        // defaults above are unchanged.
+        if ("SALESMAN_LMT".equals(agent.getRole())) {
+            agent.setFaceVerifyOnCheckIn(true);
+            agent.setFaceVerificationFrequency(0);
+            agent.setFaceVerifyAnytime(false);
+        }
         agent.setShiftStartTime(dto.getShiftStartTime() != null ? dto.getShiftStartTime() : LocalTime.of(9, 0));
         agent.setShiftEndTime(dto.getShiftEndTime() != null ? dto.getShiftEndTime() : LocalTime.of(17, 0));
         agent.setGracePeriodMinutes(dto.getGracePeriodMinutes() != null ? dto.getGracePeriodMinutes() : 15);

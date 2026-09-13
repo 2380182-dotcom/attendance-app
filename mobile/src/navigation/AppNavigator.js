@@ -19,6 +19,10 @@ import CheckoutScreen from '../screens/agent/CheckoutScreen';
 import FaceEnrollmentScreen from '../screens/agent/FaceEnrollmentScreen';
 import SalesEntryScreen from '../screens/agent/SalesEntryScreen';
 
+// LMT (Salesman) Screens
+import LmtHomeScreen from '../screens/lmt/LmtHomeScreen';
+import ShopLookupScreen from '../screens/lmt/ShopLookupScreen';
+
 // Sales Screens
 import SalesDashboardScreen from '../screens/sales/SalesDashboardScreen';
 import SalesReportScreen from '../screens/sales/SalesReportScreen';
@@ -155,40 +159,89 @@ export default function AppNavigator() {
             />
           )}
 
-          {role !== 'SALES' && role !== 'HR' && role !== 'ADMIN' && (
+          {role === 'SALESMAN_LMT' && (
             <>
-              <Stack.Screen 
-                name="Dashboard" 
-                component={AgentDashboardScreen} 
-                options={{ title: 'Agent Dashboard' }} 
+              {/*
+                Sub-stage 3: LmtHome is now the landing screen (first screen
+                registered = React Navigation's default initial route),
+                replacing ShopLookup from sub-stage 2 — its own "Look Up a
+                Shop" button (shown once checked in) leads there instead.
+                AgentDashboardScreen is still deliberately excluded (its
+                hardcoded "Dawn Bread Sales" button targets 'SalesEntry',
+                which this role's stack doesn't register).
+              */}
+              <Stack.Screen
+                name="LmtHome"
+                component={LmtHomeScreen}
+                options={{ title: 'Dawn Bread — LMT' }}
               />
-              <Stack.Screen 
-                name="FaceEnrollment" 
-                component={FaceEnrollmentScreen} 
-                options={{ title: 'Face Enrollment', headerLeft: null }} 
+              <Stack.Screen
+                name="ShopLookup"
+                component={ShopLookupScreen}
+                options={{ title: 'Shop Lookup' }}
               />
-              <Stack.Screen 
-                name="Checkin" 
-                component={CheckinScreen} 
-                options={{ title: 'Mart Check-In' }} 
+              <Stack.Screen
+                name="Checkin"
+                component={CheckinScreen}
+                options={{ title: 'Mart Check-In' }}
               />
-              <Stack.Screen 
-                name="Checkout" 
-                component={CheckoutScreen} 
-                options={{ title: 'Mart Check-Out' }} 
+              <Stack.Screen
+                name="Checkout"
+                component={CheckoutScreen}
+                options={{ title: 'Mart Check-Out' }}
               />
-              <Stack.Screen 
-                name="History" 
-                component={AgentHistoryScreen} 
-                options={{ title: 'My Attendance History' }} 
+              <Stack.Screen
+                name="FaceEnrollment"
+                component={FaceEnrollmentScreen}
+                options={{ title: 'Face Enrollment', headerLeft: null }}
               />
-              <Stack.Screen 
-                name="Profile" 
-                component={AgentProfileScreen} 
-                options={{ title: 'Agent Profile' }} 
+              <Stack.Screen
+                name="History"
+                component={AgentHistoryScreen}
+                options={{ title: 'My Attendance History' }}
               />
-              <Stack.Screen 
-                name="SalesEntry" 
+              <Stack.Screen
+                name="Profile"
+                component={AgentProfileScreen}
+                options={{ title: 'Agent Profile' }}
+              />
+            </>
+          )}
+
+          {role !== 'SALES' && role !== 'HR' && role !== 'ADMIN' && role !== 'SALESMAN_LMT' && (
+            <>
+              <Stack.Screen
+                name="Dashboard"
+                component={AgentDashboardScreen}
+                options={{ title: 'Agent Dashboard' }}
+              />
+              <Stack.Screen
+                name="FaceEnrollment"
+                component={FaceEnrollmentScreen}
+                options={{ title: 'Face Enrollment', headerLeft: null }}
+              />
+              <Stack.Screen
+                name="Checkin"
+                component={CheckinScreen}
+                options={{ title: 'Mart Check-In' }}
+              />
+              <Stack.Screen
+                name="Checkout"
+                component={CheckoutScreen}
+                options={{ title: 'Mart Check-Out' }}
+              />
+              <Stack.Screen
+                name="History"
+                component={AgentHistoryScreen}
+                options={{ title: 'My Attendance History' }}
+              />
+              <Stack.Screen
+                name="Profile"
+                component={AgentProfileScreen}
+                options={{ title: 'Agent Profile' }}
+              />
+              <Stack.Screen
+                name="SalesEntry"
                 component={SalesEntryScreen} 
                 options={{ title: 'Enter Sales - Dawn Bread' }} 
               />

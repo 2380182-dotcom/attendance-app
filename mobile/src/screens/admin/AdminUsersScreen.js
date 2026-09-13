@@ -414,6 +414,7 @@ export default function AdminUsersScreen() {
                   placeholder={{}}
                   items={[
                     { label: 'Agent', value: 'AGENT' },
+                    { label: 'Salesman (LMT)', value: 'SALESMAN_LMT' },
                     { label: 'Sales Feed Viewer', value: 'SALES' },
                     { label: 'HR Manager', value: 'HR' },
                     { label: 'Administrator', value: 'ADMIN' }
@@ -582,6 +583,7 @@ export default function AdminUsersScreen() {
                   placeholder={{}}
                   items={[
                     { label: 'Agent', value: 'AGENT' },
+                    { label: 'Salesman (LMT)', value: 'SALESMAN_LMT' },
                     { label: 'Sales Feed Viewer', value: 'SALES' },
                     { label: 'HR Manager', value: 'HR' },
                     { label: 'Administrator', value: 'ADMIN' }

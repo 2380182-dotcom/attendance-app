@@ -550,6 +550,17 @@ export const apiService = {
         return handleApiError(error);
       }
     }
+  },
+  lmt: {
+    /** Server-side lookup by shop code — the client never trusts a locally-entered name/NTN/etc. as source of truth. */
+    async getShopByCode(shopCode) {
+      try {
+        const response = await api.get(`/lmt/customer-shops/code/${encodeURIComponent(shopCode)}`);
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    }
   }
 };
 

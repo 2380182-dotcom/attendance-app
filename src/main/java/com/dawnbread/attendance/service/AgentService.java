@@ -98,6 +98,18 @@ public class AgentService {
         agent.setPassword(dto.getPassword());
         agent.setRole(dto.getRole() != null ? dto.getRole() : "AGENT");
         agent.setDepartment(dto.getDepartment());
+        // SALESMAN_LMT verifies face once at start-of-shift check-in only —
+        // frequency=0 disables the mid-shift re-verification schedule
+        // entirely (see FaceVerificationService.checkVerificationRequired),
+        // faceVerifyAnytime=false stops it being forced independent of that
+        // schedule. Regular AGENT creation is untouched — these three
+        // fields keep the Agent entity's own defaults (checkIn=true,
+        // frequency=2) for every other role.
+        if ("SALESMAN_LMT".equals(agent.getRole())) {
+            agent.setFaceVerifyOnCheckIn(true);
+            agent.setFaceVerificationFrequency(0);
+            agent.setFaceVerifyAnytime(false);
+        }
         if (dto.getIsActive() != null) {
             agent.setIsActive(dto.getIsActive());
         }

@@ -10,12 +10,14 @@ export const AuthProvider = ({ children }) => {
   const [userToken, setUserToken] = useState(null);
   const [user, setUser] = useState(null);
 
-  // Location tracking is mandatory for AGENT accounts (it's how attendance is verified) —
-  // there is no agent-facing opt-out. Requested/started automatically as part of using the
-  // app, not as an in-app toggle. Fire-and-forget: actual enforcement happens at check-in/out
-  // time (LocationService.getPermissionStatus() gate), so this doesn't need to block login UX.
+  // Location tracking is mandatory for AGENT and SALESMAN_LMT accounts (it's
+  // how attendance/geofencing is verified for both) — there is no
+  // agent-facing opt-out. Requested/started automatically as part of using
+  // the app, not as an in-app toggle. Fire-and-forget: actual enforcement
+  // happens at check-in/out (and, for SALESMAN_LMT, shop-visit) time via
+  // each flow's own permission gate, so this doesn't need to block login UX.
   const ensureLocationTracking = (userData) => {
-    if (!userData || userData.role !== 'AGENT') return;
+    if (!userData || (userData.role !== 'AGENT' && userData.role !== 'SALESMAN_LMT')) return;
     (async () => {
       try {
         const permission = await LocationService.requestPermissions();
