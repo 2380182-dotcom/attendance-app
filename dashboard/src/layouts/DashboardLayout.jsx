@@ -42,8 +42,8 @@ export default function DashboardLayout({ title, navItems }) {
       >
         <Toolbar />
         <List>
-          {navItems.map((item) => (
-            <ListItemButton key={item.path} component={NavLink} to={item.path} end={item.path === '/hr' || item.path === '/sales'}>
+          {navItems.map((item, index) => (
+            <ListItemButton key={item.path} component={NavLink} to={item.path} end={index === 0}>
               <ListItemText primary={item.label} />
             </ListItemButton>
           ))}

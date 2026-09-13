@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Box, Paper, TextField, Button, Typography, Alert } from '@mui/material';
 import { AuthContext } from '../context/AuthContext';
 
-const ROLE_HOME = { HR: '/hr', SALES: '/sales' };
+// ADMIN was missing here entirely — an admin logging in successfully was
+// silently bounced straight back to /login (ROLE_HOME[role] undefined),
+// with no dashboard reachable except by typing a URL directly. Found while
+// building the /admin section, which is the first part of this dashboard
+// ADMIN actually needs a home in.
+const ROLE_HOME = { HR: '/hr', SALES: '/sales', ADMIN: '/admin' };
 
 export default function LoginPage() {
   const { login } = useContext(AuthContext);
