@@ -194,36 +194,45 @@ public class SalesController {
 
     // Company-wide reports — management-only. Confirmed used by
     // SalesReportScreen (Sales role screen), never by a bare agent.
+    //
+    // Phase D: optional `role` param (AGENT or SALESMAN_LMT) scopes the
+    // report to just that role — the Agent-vs-LMT dashboard split. Omitted,
+    // these behave byte-for-byte as before (SalesService's role-aware
+    // overloads delegate straight to the original unfiltered method when
+    // role is null), so every existing caller is unaffected.
     @GetMapping("/daily-report")
     public ResponseEntity<ApiResponse<ReportDTO>> getDailyReport(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String role) {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
         LocalDate target = date != null ? date : LocalDate.now();
-        ReportDTO report = salesService.generateDailyReport(target);
+        ReportDTO report = salesService.generateDailyReport(target, role);
         return ResponseEntity.ok(ApiResponse.success("Daily sales report generated", report));
     }
 
     @GetMapping("/weekly-report")
     public ResponseEntity<ApiResponse<ReportDTO>> getWeeklyReport(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String role) {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
         LocalDate target = date != null ? date : LocalDate.now();
-        ReportDTO report = salesService.generateWeeklyReport(target);
+        ReportDTO report = salesService.generateWeeklyReport(target, role);
         return ResponseEntity.ok(ApiResponse.success("Weekly sales report generated", report));
     }
 
     @GetMapping("/monthly-report")
     public ResponseEntity<ApiResponse<ReportDTO>> getMonthlyReport(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String role) {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
         LocalDate target = date != null ? date : LocalDate.now();
-        ReportDTO report = salesService.generateMonthlyReport(target);
+        ReportDTO report = salesService.generateMonthlyReport(target, role);
         return ResponseEntity.ok(ApiResponse.success("Monthly sales report generated", report));
     }
 
@@ -323,20 +332,23 @@ public class SalesController {
     // needed here.
     @GetMapping("/reports/daily")
     public ResponseEntity<ApiResponse<ReportDTO>> getReportsDaily(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return getDailyReport(date);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String role) {
+        return getDailyReport(date, role);
     }
 
     @GetMapping("/reports/weekly")
     public ResponseEntity<ApiResponse<ReportDTO>> getReportsWeekly(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return getWeeklyReport(date);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String role) {
+        return getWeeklyReport(date, role);
     }
 
     @GetMapping("/reports/monthly")
     public ResponseEntity<ApiResponse<ReportDTO>> getReportsMonthly(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return getMonthlyReport(date);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String role) {
+        return getMonthlyReport(date, role);
     }
 
     // Does NOT delegate to an already-gated sibling — needs its own check.

@@ -566,6 +566,59 @@ public class SalesService {
     }
 
     /**
+     * Phase D: same daily report, scoped to one role (AGENT or
+     * SALESMAN_LMT) — the Agent-vs-LMT dashboard split. A null role
+     * delegates straight to the unfiltered generateDailyReport(date) above,
+     * so this is purely additive: no existing caller's behavior changes.
+     */
+    public ReportDTO generateDailyReport(LocalDate date, String role) {
+        if (role == null) {
+            return generateDailyReport(date);
+        }
+        List<SalesRecord> records = salesRecordRepository.findBySaleDateAndAgentRole(date, role);
+        double totalRevenue = records.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
+        int totalUnits = records.stream()
+                .flatMap(r -> r.getItems().stream())
+                .mapToInt(SaleItem::getQuantity).sum();
+
+        Set<Long> uniqueAgents = records.stream().map(r -> r.getAgent().getId()).collect(Collectors.toSet());
+
+        List<ReportDTO.AgentReportSummary> agentSummaries = records.stream()
+                .collect(Collectors.groupingBy(SalesRecord::getAgent))
+                .entrySet().stream()
+                .map(entry -> {
+                    Agent agent = entry.getKey();
+                    List<SalesRecord> agentRecords = entry.getValue();
+                    double agentRevenue = agentRecords.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
+                    int agentUnits = agentRecords.stream()
+                            .flatMap(r -> r.getItems().stream())
+                            .mapToInt(SaleItem::getQuantity).sum();
+
+                    List<SaleItemDTO> itemDTOs = agentRecords.stream()
+                            .flatMap(r -> r.getItems().stream())
+                            .map(this::convertToItemDTO)
+                            .collect(Collectors.toList());
+
+                    return new ReportDTO.AgentReportSummary(agent.getName(), agent.getAgentId(), agentRevenue, agentUnits, itemDTOs);
+                }).collect(Collectors.toList());
+
+        List<ReportDTO.ProductPerformanceDetail> productPerformance = getProductPerformanceForRecords(records);
+
+        return new ReportDTO(
+                "DAWN BREAD - DAILY SALES REPORT (" + role + ")",
+                date.toString(),
+                LocalDateTime.now(),
+                "System Admin",
+                totalRevenue,
+                totalUnits,
+                uniqueAgents.size(),
+                agentSummaries,
+                productPerformance,
+                new ArrayList<>()
+        );
+    }
+
+    /**
      * Generate Weekly Report (Last 7 Days)
      */
     public ReportDTO generateWeeklyReport(LocalDate date) {
@@ -579,6 +632,36 @@ public class SalesService {
 
         return new ReportDTO(
                 "DAWN BREAD - WEEKLY SALES SUMMARY",
+                start.toString() + " to " + date.toString(),
+                LocalDateTime.now(),
+                "System Admin",
+                totalRevenue,
+                totalUnits,
+                uniqueAgents.size(),
+                new ArrayList<>(),
+                productPerformance,
+                new ArrayList<>()
+        );
+    }
+
+    /**
+     * Phase D: same weekly report, scoped to one role. Null role delegates
+     * to the unfiltered generateWeeklyReport(date) above — purely additive.
+     */
+    public ReportDTO generateWeeklyReport(LocalDate date, String role) {
+        if (role == null) {
+            return generateWeeklyReport(date);
+        }
+        LocalDate start = date.minusDays(6);
+        List<SalesRecord> records = salesRecordRepository.findBySaleDateBetweenAndAgentRole(start, date, role);
+        double totalRevenue = records.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
+        int totalUnits = records.stream().flatMap(r -> r.getItems().stream()).mapToInt(SaleItem::getQuantity).sum();
+        Set<Long> uniqueAgents = records.stream().map(r -> r.getAgent().getId()).collect(Collectors.toSet());
+
+        List<ReportDTO.ProductPerformanceDetail> productPerformance = getProductPerformanceForRecords(records);
+
+        return new ReportDTO(
+                "DAWN BREAD - WEEKLY SALES SUMMARY (" + role + ")",
                 start.toString() + " to " + date.toString(),
                 LocalDateTime.now(),
                 "System Admin",
@@ -606,6 +689,38 @@ public class SalesService {
 
         return new ReportDTO(
                 "DAWN BREAD - MONTHLY SALES REPORT",
+                start.toString() + " to " + end.toString(),
+                LocalDateTime.now(),
+                "System Admin",
+                totalRevenue,
+                totalUnits,
+                uniqueAgents.size(),
+                new ArrayList<>(),
+                productPerformance,
+                new ArrayList<>()
+        );
+    }
+
+    /**
+     * Phase D: same monthly report, scoped to one role. Null role
+     * delegates to the unfiltered generateMonthlyReport(date) above —
+     * purely additive.
+     */
+    public ReportDTO generateMonthlyReport(LocalDate date, String role) {
+        if (role == null) {
+            return generateMonthlyReport(date);
+        }
+        LocalDate start = date.withDayOfMonth(1);
+        LocalDate end = date.withDayOfMonth(date.lengthOfMonth());
+        List<SalesRecord> records = salesRecordRepository.findBySaleDateBetweenAndAgentRole(start, end, role);
+        double totalRevenue = records.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
+        int totalUnits = records.stream().flatMap(r -> r.getItems().stream()).mapToInt(SaleItem::getQuantity).sum();
+        Set<Long> uniqueAgents = records.stream().map(r -> r.getAgent().getId()).collect(Collectors.toSet());
+
+        List<ReportDTO.ProductPerformanceDetail> productPerformance = getProductPerformanceForRecords(records);
+
+        return new ReportDTO(
+                "DAWN BREAD - MONTHLY SALES REPORT (" + role + ")",
                 start.toString() + " to " + end.toString(),
                 LocalDateTime.now(),
                 "System Admin",

@@ -35,4 +35,18 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
 
     @Query("SELECT sr FROM SalesRecord sr JOIN sr.agent a WHERE a.department = :department ORDER BY sr.saleDate DESC")
     List<SalesRecord> findByAgentDepartment(@Param("department") String department);
+
+    /**
+     * Phase D: the Agent-vs-LMT report split. a.role is the authoritative
+     * discriminator (not sale_items.customer_shop_id's -1 sentinel, which
+     * is an implementation artifact of the shop-visit flow, not the actual
+     * business fact of who made the sale) — see SalesService.
+     */
+    @Query("SELECT sr FROM SalesRecord sr JOIN sr.agent a WHERE sr.saleDate = :date AND a.role = :role")
+    List<SalesRecord> findBySaleDateAndAgentRole(@Param("date") LocalDate date, @Param("role") String role);
+
+    @Query("SELECT sr FROM SalesRecord sr JOIN sr.agent a WHERE sr.saleDate BETWEEN :start AND :end AND a.role = :role")
+    List<SalesRecord> findBySaleDateBetweenAndAgentRole(@Param("start") LocalDate start,
+                                                         @Param("end") LocalDate end,
+                                                         @Param("role") String role);
 }
