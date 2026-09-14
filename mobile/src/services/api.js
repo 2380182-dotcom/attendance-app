@@ -604,6 +604,18 @@ export const apiService = {
       } catch (error) {
         return handleApiError(error);
       }
+    },
+    /**
+     * reconcileRequest: { agentId, items: [{ productId, returnedQty, unsoldQty }] }.
+     * Sold/Missing are computed server-side — never sent from here.
+     */
+    async submitReconciliation(reconcileRequest) {
+      try {
+        const response = await api.post('/lmt/stock/reconcile', reconcileRequest);
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
     }
   }
 };

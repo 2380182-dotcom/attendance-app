@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, RefreshControl, Text, View } from 'react-native';
+import { SafeAreaView, ScrollView, RefreshControl, Text, View, Alert } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../../context/AuthContext';
 import { apiService } from '../../services/api';
@@ -78,6 +78,25 @@ export default function LmtHomeScreen({ navigation }) {
     fetchTodayStock();
   };
 
+  // PROMPT, not require — an LMT can always end duty without reconciling;
+  // it just stays OPEN and shows up flagged in the Sales Department's
+  // report. Only prompted when there's something to reconcile at all
+  // (todayStock exists) and it hasn't been done yet (still OPEN).
+  const handleEndDuty = () => {
+    if (todayStock && todayStock.status === 'OPEN') {
+      Alert.alert(
+        'Reconcile Before Ending Duty?',
+        'Enter tonight\'s Returned and Unsold quantities now, or skip and do it later.',
+        [
+          { text: 'Skip & End Duty', onPress: () => navigation.navigate('Checkout'), style: 'cancel' },
+          { text: 'Reconcile Now', onPress: () => navigation.navigate('NightReconciliation') },
+        ]
+      );
+    } else {
+      navigation.navigate('Checkout');
+    }
+  };
+
   if (loading) {
     return <Loading message="Loading status..." fullScreen />;
   }
@@ -139,7 +158,7 @@ export default function LmtHomeScreen({ navigation }) {
           <>
             <AppButton
               title="End Duty"
-              onPress={() => navigation.navigate('Checkout')}
+              onPress={handleEndDuty}
               variant="danger"
               icon="logout"
               style={{ marginTop: 16, marginBottom: 8 }}

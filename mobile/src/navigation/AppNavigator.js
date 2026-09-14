@@ -24,6 +24,7 @@ import LmtHomeScreen from '../screens/lmt/LmtHomeScreen';
 import ShopLookupScreen from '../screens/lmt/ShopLookupScreen';
 import RecordVisitScreen from '../screens/lmt/RecordVisitScreen';
 import MorningStockEntryScreen from '../screens/lmt/MorningStockEntryScreen';
+import NightReconciliationScreen from '../screens/lmt/NightReconciliationScreen';
 
 // Sales Screens
 import SalesDashboardScreen from '../screens/sales/SalesDashboardScreen';
@@ -191,6 +192,11 @@ export default function AppNavigator() {
                 name="MorningStockEntry"
                 component={MorningStockEntryScreen}
                 options={{ title: 'Today\'s Stock' }}
+              />
+              <Stack.Screen
+                name="NightReconciliation"
+                component={NightReconciliationScreen}
+                options={{ title: 'Reconcile Stock' }}
               />
               <Stack.Screen
                 name="Checkin"
