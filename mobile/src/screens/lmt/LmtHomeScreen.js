@@ -165,7 +165,7 @@ export default function LmtHomeScreen({ navigation }) {
             />
             <AppButton
               title="Look Up a Shop"
-              onPress={() => navigation.navigate('ShopLookup')}
+              onPress={() => navigation.navigate('NearbyShops')}
               variant="primary"
               icon="storefront"
               style={{ marginBottom: 8 }}

@@ -584,6 +584,21 @@ export const apiService = {
       }
     },
     /**
+     * Active shops within shop.radius + the admin geofence buffer of the
+     * given GPS, nearest-first, each with a distanceMeters field — the
+     * server's own real gate at submit time (SalesService.submitShopVisit)
+     * uses the same radius+buffer formula, so a shop returned here is
+     * guaranteed to also pass that gate.
+     */
+    async getNearbyShops(latitude, longitude) {
+      try {
+        const response = await api.get('/lmt/customer-shops/nearby', { params: { latitude, longitude } });
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
+    /**
      * Today's LmtDailyStock (Phase C), or null if none has been entered
      * yet — the backend returns success:true with data:null in that case
      * (not a 404), so this resolves to null rather than throwing.

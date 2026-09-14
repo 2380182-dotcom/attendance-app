@@ -21,6 +21,7 @@ import SalesEntryScreen from '../screens/agent/SalesEntryScreen';
 
 // LMT (Salesman) Screens
 import LmtHomeScreen from '../screens/lmt/LmtHomeScreen';
+import NearbyShopsScreen from '../screens/lmt/NearbyShopsScreen';
 import ShopLookupScreen from '../screens/lmt/ShopLookupScreen';
 import RecordVisitScreen from '../screens/lmt/RecordVisitScreen';
 import MorningStockEntryScreen from '../screens/lmt/MorningStockEntryScreen';
@@ -178,6 +179,18 @@ export default function AppNavigator() {
                 component={LmtHomeScreen}
                 options={{ title: 'Dawn Bread — LMT' }}
               />
+              <Stack.Screen
+                name="NearbyShops"
+                component={NearbyShopsScreen}
+                options={{ title: 'Nearby Shops' }}
+              />
+              {/*
+                Fallback only — LmtHome no longer links here directly
+                (NearbyShops is the primary entry point, D3). Still needed
+                for shops without geofencing configured, which can never
+                appear in the nearby list, and reached via NearbyShops'
+                "Enter Shop Code Manually" link.
+              */}
               <Stack.Screen
                 name="ShopLookup"
                 component={ShopLookupScreen}
