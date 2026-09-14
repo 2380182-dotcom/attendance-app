@@ -52,6 +52,12 @@ public class SalesService {
     @Autowired
     private LmtSettingsService lmtSettingsService;
 
+    // Read-only use in submitShopVisit's company check-in gate — never
+    // written here. AttendanceController/AttendanceService (check-in/
+    // check-out themselves) are untouched by this class entirely.
+    @Autowired
+    private AttendanceRepository attendanceRepository;
+
     @Value("${sales.max-quantity-limit:500}")
     private int maxQuantityLimit;
 
@@ -283,6 +289,22 @@ public class SalesService {
     public SalesRecord submitShopVisit(ShopVisitRequest request) {
         Agent agent = agentService.getAgentById(request.getAgentId())
                 .orElseThrow(() -> new IllegalArgumentException("Agent not found with ID: " + request.getAgentId()));
+
+        // Company check-in gate: the LMT must currently be checked in
+        // (open attendance, no checkout yet — same "on duty" semantics
+        // LmtHomeScreen's own status banner already relies on) at a mart
+        // whose type is COMPANY. Checking out mid-day and trying to sell
+        // again without re-checking-in at a COMPANY mart is correctly
+        // blocked here — that open-attendance row is simply gone the
+        // moment checkout happens. Read-only: this never writes to
+        // Attendance and never touches AttendanceService/Controller, so
+        // regular Agent check-in/checkout behavior is completely
+        // unaffected by this method existing.
+        Attendance openAttendance = attendanceRepository.findOpenAttendanceByAgentId(agent.getId()).orElse(null);
+        if (openAttendance == null || openAttendance.getMart() == null
+                || openAttendance.getMart().getMartType() != MartType.COMPANY) {
+            throw new IllegalArgumentException("You must check in at the company before recording sales.");
+        }
 
         CustomerShop shop = customerShopService.getByShopCode(request.getShopCode())
                 .orElseThrow(() -> new IllegalArgumentException("No customer shop registered with code: " + request.getShopCode()));

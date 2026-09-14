@@ -66,12 +66,46 @@ class ShopVisitTest {
     @Autowired
     private TenantRepository tenantRepository;
 
+    @Autowired
+    private AttendanceRepository attendanceRepository;
+
+    @Autowired
+    private MartRepository martRepository;
+
     private String url(String path) {
         return "http://localhost:" + port + path;
     }
 
     private Long tenantId() {
         return TenantTestHelper.defaultTenantId(tenantRepository);
+    }
+
+    /**
+     * D2's company check-in gate: submitShopVisit now requires the agent to
+     * have an open Attendance at a COMPANY-type mart. Every pre-existing
+     * "must succeed" scenario in this file needs this seeded first — it
+     * predates D2 and previously had no attendance state at all.
+     */
+    private void seedCompanyCheckIn(Agent agent) {
+        Mart companyMart = new Mart();
+        companyMart.setTenantId(tenantId());
+        companyMart.setName("Company Depot " + System.nanoTime());
+        companyMart.setLatitude(0.0);
+        companyMart.setLongitude(0.0);
+        companyMart.setRadius(100.0);
+        companyMart.setGeoFencingEnabled(true);
+        companyMart.setIsActive(true);
+        companyMart.setMartType(MartType.COMPANY);
+        companyMart.setCreatedAt(LocalDateTime.now());
+        companyMart = martRepository.save(companyMart);
+
+        Attendance attendance = new Attendance();
+        attendance.setTenantId(tenantId());
+        attendance.setAgent(agent);
+        attendance.setMart(companyMart);
+        attendance.setCheckInTime(LocalDateTime.now());
+        attendance.setStatus("IN");
+        attendanceRepository.save(attendance);
     }
 
     private Agent seedAgent(String agentId, String role) {
@@ -151,6 +185,7 @@ class ShopVisitTest {
         Agent otherAgent = seedAgent("SV_SALESMAN_2", "SALESMAN_LMT");
         Product product = seedProduct();
         CustomerShop shop = seedShop("SV-SHOP-SELF", null, null, null, false); // no geofence configured, gate skipped
+        seedCompanyCheckIn(salesman);
 
         String salesmanToken = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
 
@@ -173,6 +208,7 @@ class ShopVisitTest {
         Agent regularAgent = seedAgent("SV_AGENT_1", "AGENT");
         Product product = seedProduct();
         CustomerShop shop = seedShop("SV-SHOP-ADMIN", null, null, null, false);
+        seedCompanyCheckIn(salesman);
 
         String adminToken = tokenProvider.generateToken(999L, "SV_ADMIN", "ADMIN");
         Map<String, Object> adminBody = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0,
@@ -224,6 +260,7 @@ class ShopVisitTest {
         Product product = seedProduct();
         // Shop at (0,0), 100m radius. Default buffer is 50m (Stage 1 seed), so up to ~150m should pass.
         CustomerShop shop = seedShop("SV-SHOP-GEOFENCE", 0.0, 0.0, 100.0, true);
+        seedCompanyCheckIn(salesman);
         String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
 
         // ~0m away — well within radius+buffer.
@@ -256,6 +293,7 @@ class ShopVisitTest {
         Product product = seedProduct();
         // Same coordinates as the "far" case above, but geofencing disabled on this shop.
         CustomerShop shop = seedShop("SV-SHOP-NOGATE", 0.0, 0.0, 100.0, false);
+        seedCompanyCheckIn(salesman);
         String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
 
         Map<String, Object> farBody = shopVisitBody(salesman.getId(), shop.getShopCode(), 0.0, 1.0,
@@ -274,6 +312,7 @@ class ShopVisitTest {
         Product returnProduct = seedProduct();
         Product unsoldProduct = seedProduct();
         CustomerShop shop = seedShop("SV-SHOP-MIXED", null, null, null, false);
+        seedCompanyCheckIn(salesman);
         String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
 
         Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0, List.of(
@@ -306,6 +345,7 @@ class ShopVisitTest {
         Product product = seedProduct();
         CustomerShop shopA = seedShop("SV-SHOP-A", null, null, null, false);
         CustomerShop shopB = seedShop("SV-SHOP-B", null, null, null, false);
+        seedCompanyCheckIn(salesman);
         String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
 
         Map<String, Object> bodyA = shopVisitBody(salesman.getId(), shopA.getShopCode(), 0, 0, List.of(item(product.getId(), 4, "SALE")));
@@ -327,6 +367,7 @@ class ShopVisitTest {
         Agent salesman = seedAgent("SV_SALESMAN_9", "SALESMAN_LMT");
         Product product = seedProduct();
         CustomerShop shop = seedShop("SV-SHOP-DUP", null, null, null, false);
+        seedCompanyCheckIn(salesman);
         String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
 
         Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0, List.of(item(product.getId(), 4, "SALE")));
@@ -338,6 +379,86 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
         assertEquals(HttpStatus.BAD_REQUEST, second.getStatusCode(),
                 "Same agent+product+shop+type+day must still be rejected as a duplicate");
+    }
+
+    // ===== D2: LMT company check-in gate =====
+
+    @Test
+    void submissionIsBlockedWithoutAnyCheckIn() {
+        Agent salesman = seedAgent("SV_GATE_NONE", "SALESMAN_LMT");
+        Product product = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-GATE-NONE", null, null, null, false);
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
+
+        Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0,
+                List.of(item(product.getId(), 1, "SALE")));
+        ResponseEntity<String> response = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode(),
+                "An LMT with no check-in at all today must be blocked from recording a sale");
+        assertTrue(response.getBody().contains("check in at the company"),
+                "Error message must clearly explain the required action");
+    }
+
+    @Test
+    void submissionIsBlockedWhenCheckedInAtARegularMartInsteadOfCompany() {
+        Agent salesman = seedAgent("SV_GATE_REGULAR", "SALESMAN_LMT");
+        Product product = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-GATE-REGULAR", null, null, null, false);
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
+
+        // Checked in, but at a REGULAR mart (e.g. mistakenly, or a shop
+        // masquerading as a check-in point) — not the company depot.
+        Mart regularMart = new Mart();
+        regularMart.setTenantId(tenantId());
+        regularMart.setName("Regular Mart " + System.nanoTime());
+        regularMart.setLatitude(0.0);
+        regularMart.setLongitude(0.0);
+        regularMart.setRadius(100.0);
+        regularMart.setGeoFencingEnabled(true);
+        regularMart.setIsActive(true);
+        regularMart.setMartType(MartType.REGULAR);
+        regularMart.setCreatedAt(LocalDateTime.now());
+        regularMart = martRepository.save(regularMart);
+
+        Attendance attendance = new Attendance();
+        attendance.setTenantId(tenantId());
+        attendance.setAgent(salesman);
+        attendance.setMart(regularMart);
+        attendance.setCheckInTime(LocalDateTime.now());
+        attendance.setStatus("IN");
+        attendanceRepository.save(attendance);
+
+        Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0,
+                List.of(item(product.getId(), 1, "SALE")));
+        ResponseEntity<String> response = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode(),
+                "Being checked in at a REGULAR (non-COMPANY) mart must still block sale recording");
+    }
+
+    @Test
+    void submissionIsBlockedAfterCheckingOutEvenIfCheckedInAtCompanyEarlier() {
+        Agent salesman = seedAgent("SV_GATE_CHECKEDOUT", "SALESMAN_LMT");
+        Product product = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-GATE-CHECKEDOUT", null, null, null, false);
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
+
+        seedCompanyCheckIn(salesman);
+        // Simulate checking out mid-day: the open attendance row is closed.
+        Attendance open = attendanceRepository.findOpenAttendanceByAgentId(salesman.getId()).orElseThrow();
+        open.setCheckOutTime(LocalDateTime.now());
+        attendanceRepository.save(open);
+
+        Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0,
+                List.of(item(product.getId(), 1, "SALE")));
+        ResponseEntity<String> response = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode(),
+                "Checking out mid-day must block further sales until the LMT re-checks-in at a COMPANY mart");
     }
 
     // ===== The test that matters most: legacy path's V17 guarantee, post-V19 =====
