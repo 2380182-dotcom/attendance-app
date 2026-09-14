@@ -582,6 +582,28 @@ export const apiService = {
       } catch (error) {
         return handleApiError(error);
       }
+    },
+    /**
+     * Today's LmtDailyStock (Phase C), or null if none has been entered
+     * yet — the backend returns success:true with data:null in that case
+     * (not a 404), so this resolves to null rather than throwing.
+     */
+    async getTodayStock(agentId) {
+      try {
+        const response = await api.get('/lmt/stock/today', { params: { agentId } });
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
+    /** morningStockRequest: { agentId, items: [{ productId, openingStock }] }. */
+    async submitMorningStock(morningStockRequest) {
+      try {
+        const response = await api.post('/lmt/stock/morning', morningStockRequest);
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
     }
   }
 };

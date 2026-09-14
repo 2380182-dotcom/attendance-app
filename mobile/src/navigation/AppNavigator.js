@@ -23,6 +23,7 @@ import SalesEntryScreen from '../screens/agent/SalesEntryScreen';
 import LmtHomeScreen from '../screens/lmt/LmtHomeScreen';
 import ShopLookupScreen from '../screens/lmt/ShopLookupScreen';
 import RecordVisitScreen from '../screens/lmt/RecordVisitScreen';
+import MorningStockEntryScreen from '../screens/lmt/MorningStockEntryScreen';
 
 // Sales Screens
 import SalesDashboardScreen from '../screens/sales/SalesDashboardScreen';
@@ -185,6 +186,11 @@ export default function AppNavigator() {
                 name="RecordVisit"
                 component={RecordVisitScreen}
                 options={{ title: 'Record Sale' }}
+              />
+              <Stack.Screen
+                name="MorningStockEntry"
+                component={MorningStockEntryScreen}
+                options={{ title: 'Today\'s Stock' }}
               />
               <Stack.Screen
                 name="Checkin"

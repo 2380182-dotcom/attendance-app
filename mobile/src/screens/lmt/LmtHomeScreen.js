@@ -1,5 +1,6 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, RefreshControl, Text } from 'react-native';
+import { SafeAreaView, ScrollView, RefreshControl, Text, View } from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../../context/AuthContext';
 import { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
@@ -21,6 +22,7 @@ export default function LmtHomeScreen({ navigation }) {
   const { user } = useContext(AuthContext);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [currentCheckIn, setCurrentCheckIn] = useState(null);
+  const [todayStock, setTodayStock] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -43,18 +45,37 @@ export default function LmtHomeScreen({ navigation }) {
     }
   }, [user]);
 
-  useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
+  // Soft-gate only — a banner prompting the LMT to enter today's stock,
+  // never a hard block on navigating elsewhere (a network hiccup here
+  // shouldn't strand them). Missing stock just means the reconciliation
+  // this feeds at night will have nothing to compare Sold against.
+  const fetchTodayStock = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const stock = await apiService.lmt.getTodayStock(user.id);
+      setTodayStock(stock);
+    } catch (e) {
+      console.warn('Could not load today\'s stock status', e);
+    }
+  }, [user]);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', fetchStatus);
+    fetchStatus();
+    fetchTodayStock();
+  }, [fetchStatus, fetchTodayStock]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchStatus();
+      fetchTodayStock();
+    });
     return unsubscribe;
-  }, [navigation, fetchStatus]);
+  }, [navigation, fetchStatus, fetchTodayStock]);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchStatus();
+    fetchTodayStock();
   };
 
   if (loading) {
@@ -70,6 +91,41 @@ export default function LmtHomeScreen({ navigation }) {
         }
       >
         <StatusCard isCheckedIn={isCheckedIn} currentCheckIn={currentCheckIn} />
+
+        {isCheckedIn && !todayStock && (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: colors.surfaceMuted,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              marginTop: 16,
+            }}
+          >
+            <MaterialIcons name="inventory" size={22} color={colors.primary} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textPrimary }}>
+                Enter your stock to start selling
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                Record today's opening stock per product before visiting shops.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {isCheckedIn && !todayStock && (
+          <AppButton
+            title="Enter Today's Stock"
+            onPress={() => navigation.navigate('MorningStockEntry')}
+            variant="primary"
+            icon="inventory"
+            style={{ marginTop: 10, marginBottom: 8 }}
+          />
+        )}
 
         {!isCheckedIn ? (
           <AppButton
