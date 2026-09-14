@@ -22,6 +22,7 @@ import SalesEntryScreen from '../screens/agent/SalesEntryScreen';
 // LMT (Salesman) Screens
 import LmtHomeScreen from '../screens/lmt/LmtHomeScreen';
 import ShopLookupScreen from '../screens/lmt/ShopLookupScreen';
+import RecordVisitScreen from '../screens/lmt/RecordVisitScreen';
 
 // Sales Screens
 import SalesDashboardScreen from '../screens/sales/SalesDashboardScreen';
@@ -181,6 +182,11 @@ export default function AppNavigator() {
                 options={{ title: 'Shop Lookup' }}
               />
               <Stack.Screen
+                name="RecordVisit"
+                component={RecordVisitScreen}
+                options={{ title: 'Record Sale' }}
+              />
+              <Stack.Screen
                 name="Checkin"
                 component={CheckinScreen}
                 options={{ title: 'Mart Check-In' }}
@@ -190,11 +196,14 @@ export default function AppNavigator() {
                 component={CheckoutScreen}
                 options={{ title: 'Mart Check-Out' }}
               />
-              <Stack.Screen
-                name="FaceEnrollment"
-                component={FaceEnrollmentScreen}
-                options={{ title: 'Face Enrollment', headerLeft: null }}
-              />
+              {/*
+                No FaceEnrollment screen here, deliberately — LMTs never
+                self-register a face. Only an admin can register one, via
+                the existing agent face-registration flow reused in
+                AdminUsersScreen (LMT Phase B). CheckinScreen's unregistered
+                -face prompt for this role points them to the admin instead
+                of offering a self-enroll action.
+              */}
               <Stack.Screen
                 name="History"
                 component={AgentHistoryScreen}

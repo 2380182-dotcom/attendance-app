@@ -116,11 +116,21 @@ export default function CheckinScreen({ navigation }) {
       const status = await apiService.face.getStatus(user.id);
       setFaceConfig(status);
       if (!status.registered && status.faceVerificationEnabled !== false) {
-        Alert.alert(
-          'Face Enrollment Required',
-          'Please enroll your face before checking in.',
-          [{ text: 'Enroll Now', onPress: () => navigation.replace('FaceEnrollment') }]
-        );
+        // SALESMAN_LMT never self-enrolls — only an admin can register an
+        // LMT's face (LMT Phase B). AGENT's own alert/action below is
+        // unchanged.
+        if (user?.role === 'SALESMAN_LMT') {
+          Alert.alert(
+            'Face Verification Required',
+            'Face verification is required — please contact your admin to register your face.'
+          );
+        } else {
+          Alert.alert(
+            'Face Enrollment Required',
+            'Please enroll your face before checking in.',
+            [{ text: 'Enroll Now', onPress: () => navigation.replace('FaceEnrollment') }]
+          );
+        }
       }
     } catch (e) {
       console.warn('Could not load face config', e);
