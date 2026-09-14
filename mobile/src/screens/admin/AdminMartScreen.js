@@ -32,6 +32,13 @@ export default function AdminMartScreen() {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [radius, setRadius] = useState('');
+  // LMT flow redesign D4: which marts count as "the company" depot for the
+  // LMT morning check-in gate (SalesService.submitShopVisit, D2). Always
+  // sent on save — see AdminService.updateMart's null-check pattern, which
+  // relies on this form round-tripping the mart's current type rather than
+  // ever leaving it blank, so editing an unrelated field can't silently
+  // reset a mart back to REGULAR.
+  const [martType, setMartType] = useState('REGULAR');
   const [fetchingLocation, setFetchingLocation] = useState(false);
 
   const handleGetCurrentLocation = async () => {
@@ -79,6 +86,7 @@ export default function AdminMartScreen() {
     setLatitude('');
     setLongitude('');
     setRadius('100');
+    setMartType('REGULAR');
     setModalVisible(true);
   };
 
@@ -89,6 +97,7 @@ export default function AdminMartScreen() {
     setLatitude(mart.latitude.toString());
     setLongitude(mart.longitude.toString());
     setRadius(mart.radius.toString());
+    setMartType(mart.martType || 'REGULAR');
     setModalVisible(true);
   };
 
@@ -103,7 +112,8 @@ export default function AdminMartScreen() {
       address: address.trim(),
       latitude: parseFloat(latitude),
       longitude: parseFloat(longitude),
-      radius: parseFloat(radius)
+      radius: parseFloat(radius),
+      martType
     };
 
     setLoading(true);
@@ -210,6 +220,11 @@ export default function AdminMartScreen() {
                 <View style={styles.martInfo}>
                   <View style={styles.martNameRow}>
                     <Text style={styles.martName}>{item.name}</Text>
+                    {item.martType === 'COMPANY' && (
+                      <View style={styles.companyBadge}>
+                        <Text style={styles.companyBadgeText}>COMPANY</Text>
+                      </View>
+                    )}
                     {isInactive && (
                       <View style={styles.inactiveBadge}>
                         <Text style={styles.inactiveBadgeText}>DELETED</Text>
@@ -284,6 +299,19 @@ export default function AdminMartScreen() {
 
             <Text style={styles.label}>Radius (meters) *</Text>
             <TextInput style={styles.input} value={radius} onChangeText={setRadius} keyboardType="numeric" placeholder="e.g. 100" placeholderTextColor={colors.textMuted} />
+
+            <View style={styles.typeRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Company Mart</Text>
+                <Text style={styles.typeHint}>LMTs must check in here each morning before recording sales.</Text>
+              </View>
+              <Switch
+                value={martType === 'COMPANY'}
+                onValueChange={(val) => setMartType(val ? 'COMPANY' : 'REGULAR')}
+                trackColor={{ false: colors.border, true: colors.secondaryLight }}
+                thumbColor={martType === 'COMPANY' ? colors.secondary : colors.surface}
+              />
+            </View>
 
             <View style={styles.modalButtons}>
               <AppButton
@@ -364,6 +392,19 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 0.5,
   },
+  companyBadge: {
+    backgroundColor: colors.secondary,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  companyBadgeText: {
+    color: colors.textOnPrimary,
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
   martAddress: {
     fontSize: 12,
     color: colors.textSecondary,
@@ -437,6 +478,19 @@ const createStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.inputBackground,
     fontSize: 14,
     color: colors.textPrimary,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  typeHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 2,
   },
   modalButtons: {
     flexDirection: 'row',
