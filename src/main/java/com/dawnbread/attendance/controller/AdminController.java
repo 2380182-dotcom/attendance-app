@@ -244,6 +244,7 @@ public class AdminController {
         dto.setGracePeriodMinutes(agent.getGracePeriodMinutes());
         dto.setWorkingDays(agent.getWorkingDays());
         dto.setIsActive(agent.getIsActive());
+        dto.setFaceVerificationEnabled(agent.getFaceVerificationEnabled());
         return dto;
     }
 }

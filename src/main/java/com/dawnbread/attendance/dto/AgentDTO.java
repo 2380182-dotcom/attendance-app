@@ -25,6 +25,12 @@ public class AgentDTO {
     private Integer gracePeriodMinutes;
     private List<String> workingDays;
     private Boolean isActive;
+    // The master on/off switch — distinct from faceVerifyOnCheckIn/Out/
+    // Anytime (which control *when* verification fires once enabled). Not
+    // previously exposed here even though GET /agents is what populates the
+    // admin app's list/edit form, so admin had no way to see or set this
+    // per-agent (Phase B of the LMT module needs it for a per-LMT toggle).
+    private Boolean faceVerificationEnabled;
 
     // Constructors
     public AgentDTO() {}
@@ -74,6 +80,7 @@ public class AgentDTO {
     public Integer getGracePeriodMinutes() { return gracePeriodMinutes; }
     public List<String> getWorkingDays() { return workingDays; }
     public Boolean getIsActive() { return isActive; }
+    public Boolean getFaceVerificationEnabled() { return faceVerificationEnabled; }
 
     // Setters
     public void setId(Long id) { this.id = id; }
@@ -93,4 +100,5 @@ public class AgentDTO {
     public void setGracePeriodMinutes(Integer gracePeriodMinutes) { this.gracePeriodMinutes = gracePeriodMinutes; }
     public void setWorkingDays(List<String> workingDays) { this.workingDays = workingDays; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public void setFaceVerificationEnabled(Boolean faceVerificationEnabled) { this.faceVerificationEnabled = faceVerificationEnabled; }
 }
