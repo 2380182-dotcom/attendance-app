@@ -5,13 +5,16 @@ import com.dawnbread.attendance.entity.Area;
 import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.repository.AreaRepository;
 import com.dawnbread.attendance.repository.CustomerShopRepository;
+import com.dawnbread.attendance.util.GeoUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -23,9 +26,53 @@ public class CustomerShopService {
     @Autowired
     private AreaRepository areaRepository;
 
+    @Autowired
+    private LmtSettingsService lmtSettingsService;
+
     private Area resolveArea(Long areaId) {
         return areaRepository.findById(areaId)
                 .orElseThrow(() -> new RuntimeException("Area not found with id: " + areaId));
+    }
+
+    /** One active shop plus its computed distance from the LMT's current GPS — see getNearby(). */
+    public static class NearbyShop {
+        private final CustomerShop shop;
+        private final double distanceMeters;
+
+        public NearbyShop(CustomerShop shop, double distanceMeters) {
+            this.shop = shop;
+            this.distanceMeters = distanceMeters;
+        }
+
+        public CustomerShop getShop() { return shop; }
+        public double getDistanceMeters() { return distanceMeters; }
+    }
+
+    /**
+     * Active shops within shop.radius + the admin-configured geofence
+     * buffer of the given GPS point — the SAME threshold formula
+     * SalesService.submitShopVisit uses for its hard gate, so a shop shown
+     * here as "nearby" is guaranteed to also pass that real gate at submit
+     * time (never a false "nearby" that then fails to submit). Shops
+     * without geofencing configured (geoFencingEnabled=false, or missing
+     * lat/lon/radius) have no distance to compute and are excluded here —
+     * they remain reachable only via the manual shop-code fallback.
+     *
+     * Filtering happens in Java over all active shops, not a DB query —
+     * consistent with how submitShopVisit already computes distance
+     * (Java, not SQL) and fine at this data scale (see
+     * CustomerShopRepository's own comment on why no DB-side distance
+     * query exists yet).
+     */
+    public List<NearbyShop> getNearby(double latitude, double longitude) {
+        double buffer = lmtSettingsService.getOrCreate().getGeofenceBufferMeters();
+        return customerShopRepository.findByIsActiveTrue().stream()
+                .filter(shop -> Boolean.TRUE.equals(shop.getGeoFencingEnabled())
+                        && shop.getLatitude() != null && shop.getLongitude() != null && shop.getRadius() != null)
+                .map(shop -> new NearbyShop(shop, GeoUtils.distanceMeters(latitude, longitude, shop.getLatitude(), shop.getLongitude())))
+                .filter(nearby -> nearby.getDistanceMeters() <= nearby.getShop().getRadius() + buffer)
+                .sorted(Comparator.comparingDouble(NearbyShop::getDistanceMeters))
+                .collect(Collectors.toList());
     }
 
     public CustomerShop create(CustomerShopCreateDTO dto) {

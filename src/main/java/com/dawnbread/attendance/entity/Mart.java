@@ -30,6 +30,14 @@ public class Mart implements TenantAware {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    // Which Marts count as "the company" depot for the LMT morning
+    // check-in gate (see SalesService.submitShopVisit). Defaults to
+    // REGULAR so every existing Mart — and every existing Agent's
+    // check-in — is completely unaffected by this field's introduction.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mart_type", nullable = false, length = 20)
+    private MartType martType = MartType.REGULAR;
+
     private LocalDateTime createdAt;
     
     @com.fasterxml.jackson.annotation.JsonIgnore
@@ -49,6 +57,7 @@ public class Mart implements TenantAware {
     public Double getRadius() { return radius; }
     public Boolean getGeoFencingEnabled() { return geoFencingEnabled; }
     public Boolean getIsActive() { return isActive; }
+    public MartType getMartType() { return martType; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public List<Attendance> getAttendances() { return attendances; }
 
@@ -62,6 +71,7 @@ public class Mart implements TenantAware {
     public void setRadius(Double radius) { this.radius = radius; }
     public void setGeoFencingEnabled(Boolean geoFencingEnabled) { this.geoFencingEnabled = geoFencingEnabled; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public void setMartType(MartType martType) { this.martType = martType; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public void setAttendances(List<Attendance> attendances) { this.attendances = attendances; }
 }

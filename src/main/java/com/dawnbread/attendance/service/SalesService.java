@@ -3,6 +3,7 @@ package com.dawnbread.attendance.service;
 import com.dawnbread.attendance.dto.*;
 import com.dawnbread.attendance.entity.*;
 import com.dawnbread.attendance.repository.*;
+import com.dawnbread.attendance.util.GeoUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -264,24 +265,6 @@ public class SalesService {
     }
 
     /**
-     * Haversine distance in meters — deliberately a local copy rather than a
-     * shared util, matching this codebase's existing convention (Mart/
-     * CustomerShop repositories each have their own JPQL haversine query,
-     * and the mobile check-in/checkout screens each have their own inline
-     * copy too).
-     */
-    private double calculateDistanceMeters(double lat1, double lon1, double lat2, double lon2) {
-        final int earthRadiusKm = 6371;
-        double latDistance = Math.toRadians(lat2 - lat1);
-        double lonDistance = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return earthRadiusKm * c * 1000;
-    }
-
-    /**
      * LMT shop-visit submission (SALESMAN_LMT / ADMIN only, enforced at the
      * controller). Distinct from addSalesWithImages/submitSalesEntry above —
      * those two are the untouched legacy AGENT flow and this method never
@@ -313,7 +296,7 @@ public class SalesService {
         Double distance = null;
         if (Boolean.TRUE.equals(shop.getGeoFencingEnabled())
                 && shop.getLatitude() != null && shop.getLongitude() != null && shop.getRadius() != null) {
-            distance = calculateDistanceMeters(request.getLatitude(), request.getLongitude(), shop.getLatitude(), shop.getLongitude());
+            distance = GeoUtils.distanceMeters(request.getLatitude(), request.getLongitude(), shop.getLatitude(), shop.getLongitude());
             double buffer = lmtSettingsService.getOrCreate().getGeofenceBufferMeters();
             double allowedRadius = shop.getRadius() + buffer;
             if (distance > allowedRadius) {

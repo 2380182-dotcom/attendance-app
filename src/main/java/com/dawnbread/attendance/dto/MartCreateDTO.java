@@ -12,6 +12,8 @@ public class MartCreateDTO {
     private Double longitude;
     private Double radius;
     private Boolean geoFencingEnabled;
+    /** "COMPANY" or "REGULAR" — see Mart.martType. Optional; defaults to REGULAR when omitted. */
+    private String martType;
 
     public MartCreateDTO() {}
 
@@ -32,4 +34,7 @@ public class MartCreateDTO {
 
     public Boolean getGeoFencingEnabled() { return geoFencingEnabled; }
     public void setGeoFencingEnabled(Boolean geoFencingEnabled) { this.geoFencingEnabled = geoFencingEnabled; }
+
+    public String getMartType() { return martType; }
+    public void setMartType(String martType) { this.martType = martType; }
 }

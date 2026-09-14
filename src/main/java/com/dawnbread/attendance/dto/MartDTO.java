@@ -10,6 +10,7 @@ public class MartDTO {
     private Double longitude;
     private Double radius;
     private Boolean isActive;
+    private String martType;
     private LocalDateTime createdAt;
 
     // Constructors
@@ -34,6 +35,7 @@ public class MartDTO {
     public Double getLongitude() { return longitude; }
     public Double getRadius() { return radius; }
     public Boolean getIsActive() { return isActive; }
+    public String getMartType() { return martType; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
     // Setters
@@ -44,5 +46,6 @@ public class MartDTO {
     public void setLongitude(Double longitude) { this.longitude = longitude; }
     public void setRadius(Double radius) { this.radius = radius; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public void setMartType(String martType) { this.martType = martType; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

@@ -87,6 +87,27 @@ public class CustomerShopController {
         return ResponseEntity.ok(ApiResponse.success("Customer shops found", dtos));
     }
 
+    /**
+     * The LMT "show nearby shops" flow — read-only convenience filter, same
+     * unguarded-read convention as /code/{shopCode} and /search above. The
+     * real authority stays SalesService.submitShopVisit's own independent
+     * geofence check at submit time; this endpoint never issues anything
+     * that check trusts.
+     */
+    @GetMapping("/nearby")
+    public ResponseEntity<ApiResponse<List<CustomerShopDTO>>> getNearby(
+            @RequestParam Double latitude,
+            @RequestParam Double longitude) {
+        List<CustomerShopDTO> dtos = customerShopService.getNearby(latitude, longitude).stream()
+                .map(nearby -> {
+                    CustomerShopDTO dto = convertToDTO(nearby.getShop());
+                    dto.setDistanceMeters(nearby.getDistanceMeters());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success("Nearby customer shops retrieved successfully", dtos));
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CustomerShopDTO>> update(@PathVariable Long id, @RequestBody CustomerShopCreateDTO dto) {
         if (!AccessControl.hasRole(request, "ADMIN")) {

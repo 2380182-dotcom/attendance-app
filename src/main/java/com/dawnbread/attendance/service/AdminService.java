@@ -6,6 +6,7 @@ import com.dawnbread.attendance.dto.FaceConfigDTO;
 import com.dawnbread.attendance.dto.ShiftScheduleDTO;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Mart;
+import com.dawnbread.attendance.entity.MartType;
 import com.dawnbread.attendance.repository.AgentRepository;
 import com.dawnbread.attendance.repository.AttendanceRepository;
 import com.dawnbread.attendance.repository.MartRepository;
@@ -64,7 +65,18 @@ public class AdminService {
         if (dto.getGeoFencingEnabled() != null) {
             mart.setGeoFencingEnabled(dto.getGeoFencingEnabled());
         }
+        if (dto.getMartType() != null) {
+            mart.setMartType(parseMartType(dto.getMartType()));
+        }
         return createMart(mart);
+    }
+
+    private MartType parseMartType(String martType) {
+        try {
+            return MartType.valueOf(martType.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid mart type: " + martType + " (expected COMPANY or REGULAR)");
+        }
     }
 
     public Mart createMart(Mart mart) {
@@ -92,6 +104,12 @@ public class AdminService {
         if (martDetails.getLongitude() != null) mart.setLongitude(martDetails.getLongitude());
         if (martDetails.getRadius() != null) mart.setRadius(martDetails.getRadius());
         if (martDetails.getGeoFencingEnabled() != null) mart.setGeoFencingEnabled(martDetails.getGeoFencingEnabled());
+        // Same null-check pattern as the fields above — relies on the admin
+        // edit form always round-tripping the mart's current martType
+        // (never leaving it blank/default), same as it already does for
+        // name/radius/etc, so an unrelated field edit can't silently reset
+        // a mart back to REGULAR.
+        if (martDetails.getMartType() != null) mart.setMartType(martDetails.getMartType());
 
         return martRepository.save(mart);
     }

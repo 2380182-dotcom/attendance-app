@@ -20,6 +20,8 @@ public class CustomerShopDTO {
     private Boolean geoFencingEnabled;
     private Boolean isActive;
     private LocalDateTime createdAt;
+    /** Populated only by GET /lmt/customer-shops/nearby — null everywhere else. */
+    private Double distanceMeters;
 
     public CustomerShopDTO() {}
 
@@ -73,4 +75,7 @@ public class CustomerShopDTO {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public Double getDistanceMeters() { return distanceMeters; }
+    public void setDistanceMeters(Double distanceMeters) { this.distanceMeters = distanceMeters; }
 }

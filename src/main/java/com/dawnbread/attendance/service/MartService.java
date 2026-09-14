@@ -1,6 +1,7 @@
 package com.dawnbread.attendance.service;
 
 import com.dawnbread.attendance.entity.Mart;
+import com.dawnbread.attendance.entity.MartType;
 import com.dawnbread.attendance.repository.MartRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,18 @@ public class MartService {
         if (dto.getGeoFencingEnabled() != null) {
             mart.setGeoFencingEnabled(dto.getGeoFencingEnabled());
         }
+        if (dto.getMartType() != null) {
+            mart.setMartType(parseMartType(dto.getMartType()));
+        }
         return createMart(mart);
+    }
+
+    private MartType parseMartType(String martType) {
+        try {
+            return MartType.valueOf(martType.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid mart type: " + martType + " (expected COMPANY or REGULAR)");
+        }
     }
 
     public Mart createMart(Mart mart) {
@@ -96,7 +108,10 @@ public class MartService {
         if (martDetails.getRadius() != null) {
             mart.setRadius(martDetails.getRadius());
         }
-        
+        if (martDetails.getMartType() != null) {
+            mart.setMartType(martDetails.getMartType());
+        }
+
         return martRepository.save(mart);
     }
 

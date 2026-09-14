@@ -209,6 +209,7 @@ public class MartController {
                 mart.getCreatedAt()
         );
         dto.setIsActive(mart.getIsActive());
+        dto.setMartType(mart.getMartType() != null ? mart.getMartType().name() : null);
         return dto;
     }
 }
