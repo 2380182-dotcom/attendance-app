@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   Chip, CircularProgress, Alert, Grid, List, ListItem, ListItemText,
 } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -76,7 +76,7 @@ export default function SalesOverviewPage() {
 
           <Paper>
             <Typography variant="h6" sx={{ p: 2, pb: 0 }}>Sales by Agent (Today)</Typography>
-            <Table>
+            <TableContainer><Table>
               <TableHead>
                 <TableRow>
                   <TableCell>Agent</TableCell>
@@ -98,7 +98,7 @@ export default function SalesOverviewPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </Table></TableContainer>
           </Paper>
         </Grid>
 

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   Chip, CircularProgress, Alert, Stack, MenuItem, Select, InputLabel, FormControl,
 } from '@mui/material';
 import { attendanceApi, agentApi } from '../../services/attendanceApi';
@@ -44,7 +44,7 @@ export default function AttendanceHistoryPage() {
           Attendance History <Typography component="span" variant="body2" color="text.secondary">(times shown in Pakistan time)</Typography>
         </Typography>
 
-        <Stack direction="row" spacing={2} sx={{ mb: 3 }} alignItems="center">
+        <Stack direction="row" spacing={2} sx={{ mb: 3 }} alignItems="center" flexWrap="wrap" useFlexGap>
           <DatePicker
             label="From"
             value={startDate}
@@ -83,7 +83,7 @@ export default function AttendanceHistoryPage() {
 
         {history.data && (
           <Paper>
-            <Table>
+            <TableContainer><Table>
               <TableHead>
                 <TableRow>
                   <TableCell>Agent</TableCell>
@@ -115,7 +115,7 @@ export default function AttendanceHistoryPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </Table></TableContainer>
           </Paper>
         )}
       </Box>

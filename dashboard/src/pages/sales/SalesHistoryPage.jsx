@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   CircularProgress, Alert, Stack, MenuItem, Select, InputLabel, FormControl,
   ToggleButtonGroup, ToggleButton, TextField, InputAdornment, IconButton,
   Collapse, Button,
@@ -28,7 +28,7 @@ function LineItemsTable({ items }) {
     return <Typography color="text.secondary" sx={{ p: 2 }}>No product-level detail for this sale.</Typography>;
   }
   return (
-    <Table size="small">
+    <TableContainer><Table size="small">
       <TableHead>
         <TableRow>
           <TableCell>Product</TableCell>
@@ -47,7 +47,7 @@ function LineItemsTable({ items }) {
           </TableRow>
         ))}
       </TableBody>
-    </Table>
+    </Table></TableContainer>
   );
 }
 
@@ -93,7 +93,7 @@ function ProductMixTable({ rows, title, searchActive }) {
             : `Matching products — Total: ${total.quantity} units, PKR ${total.revenue.toLocaleString()}`}
         </Typography>
       )}
-      <Table size="small">
+      <TableContainer><Table size="small">
         <TableHead>
           <TableRow>
             <SortableHeader label="Product" sortKey="productName" sort={sort} onSort={onSort} />
@@ -113,7 +113,7 @@ function ProductMixTable({ rows, title, searchActive }) {
             </TableRow>
           ))}
         </TableBody>
-      </Table>
+      </Table></TableContainer>
     </Paper>
   );
 }
@@ -352,7 +352,7 @@ export default function SalesHistoryPage() {
                   </Alert>
                 )}
                 <Paper>
-                  <Table>
+                  <TableContainer><Table>
                     <TableHead>
                       <TableRow>
                         {canExpandAgentSummaries && <TableCell padding="checkbox" />}
@@ -391,7 +391,7 @@ export default function SalesHistoryPage() {
                         )
                       )}
                     </TableBody>
-                  </Table>
+                  </Table></TableContainer>
                 </Paper>
 
                 <ProductMixTable rows={filteredCompanyProductMix} title="Product-wise Totals — All Agents" searchActive={!!productSearch.trim()} />
@@ -405,7 +405,7 @@ export default function SalesHistoryPage() {
             {agentSales.data && (
               <>
                 <Paper>
-                  <Table>
+                  <TableContainer><Table>
                     <TableHead>
                       <TableRow>
                         <TableCell padding="checkbox" />
@@ -435,7 +435,7 @@ export default function SalesHistoryPage() {
                         />
                       ))}
                     </TableBody>
-                  </Table>
+                  </Table></TableContainer>
                 </Paper>
 
                 <ProductMixTable rows={filteredAgentProductMix} title="Product Mix — this range" searchActive={!!productSearch.trim()} />

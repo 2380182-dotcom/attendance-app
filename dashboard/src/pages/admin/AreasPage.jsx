@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   Chip, CircularProgress, Alert, Stack, TextField, InputAdornment, Button,
   Dialog, DialogTitle, DialogContent, DialogActions, TablePagination, IconButton,
   Select, MenuItem, InputLabel, FormControl,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -32,6 +34,8 @@ function PersonPicker({ label, value, onChange, people }) {
 }
 
 export default function AreasPage() {
+  const theme = useTheme();
+  const fullScreenDialog = useMediaQuery(theme.breakpoints.down('sm'));
   const queryClient = useQueryClient();
   const areas = useQuery({ queryKey: ['lmt-areas'], queryFn: areaApi.getAll });
   const people = useQuery({ queryKey: ['lmt-hierarchy-persons'], queryFn: hierarchyPersonApi.getAll });
@@ -129,7 +133,7 @@ export default function AreasPage() {
 
       {actionError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setActionError('')}>{actionError}</Alert>}
 
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center">
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center" flexWrap="wrap" useFlexGap>
         <TextField
           size="small"
           placeholder="Search area name…"
@@ -142,7 +146,7 @@ export default function AreasPage() {
       </Stack>
 
       <Paper>
-        <Table>
+        <TableContainer><Table>
           <TableHead>
             <TableRow>
               <SortableHeader label="Area" sortKey="name" sort={sort} onSort={onSort} />
@@ -177,7 +181,7 @@ export default function AreasPage() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </Table></TableContainer>
         <TablePagination
           component="div"
           count={sorted.length}
@@ -189,7 +193,7 @@ export default function AreasPage() {
         />
       </Paper>
 
-      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="sm" fullWidth>
+      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="sm" fullWidth fullScreen={fullScreenDialog}>
         <DialogTitle>{editingId ? 'Edit Area' : 'Add Area'}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>

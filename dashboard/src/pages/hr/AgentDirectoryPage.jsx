@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   TextField, TablePagination, CircularProgress, Alert, Chip,
 } from '@mui/material';
 import { agentApi } from '../../services/attendanceApi';
@@ -38,11 +38,11 @@ export default function AgentDirectoryPage() {
         size="small"
         value={search}
         onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-        sx={{ mb: 2, width: 360 }}
+        sx={{ mb: 2, width: '100%', maxWidth: 360 }}
       />
 
       <Paper>
-        <Table>
+        <TableContainer><Table>
           <TableHead>
             <TableRow>
               <TableCell>Agent ID</TableCell>
@@ -66,7 +66,7 @@ export default function AgentDirectoryPage() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </Table></TableContainer>
         <TablePagination
           component="div"
           count={filtered.length}

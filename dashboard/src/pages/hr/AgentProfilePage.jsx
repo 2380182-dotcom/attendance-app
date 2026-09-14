@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   Chip, CircularProgress, Alert, Grid, Button,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -89,7 +89,7 @@ export default function AgentProfilePage() {
         {history.isLoading && <Box sx={{ p: 2 }}><CircularProgress size={24} /></Box>}
         {history.isError && <Alert severity="error" sx={{ m: 2 }}>Failed to load attendance history.</Alert>}
         {history.data && (
-          <Table>
+          <TableContainer><Table>
             <TableHead>
               <TableRow>
                 <TableCell>Mart</TableCell>
@@ -111,7 +111,7 @@ export default function AgentProfilePage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </Table></TableContainer>
         )}
       </Paper>
     </Box>

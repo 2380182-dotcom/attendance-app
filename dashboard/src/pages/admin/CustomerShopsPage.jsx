@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   Chip, CircularProgress, Alert, Stack, TextField, InputAdornment, Button,
   Dialog, DialogTitle, DialogContent, DialogActions, TablePagination, IconButton,
   Select, MenuItem, InputLabel, FormControl, Grid, FormControlLabel, Switch, Divider,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -27,6 +29,8 @@ function toNullableNumber(value) {
 }
 
 export default function CustomerShopsPage() {
+  const theme = useTheme();
+  const fullScreenDialog = useMediaQuery(theme.breakpoints.down('sm'));
   const queryClient = useQueryClient();
   const shops = useQuery({ queryKey: ['lmt-customer-shops'], queryFn: customerShopApi.getAll });
   const areas = useQuery({ queryKey: ['lmt-areas'], queryFn: areaApi.getAll });
@@ -175,7 +179,7 @@ export default function CustomerShopsPage() {
 
       {actionError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setActionError('')}>{actionError}</Alert>}
 
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center">
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center" flexWrap="wrap" useFlexGap>
         <TextField
           size="small"
           placeholder="Search shop code, name, or area…"
@@ -198,7 +202,7 @@ export default function CustomerShopsPage() {
       </Stack>
 
       <Paper>
-        <Table>
+        <TableContainer><Table>
           <TableHead>
             <TableRow>
               <SortableHeader label="Shop Code" sortKey="shopCode" sort={sort} onSort={onSort} />
@@ -237,7 +241,7 @@ export default function CustomerShopsPage() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </Table></TableContainer>
         <TablePagination
           component="div"
           count={sorted.length}
@@ -249,7 +253,7 @@ export default function CustomerShopsPage() {
         />
       </Paper>
 
-      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="md" fullWidth>
+      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="md" fullWidth fullScreen={fullScreenDialog}>
         <DialogTitle>{editingId ? 'Edit Customer Shop' : 'Add Customer Shop'}</DialogTitle>
         <DialogContent>
           {formError && <Alert severity="error" sx={{ mb: 2, mt: 1 }}>{formError}</Alert>}
@@ -307,7 +311,7 @@ export default function CustomerShopsPage() {
           <Divider sx={{ mb: 2 }} />
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Geofence</Typography>
 
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }} flexWrap="wrap" useFlexGap>
             <Button
               variant="outlined"
               size="small"

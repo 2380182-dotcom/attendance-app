@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   Chip, CircularProgress, Alert, Stack,
 } from '@mui/material';
 import { useTodayBoard } from '../../hooks/useTodayBoard';
@@ -24,7 +24,7 @@ export default function TodayBoardPage() {
         Today's Attendance — {karachiToday().format('dddd, MMMM D')} (Pakistan time)
       </Typography>
 
-      <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+      <Stack direction="row" spacing={2} sx={{ mb: 3 }} flexWrap="wrap" useFlexGap>
         <Chip label={`In: ${counts.IN}`} color="success" />
         <Chip label={`Late: ${counts.LATE}`} color="warning" />
         <Chip label={`Absent: ${counts.ABSENT}`} color="error" />
@@ -32,7 +32,7 @@ export default function TodayBoardPage() {
       </Stack>
 
       <Paper>
-        <Table>
+        <TableContainer><Table>
           <TableHead>
             <TableRow>
               <TableCell>Agent</TableCell>
@@ -57,7 +57,7 @@ export default function TodayBoardPage() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </Table></TableContainer>
       </Paper>
     </Box>
   );

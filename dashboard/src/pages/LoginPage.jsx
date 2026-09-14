@@ -40,9 +40,10 @@ export default function LoginPage() {
         alignItems: 'center',
         justifyContent: 'center',
         bgcolor: 'grey.100',
+        px: 2,
       }}
     >
-      <Paper sx={{ p: 4, width: 360 }} elevation={3}>
+      <Paper sx={{ p: { xs: 3, sm: 4 }, width: '100%', maxWidth: 360 }} elevation={3}>
         <Typography variant="h5" fontWeight="bold" gutterBottom>
           Dawn Bread — Staff Dashboard
         </Typography>

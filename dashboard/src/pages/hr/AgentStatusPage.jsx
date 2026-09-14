@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   Chip, CircularProgress, Alert, Stack, TextField, InputAdornment,
   ToggleButtonGroup, ToggleButton,
 } from '@mui/material';
@@ -67,7 +67,7 @@ export default function AgentStatusPage() {
       </Stack>
 
       <Paper>
-        <Table>
+        <TableContainer><Table>
           <TableHead>
             <TableRow>
               <SortableHeader label="Agent" sortKey="name" sort={sort} onSort={onSort} />
@@ -95,7 +95,7 @@ export default function AgentStatusPage() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </Table></TableContainer>
       </Paper>
     </Box>
   );
