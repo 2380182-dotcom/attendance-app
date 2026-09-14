@@ -9,12 +9,12 @@ import { useTheme } from '../../theme';
 
 /**
  * Sub-stage 2 (SALESMAN_LMT): shop-code entry -> server-side lookup ->
- * read-only display of what admin registered for this shop. No cart, no
- * transaction types, no submission — that's the Record Visit screen
- * (a later sub-stage), which this screen doesn't yet navigate to. Zero
- * write risk: this only ever calls GET /lmt/customer-shops/code/{code}.
+ * read-only display of what admin registered for this shop. Sub-stage 5
+ * added the "Record Sale" hand-off into RecordVisitScreen below — this
+ * screen itself still never writes anything; it only ever calls
+ * GET /lmt/customer-shops/code/{code}.
  */
-export default function ShopLookupScreen() {
+export default function ShopLookupScreen({ navigation }) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const [shopCode, setShopCode] = useState('');
@@ -108,10 +108,26 @@ export default function ShopLookupScreen() {
             <InfoRow icon="phone" label="Phone" value={shop.phone} colors={colors} />
             <InfoRow icon="smartphone" label="Mobile" value={shop.mobile} colors={colors} />
 
+            {/* Area hierarchy — same AreaDTO the web admin screens already
+                use (tse/srTse/asm), just not previously surfaced here. */}
+            <InfoRow icon="engineering" label="TSE" value={shop.area?.tse?.name} colors={colors} />
+            <InfoRow icon="engineering" label="SR TSE" value={shop.area?.srTse?.name} colors={colors} />
+            <InfoRow icon="supervisor-account" label="ASM" value={shop.area?.asm?.name} colors={colors} />
+
             {shop.isActive === false && (
               <Text style={styles.inactiveWarning}>
                 This shop is marked inactive by admin — a visit here will be rejected.
               </Text>
+            )}
+
+            {shop.isActive !== false && (
+              <AppButton
+                title="Record Sale"
+                variant="success"
+                icon="point-of-sale"
+                onPress={() => navigation.navigate('RecordVisit', { shop })}
+                style={styles.recordButton}
+              />
             )}
 
             <AppButton
@@ -168,5 +184,6 @@ const createStyles = (colors) =>
     shopName: { fontSize: 18, fontWeight: 'bold', marginLeft: 10, flex: 1, color: colors.textPrimary },
     divider: { height: 1, backgroundColor: colors.divider, marginBottom: 16 },
     inactiveWarning: { fontSize: 13, color: colors.error, marginBottom: 16 },
+    recordButton: { marginBottom: 8 },
     resetButton: { marginTop: 4 },
   });

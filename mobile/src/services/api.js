@@ -560,6 +560,28 @@ export const apiService = {
       } catch (error) {
         return handleApiError(error);
       }
+    },
+    /**
+     * shopVisitRequest: { agentId, shopCode, latitude, longitude, items: [{ productId, quantity, transactionType }] }.
+     * Server re-validates the shop code and geofence independently — this
+     * client payload is never trusted as the source of truth for either.
+     */
+    async submitShopVisit(shopVisitRequest) {
+      try {
+        const response = await api.post('/sales/shop-visit', shopVisitRequest);
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
+    /** { geofenceBufferMeters, updatedAt } — for the client-side pre-check only; the server enforces its own copy independently. */
+    async getSettings() {
+      try {
+        const response = await api.get('/lmt/settings');
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
     }
   }
 };
