@@ -9,9 +9,13 @@ import com.dawnbread.attendance.service.LmtStockService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.List;
 
 /**
  * LMT Phase C — stock reconciliation. Entirely new endpoints, no overlap
@@ -50,6 +54,13 @@ public class LmtStockController {
                 .body(ApiResponse.error("Only a SALESMAN_LMT (for themselves) or an ADMIN can access this."));
     }
 
+    private static final String[] MANAGEMENT_ROLES = { "ADMIN", "HR", "SALES" };
+
+    private <T> ResponseEntity<ApiResponse<T>> managementOnly() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Only Admin, HR, or Sales can view the reconciliation report."));
+    }
+
     @GetMapping("/today")
     public ResponseEntity<ApiResponse<LmtDailyStockDTO>> getToday(@RequestParam Long agentId) {
         if (!callerIsSelfLmtOrAdmin(agentId)) {
@@ -85,5 +96,25 @@ public class LmtStockController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
+    }
+
+    /**
+     * Phase D (C6): the Sales Department's stock-reconciliation report —
+     * management-only, distinct from the self-or-admin endpoints above.
+     * Defaults to today when no range is given; agentId is optional (all
+     * LMTs when omitted).
+     */
+    @GetMapping("/reconciliation")
+    public ResponseEntity<ApiResponse<List<LmtDailyStockDTO>>> getReconciliationReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Long agentId) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
+        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDate start = startDate != null ? startDate : end;
+        List<LmtDailyStockDTO> report = lmtStockService.getReconciliationReport(start, end, agentId);
+        return ResponseEntity.ok(ApiResponse.success("Reconciliation report retrieved", report));
     }
 }

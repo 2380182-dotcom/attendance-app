@@ -57,6 +57,20 @@ public class LmtStockService {
     }
 
     /**
+     * Phase D (C6): the Sales Department's reconciliation report — every
+     * LmtDailyStock in a date range, across all LMTs or one, RECONCILED and
+     * still-OPEN rows both included (an OPEN row past its day is itself a
+     * finding — "not reconciled" — not something to hide). Read-only,
+     * management-gated at the controller.
+     */
+    public List<LmtDailyStockDTO> getReconciliationReport(LocalDate startDate, LocalDate endDate, Long agentId) {
+        List<LmtDailyStock> stocks = agentId != null
+                ? lmtDailyStockRepository.findByAgentIdAndStockDateBetween(agentId, startDate, endDate)
+                : lmtDailyStockRepository.findByStockDateBetween(startDate, endDate);
+        return stocks.stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+
+    /**
      * Morning stock entry — creates the day's LmtDailyStock (status OPEN)
      * plus one item per product. Rejects a second call for the same
      * agent+day rather than silently overwriting: an accidental double

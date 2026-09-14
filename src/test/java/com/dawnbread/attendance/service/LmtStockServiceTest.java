@@ -295,4 +295,70 @@ class LmtStockServiceTest {
         Optional<LmtDailyStockDTO> result = lmtStockService.getToday(lmt.getId());
         assertTrue(result.isEmpty());
     }
+
+    // ===== Phase D (C6): reconciliation report =====
+
+    @Test
+    void reconciliationReportIncludesBothOpenAndReconciledRowsForTheDateRange() {
+        Agent lmt = seedLmt("LMT_STOCK_REPORT_MIXED");
+        Product openProduct = seedProduct();
+        Product reconciledProduct = seedProduct();
+
+        // One LMT, two separate agents so each gets its own LmtDailyStock —
+        // one left OPEN, one fully reconciled.
+        Agent lmtOpen = seedLmt("LMT_STOCK_REPORT_OPEN");
+        LmtMorningStockRequest openMorning = new LmtMorningStockRequest();
+        openMorning.setAgentId(lmtOpen.getId());
+        LmtStockItemRequest openItem = new LmtStockItemRequest();
+        openItem.setProductId(openProduct.getId());
+        openItem.setOpeningStock(10);
+        openMorning.setItems(List.of(openItem));
+        lmtStockService.enterMorningStock(openMorning);
+
+        LmtMorningStockRequest reconciledMorning = new LmtMorningStockRequest();
+        reconciledMorning.setAgentId(lmt.getId());
+        LmtStockItemRequest reconciledItem = new LmtStockItemRequest();
+        reconciledItem.setProductId(reconciledProduct.getId());
+        reconciledItem.setOpeningStock(20);
+        reconciledMorning.setItems(List.of(reconciledItem));
+        lmtStockService.enterMorningStock(reconciledMorning);
+
+        LmtReconcileRequest reconcile = new LmtReconcileRequest();
+        reconcile.setAgentId(lmt.getId());
+        reconcile.setItems(Collections.emptyList());
+        lmtStockService.reconcile(reconcile);
+
+        LocalDate today = LocalDate.now();
+        List<LmtDailyStockDTO> report = lmtStockService.getReconciliationReport(today, today, null);
+
+        assertTrue(report.stream().anyMatch(r -> r.getAgentId().equals(lmtOpen.getId()) && "OPEN".equals(r.getStatus())),
+                "The never-reconciled LMT's stock must appear in the report, still flagged OPEN — not hidden");
+        assertTrue(report.stream().anyMatch(r -> r.getAgentId().equals(lmt.getId()) && "RECONCILED".equals(r.getStatus())),
+                "The reconciled LMT's stock must appear in the report as RECONCILED");
+    }
+
+    @Test
+    void reconciliationReportFiltersToOneAgentWhenGiven() {
+        Agent lmtA = seedLmt("LMT_STOCK_REPORT_FILTER_A");
+        Agent lmtB = seedLmt("LMT_STOCK_REPORT_FILTER_B");
+        Product product = seedProduct();
+
+        for (Agent lmt : List.of(lmtA, lmtB)) {
+            LmtMorningStockRequest morning = new LmtMorningStockRequest();
+            morning.setAgentId(lmt.getId());
+            LmtStockItemRequest item = new LmtStockItemRequest();
+            item.setProductId(product.getId());
+            item.setOpeningStock(15);
+            morning.setItems(List.of(item));
+            lmtStockService.enterMorningStock(morning);
+        }
+
+        LocalDate today = LocalDate.now();
+        List<LmtDailyStockDTO> reportForA = lmtStockService.getReconciliationReport(today, today, lmtA.getId());
+
+        assertTrue(reportForA.stream().allMatch(r -> r.getAgentId().equals(lmtA.getId())),
+                "Filtering by agentId must exclude every other LMT's rows");
+        assertTrue(reportForA.stream().anyMatch(r -> r.getAgentId().equals(lmtA.getId())),
+                "Filtering by agentId must still include that agent's own row");
+    }
 }
