@@ -98,13 +98,33 @@ public class AgentService {
         agent.setPassword(dto.getPassword());
         agent.setRole(dto.getRole() != null ? dto.getRole() : "AGENT");
         agent.setDepartment(dto.getDepartment());
+        // Found while wiring Phase B's faceVerificationEnabled toggle: this
+        // method never read faceVerifyOnCheckIn/Out/Anytime from the DTO at
+        // all — the mobile create-form's checkboxes for these were silent
+        // no-ops at creation time (only the edit path applied them). Fixed
+        // alongside the new field since it's the same gap in the same
+        // place. Defaults are unchanged for anyone who doesn't touch these
+        // fields — Agent's own field initializers still apply when null.
+        if (dto.getFaceVerifyOnCheckIn() != null) {
+            agent.setFaceVerifyOnCheckIn(dto.getFaceVerifyOnCheckIn());
+        }
+        if (dto.getFaceVerifyOnCheckOut() != null) {
+            agent.setFaceVerifyOnCheckOut(dto.getFaceVerifyOnCheckOut());
+        }
+        if (dto.getFaceVerifyAnytime() != null) {
+            agent.setFaceVerifyAnytime(dto.getFaceVerifyAnytime());
+        }
+        if (dto.getFaceVerificationEnabled() != null) {
+            agent.setFaceVerificationEnabled(dto.getFaceVerificationEnabled());
+        }
         // SALESMAN_LMT verifies face once at start-of-shift check-in only —
         // frequency=0 disables the mid-shift re-verification schedule
         // entirely (see FaceVerificationService.checkVerificationRequired),
         // faceVerifyAnytime=false stops it being forced independent of that
-        // schedule. Regular AGENT creation is untouched — these three
-        // fields keep the Agent entity's own defaults (checkIn=true,
-        // frequency=2) for every other role.
+        // schedule. This is a fixed, role-driven policy, not an admin
+        // choice — deliberately placed AFTER the generic DTO reads above so
+        // it always wins for this role regardless of what a client sends.
+        // Regular AGENT creation is unaffected either way.
         if ("SALESMAN_LMT".equals(agent.getRole())) {
             agent.setFaceVerifyOnCheckIn(true);
             agent.setFaceVerificationFrequency(0);

@@ -9,7 +9,8 @@ import {
   Alert,
   SafeAreaView,
   TextInput,
-  ScrollView
+  ScrollView,
+  Switch
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import RNPickerSelect from 'react-native-picker-select';
@@ -89,6 +90,11 @@ export default function AdminUsersScreen() {
   const [newDepartment, setNewDepartment] = useState('SALES');
 
   // New Face Verify States (Edit)
+  // faceVerificationEnabled is the master on/off switch (distinct from the
+  // three below, which control *when* verification fires once enabled) —
+  // added for LMT Phase B, but shown for AGENT too since the toggle itself
+  // was previously missing from the admin app entirely, for any role.
+  const [faceVerificationEnabled, setFaceVerificationEnabled] = useState(true);
   const [faceVerifyOnCheckIn, setFaceVerifyOnCheckIn] = useState(true);
   const [faceVerifyOnCheckOut, setFaceVerifyOnCheckOut] = useState(true);
   const [faceVerifyAnytime, setFaceVerifyAnytime] = useState(true);
@@ -97,6 +103,7 @@ export default function AdminUsersScreen() {
   const [faceModalVisible, setFaceModalVisible] = useState(false);
 
   // New Face Verify States (Create)
+  const [newFaceVerificationEnabled, setNewFaceVerificationEnabled] = useState(true);
   const [newFaceVerifyOnCheckIn, setNewFaceVerifyOnCheckIn] = useState(true);
   const [newFaceVerifyOnCheckOut, setNewFaceVerifyOnCheckOut] = useState(true);
   const [newFaceVerifyAnytime, setNewFaceVerifyAnytime] = useState(true);
@@ -132,6 +139,7 @@ export default function AdminUsersScreen() {
     setNewPassword('');
     setNewRole('AGENT');
     setNewDepartment('SALES');
+    setNewFaceVerificationEnabled(true);
     setNewFaceVerifyOnCheckIn(true);
     setNewFaceVerifyOnCheckOut(true);
     setNewFaceVerifyAnytime(true);
@@ -164,6 +172,7 @@ export default function AdminUsersScreen() {
     setSelectedAgent(agent);
     setRole(agent.role || 'AGENT');
     setDepartment(agent.department || 'SALES');
+    setFaceVerificationEnabled(agent.faceVerificationEnabled ?? true);
     setFaceVerifyOnCheckIn(agent.faceVerifyOnCheckIn ?? true);
     setFaceVerifyOnCheckOut(agent.faceVerifyOnCheckOut ?? true);
     setFaceVerifyAnytime(agent.faceVerifyAnytime ?? true);
@@ -182,6 +191,7 @@ export default function AdminUsersScreen() {
       const response = await api.put(`/agents/${selectedAgent.id}`, {
         role,
         department,
+        faceVerificationEnabled,
         faceVerifyOnCheckIn,
         faceVerifyOnCheckOut,
         faceVerifyAnytime,
@@ -239,8 +249,8 @@ export default function AdminUsersScreen() {
       Alert.alert('Validation Error', 'Name, Email, Agent ID, and Password are required.');
       return;
     }
-    if (newRole === 'AGENT' && !newFaceRegistered) {
-      Alert.alert('Face Verification Required', 'Please register the agent\'s face verification before onboarding.');
+    if ((newRole === 'AGENT' || newRole === 'SALESMAN_LMT') && newFaceVerificationEnabled && !newFaceRegistered) {
+      Alert.alert('Face Verification Required', 'Please register a face before onboarding — or turn Face Verification off for this user first.');
       return;
     }
     if (newRole === 'AGENT' && newWorkingDays.length === 0) {
@@ -261,6 +271,7 @@ export default function AdminUsersScreen() {
         password: newPassword,
         role: newRole,
         department: newDepartment,
+        faceVerificationEnabled: newFaceVerificationEnabled,
         faceVerifyOnCheckIn: newFaceVerifyOnCheckIn,
         faceVerifyOnCheckOut: newFaceVerifyOnCheckOut,
         faceVerifyAnytime: newFaceVerifyAnytime,
@@ -504,33 +515,48 @@ export default function AdminUsersScreen() {
                 </View>
               )}
 
-              {newRole === 'AGENT' && (
+              {(newRole === 'AGENT' || newRole === 'SALESMAN_LMT') && (
                 <View style={styles.policyContainer}>
                   <Text style={styles.policyTitle}>Face Verification Policy Settings</Text>
 
-                  <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyOnCheckIn(!newFaceVerifyOnCheckIn)}>
-                    <MaterialIcons name={newFaceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
-                    <Text style={styles.checkboxLabel}>Verify on Check-In</Text>
-                  </TouchableOpacity>
+                  <View style={[styles.checkboxRow, { justifyContent: 'space-between' }]}>
+                    <Text style={styles.checkboxLabel}>Face Verification Enabled</Text>
+                    <Switch
+                      value={newFaceVerificationEnabled}
+                      onValueChange={setNewFaceVerificationEnabled}
+                      trackColor={{ false: colors.border, true: colors.secondary }}
+                    />
+                  </View>
 
-                  <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyOnCheckOut(!newFaceVerifyOnCheckOut)}>
-                    <MaterialIcons name={newFaceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
-                    <Text style={styles.checkboxLabel}>Verify on Check-Out</Text>
-                  </TouchableOpacity>
+                  {newRole === 'AGENT' && (
+                    <>
+                      <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyOnCheckIn(!newFaceVerifyOnCheckIn)}>
+                        <MaterialIcons name={newFaceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
+                        <Text style={styles.checkboxLabel}>Verify on Check-In</Text>
+                      </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyAnytime(!newFaceVerifyAnytime)}>
-                    <MaterialIcons name={newFaceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
-                    <Text style={styles.checkboxLabel}>Verify Anytime (Duty Checks)</Text>
-                  </TouchableOpacity>
+                      <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyOnCheckOut(!newFaceVerifyOnCheckOut)}>
+                        <MaterialIcons name={newFaceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
+                        <Text style={styles.checkboxLabel}>Verify on Check-Out</Text>
+                      </TouchableOpacity>
 
-                  <AppButton
-                    title={newFaceRegistered ? 'Face Registered' : 'Register Agent Face'}
-                    onPress={() => setNewFaceModalVisible(true)}
-                    variant={newFaceRegistered ? 'success' : 'danger'}
-                    icon={newFaceRegistered ? 'face' : 'add-a-photo'}
-                    size="sm"
-                    style={{ marginTop: 10 }}
-                  />
+                      <TouchableOpacity style={styles.checkboxRow} onPress={() => setNewFaceVerifyAnytime(!newFaceVerifyAnytime)}>
+                        <MaterialIcons name={newFaceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
+                        <Text style={styles.checkboxLabel}>Verify Anytime (Duty Checks)</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+
+                  {newFaceVerificationEnabled && (
+                    <AppButton
+                      title={newFaceRegistered ? 'Face Registered' : (newRole === 'SALESMAN_LMT' ? 'Register LMT Face' : 'Register Agent Face')}
+                      onPress={() => setNewFaceModalVisible(true)}
+                      variant={newFaceRegistered ? 'success' : 'danger'}
+                      icon={newFaceRegistered ? 'face' : 'add-a-photo'}
+                      size="sm"
+                      style={{ marginTop: 10 }}
+                    />
+                  )}
                 </View>
               )}
 
@@ -673,33 +699,48 @@ export default function AdminUsersScreen() {
                 </View>
               )}
 
-              {role === 'AGENT' && (
+              {(role === 'AGENT' || role === 'SALESMAN_LMT') && (
                 <View style={styles.policyContainer}>
                   <Text style={styles.policyTitle}>Face Verification Policy Settings</Text>
 
-                  <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyOnCheckIn(!faceVerifyOnCheckIn)}>
-                    <MaterialIcons name={faceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
-                    <Text style={styles.checkboxLabel}>Verify on Check-In</Text>
-                  </TouchableOpacity>
+                  <View style={[styles.checkboxRow, { justifyContent: 'space-between' }]}>
+                    <Text style={styles.checkboxLabel}>Face Verification Enabled</Text>
+                    <Switch
+                      value={faceVerificationEnabled}
+                      onValueChange={setFaceVerificationEnabled}
+                      trackColor={{ false: colors.border, true: colors.secondary }}
+                    />
+                  </View>
 
-                  <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyOnCheckOut(!faceVerifyOnCheckOut)}>
-                    <MaterialIcons name={faceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
-                    <Text style={styles.checkboxLabel}>Verify on Check-Out</Text>
-                  </TouchableOpacity>
+                  {role === 'AGENT' && (
+                    <>
+                      <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyOnCheckIn(!faceVerifyOnCheckIn)}>
+                        <MaterialIcons name={faceVerifyOnCheckIn ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
+                        <Text style={styles.checkboxLabel}>Verify on Check-In</Text>
+                      </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyAnytime(!faceVerifyAnytime)}>
-                    <MaterialIcons name={faceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
-                    <Text style={styles.checkboxLabel}>Verify Anytime (Duty Checks)</Text>
-                  </TouchableOpacity>
+                      <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyOnCheckOut(!faceVerifyOnCheckOut)}>
+                        <MaterialIcons name={faceVerifyOnCheckOut ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
+                        <Text style={styles.checkboxLabel}>Verify on Check-Out</Text>
+                      </TouchableOpacity>
 
-                  <AppButton
-                    title={faceRegistered ? 'Face Registered' : 'Register Face Verification'}
-                    onPress={() => setFaceModalVisible(true)}
-                    variant={faceRegistered ? 'success' : 'danger'}
-                    icon={faceRegistered ? 'face' : 'add-a-photo'}
-                    size="sm"
-                    style={{ marginTop: 10 }}
-                  />
+                      <TouchableOpacity style={styles.checkboxRow} onPress={() => setFaceVerifyAnytime(!faceVerifyAnytime)}>
+                        <MaterialIcons name={faceVerifyAnytime ? "check-box" : "checkbox-blank-outline"} size={20} color={colors.secondary} />
+                        <Text style={styles.checkboxLabel}>Verify Anytime (Duty Checks)</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+
+                  {faceVerificationEnabled && (
+                    <AppButton
+                      title={faceRegistered ? 'Face Registered' : (role === 'SALESMAN_LMT' ? 'Register LMT Face' : 'Register Face Verification')}
+                      onPress={() => setFaceModalVisible(true)}
+                      variant={faceRegistered ? 'success' : 'danger'}
+                      icon={faceRegistered ? 'face' : 'add-a-photo'}
+                      size="sm"
+                      style={{ marginTop: 10 }}
+                    />
+                  )}
                 </View>
               )}
 

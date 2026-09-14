@@ -13,6 +13,14 @@ public class AgentRegistrationDTO {
     private String department;
     private Boolean isActive;
     private Boolean faceVerificationEnabled;
+    // These three didn't exist on this DTO at all — the mobile create-form
+    // has been sending them in its POST /agents payload, but Jackson
+    // silently drops unknown JSON properties by default, so they never
+    // reached the server. Added alongside faceVerificationEnabled since
+    // it's the same gap (see AgentService.createAgent).
+    private Boolean faceVerifyOnCheckIn;
+    private Boolean faceVerifyOnCheckOut;
+    private Boolean faceVerifyAnytime;
     private Integer faceVerificationFrequency;
     private List<String> faceVerificationTimes;
     private LocalTime shiftStartTime;
@@ -48,6 +56,15 @@ public class AgentRegistrationDTO {
 
     public Boolean getFaceVerificationEnabled() { return faceVerificationEnabled; }
     public void setFaceVerificationEnabled(Boolean faceVerificationEnabled) { this.faceVerificationEnabled = faceVerificationEnabled; }
+
+    public Boolean getFaceVerifyOnCheckIn() { return faceVerifyOnCheckIn; }
+    public void setFaceVerifyOnCheckIn(Boolean faceVerifyOnCheckIn) { this.faceVerifyOnCheckIn = faceVerifyOnCheckIn; }
+
+    public Boolean getFaceVerifyOnCheckOut() { return faceVerifyOnCheckOut; }
+    public void setFaceVerifyOnCheckOut(Boolean faceVerifyOnCheckOut) { this.faceVerifyOnCheckOut = faceVerifyOnCheckOut; }
+
+    public Boolean getFaceVerifyAnytime() { return faceVerifyAnytime; }
+    public void setFaceVerifyAnytime(Boolean faceVerifyAnytime) { this.faceVerifyAnytime = faceVerifyAnytime; }
 
     public Integer getFaceVerificationFrequency() { return faceVerificationFrequency; }
     public void setFaceVerificationFrequency(Integer faceVerificationFrequency) { this.faceVerificationFrequency = faceVerificationFrequency; }
