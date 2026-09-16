@@ -28,10 +28,14 @@ import { useTheme } from '../../theme';
  * untouched legacy AGENT flow and this must never share a code path with
  * it (zero regression risk to the 25 agents already using it daily).
  *
- * Per the confirmed Phase A scope: SALE only. Every cart item is submitted
- * with transactionType: 'SALE' — no RETURN/UNSOLD selector here. Those are
- * day-level totals entered once at night (Phase C, LmtDailyStock), not a
- * per-shop-visit choice.
+ * LMT flow refinement: each product now takes a Sold qty AND a Returned
+ * qty for this shop — Dawn Bread needs shop-wise return visibility, so
+ * Returned is captured here per-shop rather than as a day-level lump
+ * figure (see LmtStockService.reconcile, which now computes Returned from
+ * these same per-shop RETURN rows). A cart entry maps to up to two
+ * /sales/shop-visit line items: SALE when soldQty>0, RETURN when
+ * returnQty>0. Unsold remains a separate day-level entry (Enter Unsold on
+ * LmtHome), not a per-shop choice.
  *
  * Geofence: a client-side pre-check (shop radius + admin buffer) here is
  * purely a fast, friendly UX short-circuit — the server's own hard-gate in
@@ -62,17 +66,13 @@ export default function RecordVisitScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [cart, setCart] = useState([]);
-  const [quantities, setQuantities] = useState({});
+  const [saleQuantities, setSaleQuantities] = useState({});
+  const [returnQuantities, setReturnQuantities] = useState({});
 
   const fetchProducts = useCallback(async () => {
     try {
       const data = await apiService.sales.getProducts();
       setProducts(data);
-      const qtys = {};
-      data.forEach((p) => {
-        qtys[p.id] = '1';
-      });
-      setQuantities(qtys);
     } catch (e) {
       console.error(e);
       Alert.alert('Data Error', 'Unable to fetch products list.');
@@ -85,28 +85,43 @@ export default function RecordVisitScreen({ route, navigation }) {
     fetchProducts();
   }, [fetchProducts]);
 
-  const handleQtyChange = (productId, val) => {
-    setQuantities((prev) => ({ ...prev, [productId]: val }));
+  const handleSaleQtyChange = (productId, val) => {
+    setSaleQuantities((prev) => ({ ...prev, [productId]: val }));
+  };
+
+  const handleReturnQtyChange = (productId, val) => {
+    setReturnQuantities((prev) => ({ ...prev, [productId]: val }));
+  };
+
+  /** Blank is a valid "not applicable" for either field — only defaults to 0 here, at add-to-cart time. */
+  const parseQty = (val) => {
+    if (!val || !val.trim()) return 0;
+    const n = parseInt(val, 10);
+    return isNaN(n) ? NaN : n;
   };
 
   const handleAddToCart = (product) => {
-    const qtyStr = quantities[product.id] || '1';
-    const qty = parseInt(qtyStr, 10);
+    const saleQty = parseQty(saleQuantities[product.id]);
+    const returnQty = parseQty(returnQuantities[product.id]);
 
-    if (isNaN(qty) || qty <= 0) {
-      Alert.alert('Invalid Quantity', 'Please enter a quantity of 1 or more.');
+    if (isNaN(saleQty) || isNaN(returnQty) || saleQty < 0 || returnQty < 0) {
+      Alert.alert('Invalid Quantity', 'Sold and Returned quantities must be 0 or more.');
       return;
     }
-    if (qty > 500) {
+    if (saleQty === 0 && returnQty === 0) {
+      Alert.alert('Nothing to Add', 'Enter a Sold and/or Returned quantity before adding this product.');
+      return;
+    }
+    if (saleQty > 500 || returnQty > 500) {
       Alert.alert('Limit Exceeded', 'Maximum allowed quantity per product is 500.');
       return;
     }
     if (cart.some((item) => item.product.id === product.id)) {
-      Alert.alert('Product in Cart', `'${product.name}' is already in the cart. Remove it first to change the quantity.`);
+      Alert.alert('Product in Cart', `'${product.name}' is already in the cart. Remove it first to change the quantities.`);
       return;
     }
 
-    setCart((prev) => [...prev, { product, quantity: qty, totalPrice: product.price * qty }]);
+    setCart((prev) => [...prev, { product, saleQty, returnQty, totalPrice: product.price * saleQty }]);
   };
 
   const handleRemoveFromCart = (productId) => {
@@ -114,7 +129,8 @@ export default function RecordVisitScreen({ route, navigation }) {
   };
 
   const calculateCartTotal = () => cart.reduce((sum, item) => sum + item.totalPrice, 0);
-  const calculateTotalUnits = () => cart.reduce((sum, item) => sum + item.quantity, 0);
+  const calculateTotalSoldUnits = () => cart.reduce((sum, item) => sum + item.saleQty, 0);
+  const calculateTotalReturnedUnits = () => cart.reduce((sum, item) => sum + item.returnQty, 0);
 
   const handleSubmit = async () => {
     if (cart.length === 0) {
@@ -124,7 +140,7 @@ export default function RecordVisitScreen({ route, navigation }) {
 
     Alert.alert(
       'Confirm Sale',
-      `Submit this sale to ${shop.shopName} — ${calculateTotalUnits()} units, PKR ${calculateCartTotal()}?`,
+      `Submit this visit to ${shop.shopName} — ${calculateTotalSoldUnits()} sold, ${calculateTotalReturnedUnits()} returned, PKR ${calculateCartTotal()}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Confirm & Submit', onPress: submitVisit },
@@ -175,20 +191,29 @@ export default function RecordVisitScreen({ route, navigation }) {
         }
       }
 
+      // Each cart entry becomes up to two line items — SALE and/or RETURN —
+      // since a shop can both buy and hand back the same product on one
+      // visit. Server already accepts both types on this endpoint.
+      const items = [];
+      cart.forEach((item) => {
+        if (item.saleQty > 0) {
+          items.push({ productId: item.product.id, quantity: item.saleQty, transactionType: 'SALE' });
+        }
+        if (item.returnQty > 0) {
+          items.push({ productId: item.product.id, quantity: item.returnQty, transactionType: 'RETURN' });
+        }
+      });
+
       const shopVisitRequest = {
         agentId: user.id,
         shopCode: shop.shopCode,
         latitude,
         longitude,
-        items: cart.map((item) => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          transactionType: 'SALE',
-        })),
+        items,
       };
 
       await apiService.lmt.submitShopVisit(shopVisitRequest);
-      Alert.alert('Success', 'Sale recorded successfully!', [
+      Alert.alert('Success', 'Visit recorded successfully!', [
         { text: 'OK', onPress: () => navigation.navigate('LmtHome') },
       ]);
     } catch (e) {
@@ -237,13 +262,30 @@ export default function RecordVisitScreen({ route, navigation }) {
                 <Text style={styles.productPrice}>PKR {item.price}</Text>
               </View>
               <View style={styles.actionRow}>
-                <TextInput
-                  style={styles.qtyInput}
-                  keyboardType="number-pad"
-                  value={quantities[item.id] || '1'}
-                  onChangeText={(val) => handleQtyChange(item.id, val)}
-                  maxLength={3}
-                />
+                <View style={styles.qtyField}>
+                  <Text style={styles.qtyFieldLabel}>Sold</Text>
+                  <TextInput
+                    style={styles.qtyInput}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={colors.textMuted}
+                    value={saleQuantities[item.id] || ''}
+                    onChangeText={(val) => handleSaleQtyChange(item.id, val)}
+                    maxLength={3}
+                  />
+                </View>
+                <View style={styles.qtyField}>
+                  <Text style={styles.qtyFieldLabel}>Returned</Text>
+                  <TextInput
+                    style={styles.qtyInput}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={colors.textMuted}
+                    value={returnQuantities[item.id] || ''}
+                    onChangeText={(val) => handleReturnQtyChange(item.id, val)}
+                    maxLength={3}
+                  />
+                </View>
                 <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(item)}>
                   <Text style={styles.addButtonText}>+ Add</Text>
                 </TouchableOpacity>
@@ -272,7 +314,11 @@ export default function RecordVisitScreen({ route, navigation }) {
               <View style={styles.cartItem}>
                 <View style={styles.cartItemDetails}>
                   <Text style={styles.cartItemName}>{item.product.name}</Text>
-                  <Text style={styles.cartItemSub}>Qty: {item.quantity} x PKR {item.product.price}</Text>
+                  <Text style={styles.cartItemSub}>
+                    {item.saleQty > 0 ? `Sold: ${item.saleQty}` : ''}
+                    {item.saleQty > 0 && item.returnQty > 0 ? '  •  ' : ''}
+                    {item.returnQty > 0 ? `Returned: ${item.returnQty}` : ''}
+                  </Text>
                 </View>
                 <Text style={styles.cartItemTotal}>PKR {item.totalPrice}</Text>
                 <TouchableOpacity onPress={() => handleRemoveFromCart(item.product.id)} style={styles.removeBtn}>
@@ -291,8 +337,12 @@ export default function RecordVisitScreen({ route, navigation }) {
 
         <View style={styles.summaryContainer}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>Total Quantity:</Text>
-            <Text style={styles.summaryValue}>{calculateTotalUnits()} units</Text>
+            <Text style={styles.summaryText}>Total Sold:</Text>
+            <Text style={styles.summaryValue}>{calculateTotalSoldUnits()} units</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>Total Returned:</Text>
+            <Text style={styles.summaryValue}>{calculateTotalReturnedUnits()} units</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryText}>Total Amount:</Text>
@@ -354,24 +404,25 @@ const createStyles = (colors) =>
       borderBottomWidth: 1,
       borderBottomColor: colors.divider,
     },
-    productImage: { width: 44, height: 44, borderRadius: 6, backgroundColor: colors.surfaceMuted },
-    productInfo: { flex: 1, marginLeft: 12 },
-    productName: { fontWeight: 'bold', fontSize: 14, color: colors.textPrimary },
-    productPrice: { fontSize: 12, color: colors.secondary, fontWeight: '600', marginTop: 2 },
-    actionRow: { flexDirection: 'row', alignItems: 'center' },
+    productImage: { width: 40, height: 40, borderRadius: 6, backgroundColor: colors.surfaceMuted },
+    productInfo: { flex: 1, marginLeft: 10, marginRight: 6 },
+    productName: { fontWeight: 'bold', fontSize: 13, color: colors.textPrimary },
+    productPrice: { fontSize: 11, color: colors.secondary, fontWeight: '600', marginTop: 2 },
+    actionRow: { flexDirection: 'row', alignItems: 'flex-end' },
+    qtyField: { alignItems: 'center', marginRight: 6 },
+    qtyFieldLabel: { fontSize: 9, color: colors.textSecondary, marginBottom: 2, textTransform: 'uppercase' },
     qtyInput: {
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 6,
-      width: 42,
-      height: 36,
+      width: 36,
+      height: 34,
       textAlign: 'center',
       fontSize: 13,
       color: colors.textPrimary,
       backgroundColor: colors.inputBackground,
-      marginRight: 8,
     },
-    addButton: { backgroundColor: colors.secondary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6 },
+    addButton: { backgroundColor: colors.secondary, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6 },
     addButtonText: { color: colors.textOnPrimary, fontWeight: 'bold', fontSize: 13 },
     cartSection: {
       flex: 1,
