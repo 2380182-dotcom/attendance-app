@@ -62,12 +62,13 @@ public class SalesService {
     private int maxQuantityLimit;
 
     public List<ProductCatalogDTO> getProductCatalog() {
-        // P1: still exposes a single price (agentPrice) — mechanically
-        // identical to pre-migration behavior. P2 exposes both
-        // agentPrice/salesmanPrice so each app can show its own role's
-        // price.
+        // P2: exposes both agentPrice and salesmanPrice — display-only,
+        // same as price always was here (the server independently
+        // recomputes the real amount at submission time regardless of
+        // what a client shows). `price` stays populated (= agentPrice)
+        // for backward compatibility until P3 updates the mobile screens.
         return productRepository.findByIsActiveTrue().stream()
-                .map(p -> new ProductCatalogDTO(p.getId(), p.getName(), p.getCategory(), p.getUnit(), p.getAgentPrice()))
+                .map(p -> new ProductCatalogDTO(p.getId(), p.getName(), p.getCategory(), p.getUnit(), p.getAgentPrice(), p.getSalesmanPrice()))
                 .collect(Collectors.toList());
     }
 
@@ -370,7 +371,11 @@ public class SalesService {
             Product product = productRepository.findById(itemReq.getProductId())
                     .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
 
-            double itemTotal = product.getAgentPrice() * itemReq.getQuantity();
+            // P2: the LMT flow charges salesmanPrice, not agentPrice — the
+            // one intentional behavioral divergence in this feature. Shop
+            // discounts (Feature 2, P4-P6) apply on top of this, SALE lines
+            // only.
+            double itemTotal = product.getSalesmanPrice() * itemReq.getQuantity();
             // UNSOLD carries no revenue (it never left the shop); RETURN is
             // tracked as a credit rather than folded into totalAmount, so
             // that field keeps its existing meaning (SALE-line revenue only)
@@ -382,7 +387,7 @@ public class SalesService {
             SaleItem item = new SaleItem();
             item.setProduct(product);
             item.setQuantity(itemReq.getQuantity());
-            item.setUnitPrice(product.getAgentPrice());
+            item.setUnitPrice(product.getSalesmanPrice());
             item.setTotalPrice(itemTotal);
             item.setProductImageUrl(product.getImageUrl());
             item.setAgentId(agent.getId());

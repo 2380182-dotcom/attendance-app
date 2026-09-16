@@ -5,7 +5,15 @@ public class ProductCatalogDTO {
     private String name;
     private String category;
     private String unit;
+    /**
+     * P2: kept for backward compatibility with the mobile screens that
+     * still read a single display price — set to agentPrice. P3 switches
+     * SalesEntryScreen/RecordVisitScreen to read agentPrice/salesmanPrice
+     * explicitly instead, at which point this field can be removed.
+     */
     private Double price;
+    private Double agentPrice;
+    private Double salesmanPrice;
 
     public ProductCatalogDTO() {}
 
@@ -15,6 +23,16 @@ public class ProductCatalogDTO {
         this.category = category;
         this.unit = unit;
         this.price = price;
+    }
+
+    public ProductCatalogDTO(Long id, String name, String category, String unit, Double agentPrice, Double salesmanPrice) {
+        this.id = id;
+        this.name = name;
+        this.category = category;
+        this.unit = unit;
+        this.price = agentPrice;
+        this.agentPrice = agentPrice;
+        this.salesmanPrice = salesmanPrice;
     }
 
     public Long getId() { return id; }
@@ -31,4 +49,10 @@ public class ProductCatalogDTO {
 
     public Double getPrice() { return price; }
     public void setPrice(Double price) { this.price = price; }
+
+    public Double getAgentPrice() { return agentPrice; }
+    public void setAgentPrice(Double agentPrice) { this.agentPrice = agentPrice; }
+
+    public Double getSalesmanPrice() { return salesmanPrice; }
+    public void setSalesmanPrice(Double salesmanPrice) { this.salesmanPrice = salesmanPrice; }
 }
