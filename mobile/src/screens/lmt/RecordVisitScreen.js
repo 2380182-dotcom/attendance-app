@@ -68,6 +68,7 @@ export default function RecordVisitScreen({ route, navigation }) {
   const [cart, setCart] = useState([]);
   const [saleQuantities, setSaleQuantities] = useState({});
   const [returnQuantities, setReturnQuantities] = useState({});
+  const [reviewMode, setReviewMode] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -132,20 +133,16 @@ export default function RecordVisitScreen({ route, navigation }) {
   const calculateTotalSoldUnits = () => cart.reduce((sum, item) => sum + item.saleQty, 0);
   const calculateTotalReturnedUnits = () => cart.reduce((sum, item) => sum + item.returnQty, 0);
 
-  const handleSubmit = async () => {
+  // The review screen below is the confirmation surface now — cross-check
+  // Sold/Returned per product before submitting — so there's no separate
+  // "are you sure" Alert on top of it; "Confirm & Submit" there calls
+  // submitVisit directly.
+  const handleReview = () => {
     if (cart.length === 0) {
       Alert.alert('Empty Cart', 'Please add at least one product before submitting.');
       return;
     }
-
-    Alert.alert(
-      'Confirm Sale',
-      `Submit this visit to ${shop.shopName} — ${calculateTotalSoldUnits()} sold, ${calculateTotalReturnedUnits()} returned, PKR ${calculateCartTotal()}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Confirm & Submit', onPress: submitVisit },
-      ]
-    );
+    setReviewMode(true);
   };
 
   const submitVisit = async () => {
@@ -230,7 +227,66 @@ export default function RecordVisitScreen({ route, navigation }) {
     return <Loading message="Loading Dawn Bread products..." fullScreen />;
   }
   if (submitting) {
-    return <Loading message="Recording sale..." fullScreen />;
+    return <Loading message="Recording visit..." fullScreen />;
+  }
+
+  if (reviewMode) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.shopBanner}>
+          <MaterialIcons name="fact-check" size={20} color={colors.primary} />
+          <Text style={styles.shopBannerText} numberOfLines={1}>
+            Review — {shop.shopName} ({shop.shopCode})
+          </Text>
+        </View>
+
+        <View style={styles.reviewListContainer}>
+          <View style={styles.reviewHeaderRow}>
+            <Text style={[styles.reviewHeaderLabel, styles.reviewProductHeaderLabel]}>Product</Text>
+            <Text style={styles.reviewHeaderLabel}>Sold</Text>
+            <Text style={styles.reviewHeaderLabel}>Returned</Text>
+          </View>
+          <FlatList
+            data={cart}
+            keyExtractor={(item) => item.product.id.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.reviewRow}>
+                <Text style={[styles.reviewProductName, { flex: 1 }]} numberOfLines={2}>{item.product.name}</Text>
+                <Text style={styles.reviewQty}>{item.saleQty || '—'}</Text>
+                <Text style={styles.reviewQty}>{item.returnQty || '—'}</Text>
+              </View>
+            )}
+          />
+        </View>
+
+        <View style={styles.cartSection}>
+          <View style={styles.summaryContainer}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>Total Sold:</Text>
+              <Text style={styles.summaryValue}>{calculateTotalSoldUnits()} units</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>Total Returned:</Text>
+              <Text style={styles.summaryValue}>{calculateTotalReturnedUnits()} units</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>Total Amount:</Text>
+              <Text style={styles.summaryTotal}>PKR {calculateCartTotal()}</Text>
+            </View>
+          </View>
+
+          <View style={styles.buttonGroup}>
+            <AppButton title="Back to Edit" onPress={() => setReviewMode(false)} variant="ghost" style={{ flex: 1, marginRight: 8 }} />
+            <AppButton
+              title="Confirm & Submit"
+              onPress={submitVisit}
+              variant="success"
+              style={{ flex: 1.5, marginLeft: 8 }}
+            />
+          </View>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -353,8 +409,8 @@ export default function RecordVisitScreen({ route, navigation }) {
         <View style={styles.buttonGroup}>
           <AppButton title="Cancel" onPress={() => navigation.goBack()} variant="ghost" style={{ flex: 1, marginRight: 8 }} />
           <AppButton
-            title="Submit Sale"
-            onPress={handleSubmit}
+            title="Review & Submit"
+            onPress={handleReview}
             variant="success"
             disabled={cart.length === 0}
             style={{ flex: 1.5, marginLeft: 8 }}
@@ -397,6 +453,42 @@ const createStyles = (colors) =>
       borderColor: colors.border,
       overflow: 'hidden',
     },
+    reviewListContainer: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      margin: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    reviewHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: colors.surfaceMuted,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    reviewHeaderLabel: {
+      fontSize: 11,
+      fontWeight: 'bold',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      width: 70,
+      textAlign: 'center',
+    },
+    reviewProductHeaderLabel: { flex: 1, width: undefined, textAlign: 'left' },
+    reviewRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    reviewProductName: { fontSize: 13, color: colors.textPrimary },
+    reviewQty: { width: 70, textAlign: 'center', fontWeight: '600', fontSize: 14, color: colors.textPrimary },
     productRow: {
       flexDirection: 'row',
       padding: 12,
