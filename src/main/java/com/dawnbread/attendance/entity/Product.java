@@ -27,8 +27,16 @@ public class Product implements TenantAware {
     @Column(length = 50)
     private String unit;
 
-    @Column(nullable = false)
-    private Double price;
+    // Role-based pricing: replaces the old single `price` field (V22).
+    // agentPrice is what the legacy Agent sales flow charges; salesmanPrice
+    // is what the LMT shop-visit flow charges (before any per-shop
+    // discount — see ShopProductDiscount/CustomerShop.discountPercent).
+    // Both started out equal to the old price via the migration's backfill.
+    @Column(name = "agent_price", nullable = false)
+    private Double agentPrice;
+
+    @Column(name = "salesman_price", nullable = false)
+    private Double salesmanPrice;
 
     @Column(name = "image_url", length = 500)
     private String imageUrl;
@@ -50,15 +58,6 @@ public class Product implements TenantAware {
 
     public Product() {}
 
-    public Product(String name, Double price, String imageUrl, String thumbnailUrl, String description) {
-        this.name = name;
-        this.price = price;
-        this.imageUrl = imageUrl;
-        this.thumbnailUrl = thumbnailUrl;
-        this.description = description;
-        this.isActive = true;
-    }
-
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -74,8 +73,11 @@ public class Product implements TenantAware {
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
 
-    public Double getPrice() { return price; }
-    public void setPrice(Double price) { this.price = price; }
+    public Double getAgentPrice() { return agentPrice; }
+    public void setAgentPrice(Double agentPrice) { this.agentPrice = agentPrice; }
+
+    public Double getSalesmanPrice() { return salesmanPrice; }
+    public void setSalesmanPrice(Double salesmanPrice) { this.salesmanPrice = salesmanPrice; }
 
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }

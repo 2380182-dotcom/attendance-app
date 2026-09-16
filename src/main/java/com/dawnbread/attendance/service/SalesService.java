@@ -62,8 +62,12 @@ public class SalesService {
     private int maxQuantityLimit;
 
     public List<ProductCatalogDTO> getProductCatalog() {
+        // P1: still exposes a single price (agentPrice) — mechanically
+        // identical to pre-migration behavior. P2 exposes both
+        // agentPrice/salesmanPrice so each app can show its own role's
+        // price.
         return productRepository.findByIsActiveTrue().stream()
-                .map(p -> new ProductCatalogDTO(p.getId(), p.getName(), p.getCategory(), p.getUnit(), p.getPrice()))
+                .map(p -> new ProductCatalogDTO(p.getId(), p.getName(), p.getCategory(), p.getUnit(), p.getAgentPrice()))
                 .collect(Collectors.toList());
     }
 
@@ -98,14 +102,14 @@ public class SalesService {
             Product product = productRepository.findById(itemReq.getProductId())
                     .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
 
-            double itemTotal = product.getPrice() * itemReq.getQuantity();
+            double itemTotal = product.getAgentPrice() * itemReq.getQuantity();
             totalAmount += itemTotal;
             totalUnits += itemReq.getQuantity();
 
             SaleItem item = new SaleItem();
             item.setProduct(product);
             item.setQuantity(itemReq.getQuantity());
-            item.setUnitPrice(product.getPrice());
+            item.setUnitPrice(product.getAgentPrice());
             item.setTotalPrice(itemTotal);
             item.setProductImageUrl(product.getImageUrl());
             item.setAgentId(agent.getId());
@@ -113,7 +117,7 @@ public class SalesService {
             itemsToSave.add(item);
 
             itemDetails.add(new SalesEntryResponseDTO.ItemDetail(
-                    product.getId(), product.getName(), itemReq.getQuantity(), product.getPrice(), itemTotal));
+                    product.getId(), product.getName(), itemReq.getQuantity(), product.getAgentPrice(), itemTotal));
         }
 
         SalesRecord record = new SalesRecord();
@@ -219,13 +223,13 @@ public class SalesService {
             Product product = productRepository.findById(itemReq.getProductId())
                     .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
 
-            double itemTotal = product.getPrice() * itemReq.getQuantity();
+            double itemTotal = product.getAgentPrice() * itemReq.getQuantity();
             totalAmount += itemTotal;
 
             SaleItem item = new SaleItem();
             item.setProduct(product);
             item.setQuantity(itemReq.getQuantity());
-            item.setUnitPrice(product.getPrice());
+            item.setUnitPrice(product.getAgentPrice());
             item.setTotalPrice(itemTotal);
             item.setProductImageUrl(product.getImageUrl());
             item.setAgentId(agent.getId());
@@ -366,7 +370,7 @@ public class SalesService {
             Product product = productRepository.findById(itemReq.getProductId())
                     .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
 
-            double itemTotal = product.getPrice() * itemReq.getQuantity();
+            double itemTotal = product.getAgentPrice() * itemReq.getQuantity();
             // UNSOLD carries no revenue (it never left the shop); RETURN is
             // tracked as a credit rather than folded into totalAmount, so
             // that field keeps its existing meaning (SALE-line revenue only)
@@ -378,7 +382,7 @@ public class SalesService {
             SaleItem item = new SaleItem();
             item.setProduct(product);
             item.setQuantity(itemReq.getQuantity());
-            item.setUnitPrice(product.getPrice());
+            item.setUnitPrice(product.getAgentPrice());
             item.setTotalPrice(itemTotal);
             item.setProductImageUrl(product.getImageUrl());
             item.setAgentId(agent.getId());
@@ -754,13 +758,13 @@ public class SalesService {
             Product product = productRepository.findById(itemReq.getProductId())
                     .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
             
-            double itemTotal = product.getPrice() * itemReq.getQuantity();
+            double itemTotal = product.getAgentPrice() * itemReq.getQuantity();
             totalAmount += itemTotal;
 
             SaleItem item = new SaleItem();
             item.setProduct(product);
             item.setQuantity(itemReq.getQuantity());
-            item.setUnitPrice(product.getPrice());
+            item.setUnitPrice(product.getAgentPrice());
             item.setTotalPrice(itemTotal);
             item.setProductImageUrl(product.getImageUrl());
             item.setAgentId(record.getAgent().getId());

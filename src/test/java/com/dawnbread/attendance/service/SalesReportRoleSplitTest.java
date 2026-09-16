@@ -78,7 +78,8 @@ class SalesReportRoleSplitTest {
         Product product = new Product();
         product.setTenantId(tenantId());
         product.setName("Role Split Test Bread " + System.nanoTime());
-        product.setPrice(50.0);
+        product.setAgentPrice(50.0);
+        product.setSalesmanPrice(50.0);
         product.setIsActive(true);
         product.setCreatedAt(LocalDateTime.now());
         return productRepository.save(product);

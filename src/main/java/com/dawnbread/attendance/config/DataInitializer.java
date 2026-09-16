@@ -119,7 +119,11 @@ public class DataInitializer implements CommandLineRunner {
                 Product p = new Product();
                 p.setTenantId(defaultTenant.getId());
                 p.setName(names[i]);
-                p.setPrice(prices[i]);
+                // Both start equal, same as the V22 migration's backfill —
+                // an admin differentiates salesmanPrice later via the
+                // pricing dashboard.
+                p.setAgentPrice(prices[i]);
+                p.setSalesmanPrice(prices[i]);
                 p.setDescription(descriptions[i]);
                 // Set simple UI compatible image and thumbnail links
                 p.setImageUrl("https://placehold.co/100x100/1976D2/FFFFFF?text=" + names[i].replace(" ", "+"));

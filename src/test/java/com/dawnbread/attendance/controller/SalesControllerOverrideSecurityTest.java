@@ -96,7 +96,8 @@ class SalesControllerOverrideSecurityTest {
         Product product = new Product();
         product.setTenantId(TenantTestHelper.defaultTenantId(tenantRepository));
         product.setName("Override Test Bread");
-        product.setPrice(50.0);
+        product.setAgentPrice(50.0);
+        product.setSalesmanPrice(50.0);
         product.setCreatedAt(LocalDateTime.now());
         return productRepository.save(product);
     }
