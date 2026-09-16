@@ -5,6 +5,7 @@ import com.dawnbread.attendance.dto.LmtDailyStockItemDTO;
 import com.dawnbread.attendance.dto.LmtMorningStockRequest;
 import com.dawnbread.attendance.dto.LmtReconcileItemRequest;
 import com.dawnbread.attendance.dto.LmtReconcileRequest;
+import com.dawnbread.attendance.dto.LmtShopReturnDTO;
 import com.dawnbread.attendance.dto.LmtStockItemRequest;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.LmtDailyStock;
@@ -67,7 +68,37 @@ public class LmtStockService {
         List<LmtDailyStock> stocks = agentId != null
                 ? lmtDailyStockRepository.findByAgentIdAndStockDateBetween(agentId, startDate, endDate)
                 : lmtDailyStockRepository.findByStockDateBetween(startDate, endDate);
-        return stocks.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return stocks.stream().map(this::convertToReportDTO).collect(Collectors.toList());
+    }
+
+    /**
+     * Same as convertToDTO, plus the per-shop Returned breakdown — kept as
+     * a separate method (rather than adding this to convertToDTO itself)
+     * so the LMT's own self-service calls (getToday, enterMorningStock,
+     * reconcile) never carry shop-wise return data, only this
+     * management-only report path does.
+     */
+    private LmtDailyStockDTO convertToReportDTO(LmtDailyStock stock) {
+        LmtDailyStockDTO dto = convertToDTO(stock);
+
+        Map<Long, List<LmtShopReturnDTO>> shopReturnsByProduct = new HashMap<>();
+        for (Object[] row : saleItemRepository.sumReturnedQuantityByShopForAgentAndDateRange(
+                stock.getAgentId(), stock.getStockDate(), stock.getStockDate())) {
+            LmtShopReturnDTO shopReturn = new LmtShopReturnDTO();
+            shopReturn.setShopId((Long) row[0]);
+            shopReturn.setShopCode((String) row[1]);
+            shopReturn.setShopName((String) row[2]);
+            Long qty = (Long) row[5];
+            shopReturn.setReturnedQty(qty != null ? qty.intValue() : 0);
+
+            Long productId = (Long) row[3];
+            shopReturnsByProduct.computeIfAbsent(productId, k -> new java.util.ArrayList<>()).add(shopReturn);
+        }
+
+        for (LmtDailyStockItemDTO itemDto : dto.getItems()) {
+            itemDto.setReturnsByShop(shopReturnsByProduct.getOrDefault(itemDto.getProductId(), new java.util.ArrayList<>()));
+        }
+        return dto;
     }
 
     /**
@@ -109,14 +140,18 @@ public class LmtStockService {
     }
 
     /**
-     * Night reconciliation — computes Sold (from that day's SaleItem SALE
-     * rows) and Missing (opening - sold - returned - unsold) per product,
-     * then flips status to RECONCILED. Missing is allowed to go negative
+     * Night reconciliation — computes Sold and Returned (both from that
+     * day's SaleItem SALE/RETURN rows, the same aggregation pattern for
+     * each — see SaleItemRepository) and Missing (opening - sold -
+     * returned - unsold) per product, then flips status to RECONCILED.
+     * Returned is no longer entered manually here: per the LMT flow
+     * refinement, returns are captured per-shop on the shop-visit screen,
+     * not as a day-level lump figure. Missing is allowed to go negative
      * (an LMT selling more than their declared opening stock) and is never
      * rejected — recorded as a real discrepancy for the Sales Department,
      * per the build plan's "recorded, not blocked" rule. Items not named
-     * in the request default to returnedQty=0/unsoldQty=0 for the same
-     * reason — a partially-filled reconciliation still completes.
+     * in the request default to unsoldQty=0 for the same reason — a
+     * partially-filled reconciliation still completes.
      */
     public LmtDailyStockDTO reconcile(LmtReconcileRequest request) {
         LocalDate today = LocalDate.now();
@@ -137,13 +172,20 @@ public class LmtStockService {
             soldByProduct.put(productId, sold != null ? sold.intValue() : 0);
         }
 
+        Map<Long, Integer> returnedByProduct = new HashMap<>();
+        for (Object[] row : saleItemRepository.sumReturnedQuantityByAgentAndDate(request.getAgentId(), today)) {
+            Long productId = (Long) row[0];
+            Long returned = (Long) row[1];
+            returnedByProduct.put(productId, returned != null ? returned.intValue() : 0);
+        }
+
         List<LmtDailyStockItem> items = lmtDailyStockItemRepository.findByLmtDailyStockId(stock.getId());
         for (LmtDailyStockItem item : items) {
             Long productId = item.getProduct().getId();
             LmtReconcileItemRequest itemReq = byProductId.get(productId);
-            int returnedQty = itemReq != null ? itemReq.getReturnedQty() : 0;
             int unsoldQty = itemReq != null ? itemReq.getUnsoldQty() : 0;
             int soldQty = soldByProduct.getOrDefault(productId, 0);
+            int returnedQty = returnedByProduct.getOrDefault(productId, 0);
 
             item.setReturnedQty(returnedQty);
             item.setUnsoldQty(unsoldQty);

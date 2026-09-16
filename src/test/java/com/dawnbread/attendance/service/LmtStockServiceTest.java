@@ -7,11 +7,16 @@ import com.dawnbread.attendance.dto.LmtReconcileItemRequest;
 import com.dawnbread.attendance.dto.LmtReconcileRequest;
 import com.dawnbread.attendance.dto.LmtStockItemRequest;
 import com.dawnbread.attendance.entity.Agent;
+import com.dawnbread.attendance.entity.Area;
+import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.entity.Product;
 import com.dawnbread.attendance.entity.SaleItem;
 import com.dawnbread.attendance.entity.SalesRecord;
 import com.dawnbread.attendance.entity.Tenant;
+import com.dawnbread.attendance.entity.TransactionType;
 import com.dawnbread.attendance.repository.AgentRepository;
+import com.dawnbread.attendance.repository.AreaRepository;
+import com.dawnbread.attendance.repository.CustomerShopRepository;
 import com.dawnbread.attendance.repository.ProductRepository;
 import com.dawnbread.attendance.repository.SaleItemRepository;
 import com.dawnbread.attendance.repository.SalesRecordRepository;
@@ -59,6 +64,12 @@ class LmtStockServiceTest {
 
     @Autowired
     private SaleItemRepository saleItemRepository;
+
+    @Autowired
+    private AreaRepository areaRepository;
+
+    @Autowired
+    private CustomerShopRepository customerShopRepository;
 
     @Autowired
     private LmtStockService lmtStockService;
@@ -114,10 +125,53 @@ class LmtStockServiceTest {
 
     /** A SALE row for the given agent/product/date/shop — mirrors a real shop-visit sale. */
     private void seedSale(Agent agent, Product product, LocalDate saleDate, Long shopId, int quantity) {
+        seedSaleItem(agent, product, saleDate, shopId, quantity, TransactionType.SALE);
+    }
+
+    /** A RETURN row — mirrors the per-shop RETURN line the shop-visit flow now also submits. */
+    private void seedReturn(Agent agent, Product product, LocalDate saleDate, Long shopId, int quantity) {
+        seedSaleItem(agent, product, saleDate, shopId, quantity, TransactionType.RETURN, null);
+    }
+
+    /**
+     * A RETURN row backed by a REAL CustomerShop entity attached to the
+     * parent SalesRecord — required for the per-shop breakdown query,
+     * which joins through SalesRecord.customerShop (SaleItem's own
+     * customerShopId is just a denormalized Long, no FK — see SaleItem's
+     * field comment). Returns the created shop so tests can assert on its id.
+     */
+    private CustomerShop seedReturnAtShop(Agent agent, Product product, LocalDate saleDate, int quantity) {
+        Area area = new Area();
+        area.setTenantId(tenantId());
+        area.setName("LMT Stock Test Area " + System.nanoTime());
+        area.setIsActive(true);
+        area.setCreatedAt(LocalDateTime.now());
+        area = areaRepository.save(area);
+
+        CustomerShop shop = new CustomerShop();
+        shop.setTenantId(tenantId());
+        shop.setShopCode("LMTSTOCK_" + System.nanoTime());
+        shop.setShopName("LMT Stock Test Shop");
+        shop.setArea(area);
+        shop.setIsActive(true);
+        shop.setCreatedAt(LocalDateTime.now());
+        shop = customerShopRepository.save(shop);
+
+        seedSaleItem(agent, product, saleDate, shop.getId(), quantity, TransactionType.RETURN, shop);
+        return shop;
+    }
+
+    private void seedSaleItem(Agent agent, Product product, LocalDate saleDate, Long shopId, int quantity, TransactionType type) {
+        seedSaleItem(agent, product, saleDate, shopId, quantity, type, null);
+    }
+
+    private void seedSaleItem(Agent agent, Product product, LocalDate saleDate, Long shopId, int quantity,
+                               TransactionType type, CustomerShop customerShop) {
         SalesRecord record = new SalesRecord();
         record.setTenantId(tenantId());
         record.setAgent(agent);
         record.setStoreName("Test Shop " + shopId);
+        record.setCustomerShop(customerShop);
         record.setTotalAmount(quantity * 50.0);
         record.setTotalUnits(quantity);
         record.setSaleDate(saleDate);
@@ -133,6 +187,7 @@ class LmtStockServiceTest {
         item.setAgentId(agent.getId());
         item.setSaleDate(saleDate);
         item.setCustomerShopId(shopId);
+        item.setTransactionType(type);
         saleItemRepository.saveAndFlush(item);
     }
 
@@ -163,12 +218,13 @@ class LmtStockServiceTest {
         // or overwrite each other.
         seedSale(lmt, product, today, 201L, 10);
         seedSale(lmt, product, today, 202L, 20);
+        // Returned is also per-shop now — one RETURN row at a third shop.
+        seedReturn(lmt, product, today, 203L, 5);
 
         LmtReconcileRequest reconcile = new LmtReconcileRequest();
         reconcile.setAgentId(lmt.getId());
         LmtReconcileItemRequest reconcileItem = new LmtReconcileItemRequest();
         reconcileItem.setProductId(product.getId());
-        reconcileItem.setReturnedQty(5);
         reconcileItem.setUnsoldQty(10);
         reconcile.setItems(List.of(reconcileItem));
 
@@ -176,6 +232,7 @@ class LmtStockServiceTest {
         LmtDailyStockItemDTO item = itemFor(result, product.getId());
 
         assertEquals(30, item.getSoldQty(), "Sold must be the sum across both shops (10 + 20), not double-counted or missed");
+        assertEquals(5, item.getReturnedQty(), "Returned must be computed from the per-shop RETURN row, not entered manually");
         assertEquals(5, item.getMissingQty(), "Missing = 50 opening - 30 sold - 5 returned - 10 unsold = 5");
         assertEquals("RECONCILED", result.getStatus());
     }
@@ -193,20 +250,22 @@ class LmtStockServiceTest {
         morning.setItems(List.of(morningItem));
         lmtStockService.enterMorningStock(morning);
 
-        // No SaleItem rows seeded at all for this product/day.
+        // No SALE rows, but one RETURN row — Returned is computed the same
+        // way Sold is, independently.
+        seedReturn(lmt, product, LocalDate.now(), 401L, 5);
 
         LmtReconcileRequest reconcile = new LmtReconcileRequest();
         reconcile.setAgentId(lmt.getId());
         LmtReconcileItemRequest reconcileItem = new LmtReconcileItemRequest();
         reconcileItem.setProductId(product.getId());
-        reconcileItem.setReturnedQty(5);
         reconcileItem.setUnsoldQty(15);
         reconcile.setItems(List.of(reconcileItem));
 
         LmtDailyStockDTO result = lmtStockService.reconcile(reconcile);
         LmtDailyStockItemDTO item = itemFor(result, product.getId());
 
-        assertEquals(0, item.getSoldQty(), "A product with no SaleItem rows must compute Sold as 0, not null or an error");
+        assertEquals(0, item.getSoldQty(), "A product with no SaleItem SALE rows must compute Sold as 0, not null or an error");
+        assertEquals(5, item.getReturnedQty(), "Returned must reflect the seeded RETURN row even with zero Sold");
         assertEquals(0, item.getMissingQty(), "Missing = 20 - 0 sold - 5 returned - 15 unsold = 0");
     }
 
@@ -232,7 +291,6 @@ class LmtStockServiceTest {
         reconcile.setAgentId(lmt.getId());
         LmtReconcileItemRequest reconcileItem = new LmtReconcileItemRequest();
         reconcileItem.setProductId(product.getId());
-        reconcileItem.setReturnedQty(0);
         reconcileItem.setUnsoldQty(0);
         reconcile.setItems(List.of(reconcileItem));
 
@@ -360,5 +418,92 @@ class LmtStockServiceTest {
                 "Filtering by agentId must exclude every other LMT's rows");
         assertTrue(reportForA.stream().anyMatch(r -> r.getAgentId().equals(lmtA.getId())),
                 "Filtering by agentId must still include that agent's own row");
+    }
+
+    // ===== LMT flow refinement: Returned is per-shop, not a manual day-level entry =====
+
+    @Test
+    void returnedIsSummedAcrossMultipleShopsForTheSameProductAndDay() {
+        Agent lmt = seedLmt("LMT_STOCK_RETURN_MULTISHOP");
+        Product product = seedProduct();
+        LocalDate today = LocalDate.now();
+
+        LmtMorningStockRequest morning = new LmtMorningStockRequest();
+        morning.setAgentId(lmt.getId());
+        LmtStockItemRequest morningItem = new LmtStockItemRequest();
+        morningItem.setProductId(product.getId());
+        morningItem.setOpeningStock(50);
+        morning.setItems(List.of(morningItem));
+        lmtStockService.enterMorningStock(morning);
+
+        // Same product returned at two different shops — must sum, exactly
+        // mirroring Sold's own multi-shop aggregation safety.
+        seedReturn(lmt, product, today, 501L, 3);
+        seedReturn(lmt, product, today, 502L, 4);
+
+        LmtReconcileRequest reconcile = new LmtReconcileRequest();
+        reconcile.setAgentId(lmt.getId());
+        LmtReconcileItemRequest reconcileItem = new LmtReconcileItemRequest();
+        reconcileItem.setProductId(product.getId());
+        reconcileItem.setUnsoldQty(0);
+        reconcile.setItems(List.of(reconcileItem));
+
+        LmtDailyStockDTO result = lmtStockService.reconcile(reconcile);
+        LmtDailyStockItemDTO item = itemFor(result, product.getId());
+
+        assertEquals(7, item.getReturnedQty(), "Returned must sum across both shops (3 + 4), not double-count or miss either");
+    }
+
+    @Test
+    void reconciliationReportBreaksReturnsDownByShop() {
+        Agent lmt = seedLmt("LMT_STOCK_RETURN_BYSHOP");
+        Product product = seedProduct();
+        LocalDate today = LocalDate.now();
+
+        LmtMorningStockRequest morning = new LmtMorningStockRequest();
+        morning.setAgentId(lmt.getId());
+        LmtStockItemRequest morningItem = new LmtStockItemRequest();
+        morningItem.setProductId(product.getId());
+        morningItem.setOpeningStock(30);
+        morning.setItems(List.of(morningItem));
+        lmtStockService.enterMorningStock(morning);
+
+        CustomerShop shopA = seedReturnAtShop(lmt, product, today, 2);
+        CustomerShop shopB = seedReturnAtShop(lmt, product, today, 6);
+
+        LmtReconcileRequest reconcile = new LmtReconcileRequest();
+        reconcile.setAgentId(lmt.getId());
+        LmtReconcileItemRequest reconcileItem = new LmtReconcileItemRequest();
+        reconcileItem.setProductId(product.getId());
+        reconcileItem.setUnsoldQty(0);
+        reconcile.setItems(List.of(reconcileItem));
+        lmtStockService.reconcile(reconcile);
+
+        List<LmtDailyStockDTO> report = lmtStockService.getReconciliationReport(today, today, lmt.getId());
+        LmtDailyStockItemDTO item = itemFor(report.get(0), product.getId());
+
+        assertEquals(2, item.getReturnsByShop().size(), "Both shops' RETURN rows must appear in the breakdown");
+        assertTrue(item.getReturnsByShop().stream().anyMatch(s -> s.getShopId().equals(shopA.getId()) && s.getReturnedQty() == 2));
+        assertTrue(item.getReturnsByShop().stream().anyMatch(s -> s.getShopId().equals(shopB.getId()) && s.getReturnedQty() == 6));
+    }
+
+    @Test
+    void selfServiceGetTodayNeverIncludesShopBreakdown() {
+        Agent lmt = seedLmt("LMT_STOCK_NO_SHOP_BREAKDOWN");
+        Product product = seedProduct();
+
+        LmtMorningStockRequest morning = new LmtMorningStockRequest();
+        morning.setAgentId(lmt.getId());
+        LmtStockItemRequest morningItem = new LmtStockItemRequest();
+        morningItem.setProductId(product.getId());
+        morningItem.setOpeningStock(10);
+        morning.setItems(List.of(morningItem));
+        lmtStockService.enterMorningStock(morning);
+
+        LmtDailyStockDTO today = lmtStockService.getToday(lmt.getId()).orElseThrow();
+        LmtDailyStockItemDTO item = itemFor(today, product.getId());
+
+        assertTrue(item.getReturnsByShop() == null || item.getReturnsByShop().isEmpty(),
+                "The LMT's own self-service getToday() must never carry the per-shop breakdown — that's report-only, attached by the controller/service report path, not this one");
     }
 }

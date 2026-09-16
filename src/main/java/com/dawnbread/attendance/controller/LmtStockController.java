@@ -66,9 +66,33 @@ public class LmtStockController {
         if (!callerIsSelfLmtOrAdmin(agentId)) {
             return forbidden();
         }
+        boolean isSalesman = "SALESMAN_LMT".equals(AccessControl.callerRole(request));
         return lmtStockService.getToday(agentId)
-                .map(dto -> ResponseEntity.ok(ApiResponse.success("Today's stock retrieved", dto)))
+                .map(dto -> {
+                    if (isSalesman) {
+                        stripReconciliationFields(dto);
+                    }
+                    return ResponseEntity.ok(ApiResponse.success("Today's stock retrieved", dto));
+                })
                 .orElse(ResponseEntity.ok(ApiResponse.success("No stock entered yet today", null)));
+    }
+
+    /**
+     * The salesman must never see Sold, Returned, or Missing — those are
+     * the Sales Department's reconciliation figures (per the LMT flow
+     * refinement), not something a SALESMAN_LMT's own app should carry
+     * even when nothing in the UI currently renders them. An ADMIN calling
+     * this same endpoint on an LMT's behalf still gets the full figures.
+     */
+    private void stripReconciliationFields(LmtDailyStockDTO dto) {
+        if (dto.getItems() == null) {
+            return;
+        }
+        for (var item : dto.getItems()) {
+            item.setSoldQty(null);
+            item.setReturnedQty(null);
+            item.setMissingQty(null);
+        }
     }
 
     @PostMapping("/morning")

@@ -1,5 +1,7 @@
 package com.dawnbread.attendance.dto;
 
+import java.util.List;
+
 public class LmtDailyStockItemDTO {
 
     private Long id;
@@ -10,6 +12,13 @@ public class LmtDailyStockItemDTO {
     private Integer unsoldQty;
     private Integer soldQty;
     private Integer missingQty;
+    /**
+     * Per-shop breakdown of this product's Returned total — populated only
+     * by the management-only reconciliation report (see
+     * LmtStockService.getReconciliationReport); null on every LMT
+     * self-service response (/today, /morning, /reconcile).
+     */
+    private List<LmtShopReturnDTO> returnsByShop;
 
     public LmtDailyStockItemDTO() {}
 
@@ -36,4 +45,7 @@ public class LmtDailyStockItemDTO {
 
     public Integer getMissingQty() { return missingQty; }
     public void setMissingQty(Integer missingQty) { this.missingQty = missingQty; }
+
+    public List<LmtShopReturnDTO> getReturnsByShop() { return returnsByShop; }
+    public void setReturnsByShop(List<LmtShopReturnDTO> returnsByShop) { this.returnsByShop = returnsByShop; }
 }
