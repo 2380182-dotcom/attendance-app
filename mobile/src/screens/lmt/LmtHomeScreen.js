@@ -78,18 +78,20 @@ export default function LmtHomeScreen({ navigation }) {
     fetchTodayStock();
   };
 
-  // PROMPT, not require — an LMT can always end duty without reconciling;
-  // it just stays OPEN and shows up flagged in the Sales Department's
-  // report. Only prompted when there's something to reconcile at all
-  // (todayStock exists) and it hasn't been done yet (still OPEN).
+  // PROMPT, not require — an LMT can always end duty without entering
+  // Unsold; it just stays OPEN and shows up flagged in the Sales
+  // Department's report. Only prompted when there's stock to account for
+  // at all (todayStock exists) and it hasn't been submitted yet (still
+  // OPEN). This is a convenience shortcut into Enter Unsold, not the only
+  // way to reach it — that screen is always reachable below regardless.
   const handleEndDuty = () => {
     if (todayStock && todayStock.status === 'OPEN') {
       Alert.alert(
-        'Reconcile Before Ending Duty?',
-        'Enter tonight\'s Returned and Unsold quantities now, or skip and do it later.',
+        'Enter Unsold Before Ending Duty?',
+        'Enter today\'s Unsold quantities now, or skip and do it later.',
         [
           { text: 'Skip & End Duty', onPress: () => navigation.navigate('Checkout'), style: 'cancel' },
-          { text: 'Reconcile Now', onPress: () => navigation.navigate('NightReconciliation') },
+          { text: 'Enter Unsold Now', onPress: () => navigation.navigate('EnterUnsold') },
         ]
       );
     } else {
@@ -111,7 +113,14 @@ export default function LmtHomeScreen({ navigation }) {
       >
         <StatusCard isCheckedIn={isCheckedIn} currentCheckIn={currentCheckIn} />
 
-        {isCheckedIn && !todayStock && (
+        {/*
+          Both Enter Stock and Enter Unsold are always reachable once
+          checked in — not time-locked to morning/night. Each is still
+          entered once (the backend rejects a second morning-stock
+          submission outright); this just means the LMT is never stuck
+          waiting for a particular time of day to reach either screen.
+        */}
+        {isCheckedIn && (
           <View
             style={{
               flexDirection: 'row',
@@ -127,22 +136,34 @@ export default function LmtHomeScreen({ navigation }) {
             <MaterialIcons name="inventory" size={22} color={colors.primary} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textPrimary }}>
-                Enter your stock to start selling
+                {todayStock ? 'Stock entered ✓' : 'Enter your stock to start selling'}
               </Text>
               <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
-                Record today's opening stock per product before visiting shops.
+                {todayStock
+                  ? 'Today\'s opening stock is recorded.'
+                  : 'Record today\'s opening stock per product before visiting shops.'}
               </Text>
             </View>
           </View>
         )}
 
-        {isCheckedIn && !todayStock && (
+        {isCheckedIn && (
           <AppButton
             title="Enter Today's Stock"
             onPress={() => navigation.navigate('MorningStockEntry')}
             variant="primary"
             icon="inventory"
             style={{ marginTop: 10, marginBottom: 8 }}
+          />
+        )}
+
+        {isCheckedIn && (
+          <AppButton
+            title="Enter Unsold"
+            onPress={() => navigation.navigate('EnterUnsold')}
+            variant="primary"
+            icon="inventory-2"
+            style={{ marginBottom: 8 }}
           />
         )}
 

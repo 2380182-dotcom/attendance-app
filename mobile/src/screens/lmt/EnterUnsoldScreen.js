@@ -17,14 +17,22 @@ import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
 
 /**
- * Phase C5: night reconciliation — Returned + Unsold, per product.
- * Reached by PROMPT from LmtHome's "End Duty" button when today's stock
- * is still OPEN; the LMT can always skip it and check out anyway (this
- * screen is never a hard gate on Checkout — Missing is recorded, not
- * blocked, per the build plan). Sold and Missing are computed server-side
- * in POST /lmt/stock/reconcile and are never entered here.
+ * LMT flow refinement: day-level Unsold entry, once per day — renamed and
+ * repurposed from the old "Night Reconciliation" screen. Returned is no
+ * longer entered here at all: it's now captured per-shop on the shop-visit
+ * screen and computed server-side (see LmtStockService.reconcile), the
+ * same way Sold already is. This screen only ever collects Unsold.
+ *
+ * Always reachable from LmtHome once checked in (not gated behind "End
+ * Duty" — that's still a convenience shortcut into this same screen).
+ * Sold/Returned/Missing are computed server-side in POST
+ * /lmt/stock/reconcile and are never shown here — the salesman only does
+ * data entry, never sees the reconciliation figures (confirmed: the
+ * backend's /today response already strips these fields for a
+ * SALESMAN_LMT caller too, so there's nothing to hide here even if a
+ * future edit added a result screen).
  */
-export default function NightReconciliationScreen({ navigation }) {
+export default function EnterUnsoldScreen({ navigation }) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const { user } = useContext(AuthContext);
@@ -32,7 +40,6 @@ export default function NightReconciliationScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [returnedValues, setReturnedValues] = useState({});
   const [unsoldValues, setUnsoldValues] = useState({});
 
   const fetchTodayStock = useCallback(async () => {
@@ -54,33 +61,32 @@ export default function NightReconciliationScreen({ navigation }) {
 
   const handleSubmit = () => {
     Alert.alert(
-      'Confirm Reconciliation',
-      'Submit tonight\'s Returned and Unsold quantities? Sold and Missing will be computed automatically.',
+      'Confirm Unsold Quantities',
+      'Submit today\'s Unsold quantities?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Confirm & Submit', onPress: submitReconciliation },
+        { text: 'Confirm & Submit', onPress: submitUnsold },
       ]
     );
   };
 
-  const submitReconciliation = async () => {
+  const submitUnsold = async () => {
     setSubmitting(true);
     try {
       const reconcileItems = items.map((item) => ({
         productId: item.productId,
-        returnedQty: parseInt(returnedValues[item.productId], 10) || 0,
         unsoldQty: parseInt(unsoldValues[item.productId], 10) || 0,
       }));
       await apiService.lmt.submitReconciliation({
         agentId: user.id,
         items: reconcileItems,
       });
-      Alert.alert('Success', 'Stock reconciled successfully.', [
+      Alert.alert('Success', 'Unsold quantities recorded.', [
         { text: 'OK', onPress: () => navigation.navigate('LmtHome') },
       ]);
     } catch (e) {
       console.error(e);
-      Alert.alert('Submission Failed', e.message || 'Error occurred while reconciling stock.');
+      Alert.alert('Submission Failed', e.message || 'Error occurred while recording unsold quantities.');
     } finally {
       setSubmitting(false);
     }
@@ -90,14 +96,14 @@ export default function NightReconciliationScreen({ navigation }) {
     return <Loading message="Loading today's stock..." fullScreen />;
   }
   if (submitting) {
-    return <Loading message="Reconciling stock..." fullScreen />;
+    return <Loading message="Recording unsold quantities..." fullScreen />;
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.banner}>
-        <MaterialIcons name="assignment-turned-in" size={20} color={colors.primary} />
-        <Text style={styles.bannerText}>Enter Returned and Unsold quantities, per product</Text>
+        <MaterialIcons name="inventory-2" size={20} color={colors.primary} />
+        <Text style={styles.bannerText}>Enter Unsold quantity, per product</Text>
       </View>
 
       <View style={styles.listContainer}>
@@ -109,7 +115,6 @@ export default function NightReconciliationScreen({ navigation }) {
               <View style={styles.headerRow}>
                 <Text style={[styles.headerLabel, { flex: 1 }]}>Product</Text>
                 <Text style={[styles.headerLabel, { width: 40, textAlign: 'center' }]}>Stock</Text>
-                <Text style={[styles.headerLabel, styles.qtyHeaderLabel]}>Returned</Text>
                 <Text style={[styles.headerLabel, styles.qtyHeaderLabel]}>Unsold</Text>
               </View>
             ) : null
@@ -123,15 +128,6 @@ export default function NightReconciliationScreen({ navigation }) {
                 keyboardType="number-pad"
                 placeholder="0"
                 placeholderTextColor={colors.textMuted}
-                value={returnedValues[item.productId] || ''}
-                onChangeText={(val) => setReturnedValues((prev) => ({ ...prev, [item.productId]: val }))}
-                maxLength={5}
-              />
-              <TextInput
-                style={styles.qtyInput}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
                 value={unsoldValues[item.productId] || ''}
                 onChangeText={(val) => setUnsoldValues((prev) => ({ ...prev, [item.productId]: val }))}
                 maxLength={5}
@@ -139,14 +135,14 @@ export default function NightReconciliationScreen({ navigation }) {
             </View>
           )}
           ListEmptyComponent={
-            <EmptyState icon="inventory" title="No stock entered today" message="Nothing to reconcile — today's opening stock was never entered." />
+            <EmptyState icon="inventory" title="No stock entered today" message="Nothing to record — today's opening stock was never entered." />
           }
         />
       </View>
 
       <View style={styles.footer}>
         <AppButton
-          title="Submit Reconciliation"
+          title="Submit Unsold"
           onPress={handleSubmit}
           variant="success"
           disabled={items.length === 0}
