@@ -19,13 +19,13 @@ import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
 
 /**
- * Phase C4: morning full-stock entry, per product. Reached from LmtHome's
- * "Enter Today's Stock" banner (soft-gate — shown until stock exists for
- * today, never blocks navigation elsewhere). Submits once via
- * POST /lmt/stock/morning; the backend itself rejects a second submission
- * for the same agent/day (see LmtStockService.enterMorningStock), so this
- * screen doesn't need its own duplicate-guard beyond disabling the button
- * while submitting.
+ * Phase C4: morning full-stock entry, per product. Always reachable from
+ * LmtHome once checked in — not time-locked, and not hidden once entered
+ * either: if today's stock already exists, this shows it read-only
+ * instead of a blank form (the backend rejects a second submission
+ * outright — see LmtStockService.enterMorningStock — so re-showing a
+ * fillable form would just confuse the LMT into re-entering data that can
+ * never actually save).
  *
  * Only products the LMT actually enters a quantity for are submitted —
  * leaving a product at 0 means "not carrying this today", not "reconcile
@@ -41,6 +41,7 @@ export default function MorningStockEntryScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [quantities, setQuantities] = useState({});
+  const [existingStock, setExistingStock] = useState(null);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -54,9 +55,27 @@ export default function MorningStockEntryScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => {
+  const checkExistingThenLoad = useCallback(async () => {
+    if (!user?.id) {
+      fetchProducts();
+      return;
+    }
+    try {
+      const stock = await apiService.lmt.getTodayStock(user.id);
+      if (stock) {
+        setExistingStock(stock);
+        setLoading(false);
+        return;
+      }
+    } catch (e) {
+      console.warn('Could not check for already-entered stock', e);
+    }
     fetchProducts();
-  }, [fetchProducts]);
+  }, [user, fetchProducts]);
+
+  useEffect(() => {
+    checkExistingThenLoad();
+  }, [checkExistingThenLoad]);
 
   const handleQtyChange = (productId, val) => {
     setQuantities((prev) => ({ ...prev, [productId]: val }));
@@ -109,6 +128,37 @@ export default function MorningStockEntryScreen({ navigation }) {
   }
   if (submitting) {
     return <Loading message="Recording today's stock..." fullScreen />;
+  }
+
+  if (existingStock) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.banner}>
+          <MaterialIcons name="check-circle" size={20} color={colors.success} />
+          <Text style={styles.bannerText}>Today's stock has already been entered</Text>
+        </View>
+
+        <View style={styles.listContainer}>
+          <FlatList
+            data={existingStock.items || []}
+            keyExtractor={(item) => item.productId.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.readOnlyRow}>
+                <Text style={[styles.productName, { flex: 1 }]} numberOfLines={2}>{item.productName}</Text>
+                <Text style={styles.readOnlyQty}>{item.openingStock}</Text>
+              </View>
+            )}
+            ListEmptyComponent={
+              <EmptyState icon="inventory" title="No products entered" message="Today's stock was submitted with no product lines." />
+            }
+          />
+        </View>
+
+        <View style={styles.footer}>
+          <AppButton title="Back to Home" onPress={() => navigation.navigate('LmtHome')} variant="ghost" />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -216,4 +266,12 @@ const createStyles = (colors) =>
       borderTopColor: colors.divider,
     },
     footerText: { textAlign: 'center', fontSize: 12, color: colors.textSecondary, marginBottom: 10 },
+    readOnlyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    readOnlyQty: { width: 60, textAlign: 'center', fontWeight: '600', fontSize: 14, color: colors.textPrimary },
   });

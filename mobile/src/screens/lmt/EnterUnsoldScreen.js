@@ -25,12 +25,14 @@ import { useTheme } from '../../theme';
  *
  * Always reachable from LmtHome once checked in (not gated behind "End
  * Duty" — that's still a convenience shortcut into this same screen).
- * Sold/Returned/Missing are computed server-side in POST
- * /lmt/stock/reconcile and are never shown here — the salesman only does
- * data entry, never sees the reconciliation figures (confirmed: the
- * backend's /today response already strips these fields for a
- * SALESMAN_LMT caller too, so there's nothing to hide here even if a
- * future edit added a result screen).
+ * Also entered once: if today's stock is already RECONCILED, this shows
+ * the submitted Unsold values read-only instead of a fillable form —
+ * Unsold itself is plain data entry the LMT already sees (not a
+ * reconciliation calculation), so showing it back read-only doesn't
+ * violate "the salesman never sees Missing/reconciliation" — only
+ * Sold/Returned/Missing are computed figures, and those stay hidden
+ * (confirmed: the backend's /today response already strips those three
+ * fields for a SALESMAN_LMT caller).
  */
 export default function EnterUnsoldScreen({ navigation }) {
   const { colors } = useTheme();
@@ -41,12 +43,14 @@ export default function EnterUnsoldScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [unsoldValues, setUnsoldValues] = useState({});
+  const [alreadyReconciled, setAlreadyReconciled] = useState(false);
 
   const fetchTodayStock = useCallback(async () => {
     if (!user?.id) return;
     try {
       const stock = await apiService.lmt.getTodayStock(user.id);
       setItems(stock?.items || []);
+      setAlreadyReconciled(stock?.status === 'RECONCILED');
     } catch (e) {
       console.error(e);
       Alert.alert('Data Error', 'Unable to load today\'s stock.');
@@ -97,6 +101,42 @@ export default function EnterUnsoldScreen({ navigation }) {
   }
   if (submitting) {
     return <Loading message="Recording unsold quantities..." fullScreen />;
+  }
+
+  if (alreadyReconciled) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.banner}>
+          <MaterialIcons name="check-circle" size={20} color={colors.success} />
+          <Text style={styles.bannerText}>Today's Unsold quantities have already been submitted</Text>
+        </View>
+
+        <View style={styles.listContainer}>
+          <FlatList
+            data={items}
+            keyExtractor={(item) => item.productId.toString()}
+            ListHeaderComponent={
+              items.length > 0 ? (
+                <View style={styles.headerRow}>
+                  <Text style={[styles.headerLabel, { flex: 1 }]}>Product</Text>
+                  <Text style={[styles.headerLabel, styles.qtyHeaderLabel]}>Unsold</Text>
+                </View>
+              ) : null
+            }
+            renderItem={({ item }) => (
+              <View style={styles.productRow}>
+                <Text style={[styles.productName, { flex: 1 }]} numberOfLines={2}>{item.productName}</Text>
+                <Text style={styles.readOnlyQty}>{item.unsoldQty}</Text>
+              </View>
+            )}
+          />
+        </View>
+
+        <View style={styles.footer}>
+          <AppButton title="Back to Home" onPress={() => navigation.navigate('LmtHome')} variant="ghost" />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -206,6 +246,7 @@ const createStyles = (colors) =>
       backgroundColor: colors.inputBackground,
       marginLeft: 8,
     },
+    readOnlyQty: { width: 56, textAlign: 'center', fontWeight: '600', fontSize: 14, color: colors.textPrimary, marginLeft: 8 },
     footer: {
       padding: 16,
       backgroundColor: colors.surface,
