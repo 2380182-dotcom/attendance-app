@@ -58,6 +58,10 @@ public class SalesService {
     @Autowired
     private AttendanceRepository attendanceRepository;
 
+    // Per-shop discount resolution (Feature 2, P5) — SALE lines only.
+    @Autowired
+    private ShopProductDiscountRepository shopProductDiscountRepository;
+
     @Value("${sales.max-quantity-limit:500}")
     private int maxQuantityLimit;
 
@@ -372,10 +376,33 @@ public class SalesService {
                     .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
 
             // P2: the LMT flow charges salesmanPrice, not agentPrice — the
-            // one intentional behavioral divergence in this feature. Shop
-            // discounts (Feature 2, P4-P6) apply on top of this, SALE lines
-            // only.
-            double itemTotal = product.getSalesmanPrice() * itemReq.getQuantity();
+            // one intentional behavioral divergence in this feature.
+            //
+            // P5: per-shop discounts apply on top of salesmanPrice, SALE
+            // lines only — order of operations is salesmanPrice first,
+            // then the discount, per the confirmed spec. A per-product
+            // (SKU) override for this shop wins if one exists; otherwise
+            // the shop's own overall discountPercent applies; otherwise 0.
+            // Never both. RETURN and UNSOLD are never discounted — they
+            // carry no revenue concept (RETURN is already excluded from
+            // totalAmount below; a discount on a quantity-only signal has
+            // no meaning) and their totalPrice/discountPercent are
+            // unaffected, exactly as before this feature.
+            Double appliedDiscountPercent = null;
+            double itemTotal;
+            if (type == TransactionType.SALE) {
+                Double discountPercent = shopProductDiscountRepository
+                        .findByCustomerShopIdAndProductId(shop.getId(), product.getId())
+                        .map(ShopProductDiscount::getDiscountPercent)
+                        .orElse(shop.getDiscountPercent());
+                if (discountPercent == null) {
+                    discountPercent = 0.0;
+                }
+                appliedDiscountPercent = discountPercent;
+                itemTotal = product.getSalesmanPrice() * itemReq.getQuantity() * (1 - discountPercent / 100.0);
+            } else {
+                itemTotal = product.getSalesmanPrice() * itemReq.getQuantity();
+            }
             // UNSOLD carries no revenue (it never left the shop); RETURN is
             // tracked as a credit rather than folded into totalAmount, so
             // that field keeps its existing meaning (SALE-line revenue only)
@@ -389,6 +416,7 @@ public class SalesService {
             item.setQuantity(itemReq.getQuantity());
             item.setUnitPrice(product.getSalesmanPrice());
             item.setTotalPrice(itemTotal);
+            item.setDiscountPercent(appliedDiscountPercent);
             item.setProductImageUrl(product.getImageUrl());
             item.setAgentId(agent.getId());
             item.setSaleDate(today);
