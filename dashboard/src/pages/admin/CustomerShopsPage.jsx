@@ -11,8 +11,10 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { customerShopApi, areaApi } from '../../services/lmtApi';
+import { productApi } from '../../services/productApi';
 import { sortRows, useSort } from '../../utils/sorting';
 import { usePagination } from '../../utils/pagination';
 import SortableHeader from '../../components/SortableHeader';
@@ -20,6 +22,7 @@ import SortableHeader from '../../components/SortableHeader';
 const emptyForm = {
   shopCode: '', shopName: '', branch: '', address: '', phone: '', mobile: '', email: '',
   strn: '', ntn: '', areaId: '', latitude: '', longitude: '', radius: '', geoFencingEnabled: true,
+  discountPercent: '',
 };
 
 function toNullableNumber(value) {
@@ -35,6 +38,7 @@ export default function CustomerShopsPage() {
   const shops = useQuery({ queryKey: ['lmt-customer-shops'], queryFn: customerShopApi.getAll });
   const areas = useQuery({ queryKey: ['lmt-areas'], queryFn: areaApi.getAll });
   const activeAreas = useMemo(() => (areas.data || []).filter((a) => a.isActive), [areas.data]);
+  const products = useQuery({ queryKey: ['products-pricing'], queryFn: productApi.getPricing });
 
   const [search, setSearch] = useState('');
   const [sort, onSort] = useSort('shopCode', 'asc');
@@ -45,8 +49,34 @@ export default function CustomerShopsPage() {
   const [actionError, setActionError] = useState('');
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const [newOverrideProductId, setNewOverrideProductId] = useState('');
+  const [newOverridePercent, setNewOverridePercent] = useState('');
+  const [overrideError, setOverrideError] = useState('');
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['lmt-customer-shops'] });
+
+  const shopDiscounts = useQuery({
+    queryKey: ['lmt-shop-product-discounts', editingId],
+    queryFn: () => customerShopApi.getProductDiscounts(editingId),
+    enabled: dialogOpen && !!editingId,
+  });
+  const invalidateDiscounts = () => queryClient.invalidateQueries({ queryKey: ['lmt-shop-product-discounts', editingId] });
+
+  const upsertDiscountMutation = useMutation({
+    mutationFn: ({ productId, discountPercent }) => customerShopApi.upsertProductDiscount(editingId, productId, discountPercent),
+    onSuccess: () => {
+      invalidateDiscounts();
+      setNewOverrideProductId('');
+      setNewOverridePercent('');
+      setOverrideError('');
+    },
+    onError: (e) => setOverrideError(e.response?.data?.message || 'Failed to save the discount override.'),
+  });
+  const removeDiscountMutation = useMutation({
+    mutationFn: (productId) => customerShopApi.removeProductDiscount(editingId, productId),
+    onSuccess: invalidateDiscounts,
+    onError: (e) => setOverrideError(e.response?.data?.message || 'Failed to remove the discount override.'),
+  });
 
   // The admin registers a shop by physically standing at it — their current
   // GPS position IS the shop's location, so this fills lat/long directly
@@ -121,6 +151,9 @@ export default function CustomerShopsPage() {
     setForm(emptyForm);
     setFormError('');
     setLocationError('');
+    setOverrideError('');
+    setNewOverrideProductId('');
+    setNewOverridePercent('');
     setDialogOpen(true);
   };
   const openEditDialog = (shop) => {
@@ -129,10 +162,13 @@ export default function CustomerShopsPage() {
       shopCode: shop.shopCode, shopName: shop.shopName, branch: shop.branch || '', address: shop.address || '',
       phone: shop.phone || '', mobile: shop.mobile || '', email: shop.email || '', strn: shop.strn || '', ntn: shop.ntn || '',
       areaId: shop.area?.id || '', latitude: shop.latitude ?? '', longitude: shop.longitude ?? '', radius: shop.radius ?? '',
-      geoFencingEnabled: shop.geoFencingEnabled !== false,
+      geoFencingEnabled: shop.geoFencingEnabled !== false, discountPercent: shop.discountPercent ?? '',
     });
     setFormError('');
     setLocationError('');
+    setOverrideError('');
+    setNewOverrideProductId('');
+    setNewOverridePercent('');
     setDialogOpen(true);
   };
   const closeDialog = () => setDialogOpen(false);
@@ -157,6 +193,7 @@ export default function CustomerShopsPage() {
       longitude: toNullableNumber(form.longitude),
       radius: toNullableNumber(form.radius),
       geoFencingEnabled: form.geoFencingEnabled,
+      discountPercent: toNullableNumber(form.discountPercent),
     };
     if (editingId) {
       updateMutation.mutate({ id: editingId, dto });
@@ -209,13 +246,14 @@ export default function CustomerShopsPage() {
               <SortableHeader label="Shop Name" sortKey="shopName" sort={sort} onSort={onSort} />
               <TableCell>Area</TableCell>
               <TableCell>Geofence</TableCell>
+              <TableCell>Discount</TableCell>
               <TableCell>Status</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {paged.length === 0 && (
-              <TableRow><TableCell colSpan={6} align="center">No customer shops match this filter.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} align="center">No customer shops match this filter.</TableCell></TableRow>
             )}
             {paged.map((shop) => (
               <TableRow key={shop.id} hover>
@@ -227,6 +265,7 @@ export default function CustomerShopsPage() {
                     ? `${shop.radius}m`
                     : 'Off'}
                 </TableCell>
+                <TableCell>{shop.discountPercent ? `${shop.discountPercent}%` : '—'}</TableCell>
                 <TableCell>
                   <Chip size="small" label={shop.isActive ? 'Active' : 'Inactive'} color={shop.isActive ? 'success' : 'default'} />
                 </TableCell>
@@ -360,6 +399,95 @@ export default function CustomerShopsPage() {
               />
             </Grid>
           </Grid>
+
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Discounts (LMT sales only)</Typography>
+          <Grid container spacing={2} sx={{ mb: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label="Overall Discount %" type="number" fullWidth
+                helperText="Applies to every product at this shop unless a per-product override below is set."
+                value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })}
+              />
+            </Grid>
+          </Grid>
+
+          {!editingId && (
+            <Typography variant="caption" color="text.secondary">
+              Save the shop first, then reopen it here to add per-product discount overrides.
+            </Typography>
+          )}
+
+          {editingId && (
+            <>
+              {overrideError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setOverrideError('')}>{overrideError}</Alert>}
+              {shopDiscounts.isLoading ? (
+                <CircularProgress size={20} />
+              ) : (
+                <>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Product</TableCell>
+                        <TableCell>Discount %</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(shopDiscounts.data || []).length === 0 && (
+                        <TableRow><TableCell colSpan={3} align="center">No per-product overrides — the overall discount above applies to every product.</TableCell></TableRow>
+                      )}
+                      {(shopDiscounts.data || []).map((d) => (
+                        <TableRow key={d.productId}>
+                          <TableCell>{d.productName}</TableCell>
+                          <TableCell>{d.discountPercent}%</TableCell>
+                          <TableCell align="right">
+                            <IconButton
+                              size="small"
+                              onClick={() => removeDiscountMutation.mutate(d.productId)}
+                              disabled={removeDiscountMutation.isPending}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 2 }} flexWrap="wrap" useFlexGap>
+                    <FormControl size="small" sx={{ minWidth: 220 }}>
+                      <InputLabel>Add override for product</InputLabel>
+                      <Select
+                        label="Add override for product"
+                        value={newOverrideProductId}
+                        onChange={(e) => setNewOverrideProductId(e.target.value)}
+                      >
+                        {(products.data || [])
+                          .filter((p) => !(shopDiscounts.data || []).some((d) => d.productId === p.id))
+                          .map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                    <TextField
+                      label="Discount %" type="number" size="small" sx={{ width: 140 }}
+                      value={newOverridePercent} onChange={(e) => setNewOverridePercent(e.target.value)}
+                    />
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      disabled={!newOverrideProductId || newOverridePercent === '' || upsertDiscountMutation.isPending}
+                      onClick={() => upsertDiscountMutation.mutate({
+                        productId: newOverrideProductId,
+                        discountPercent: toNullableNumber(newOverridePercent),
+                      })}
+                    >
+                      Add Override
+                    </Button>
+                  </Stack>
+                </>
+              )}
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={closeDialog}>Cancel</Button>

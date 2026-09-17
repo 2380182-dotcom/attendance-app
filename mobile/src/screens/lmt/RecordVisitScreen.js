@@ -69,6 +69,7 @@ export default function RecordVisitScreen({ route, navigation }) {
   const [saleQuantities, setSaleQuantities] = useState({});
   const [returnQuantities, setReturnQuantities] = useState({});
   const [reviewMode, setReviewMode] = useState(false);
+  const [shopProductDiscounts, setShopProductDiscounts] = useState([]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -82,9 +83,33 @@ export default function RecordVisitScreen({ route, navigation }) {
     }
   }, []);
 
+  // Client-side preview only, same non-authoritative pattern as the
+  // geofence pre-check above — the server independently resolves and
+  // applies the real discount at submission time (SalesService.
+  // submitShopVisit). A failure here shouldn't block the visit, it just
+  // means the preview falls back to showing undiscounted totals.
+  const fetchShopProductDiscounts = useCallback(async () => {
+    try {
+      const data = await apiService.lmt.getShopProductDiscounts(shop.id);
+      setShopProductDiscounts(data || []);
+    } catch (e) {
+      console.warn('Could not load shop product discounts for preview', e);
+    }
+  }, [shop.id]);
+
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+    fetchShopProductDiscounts();
+  }, [fetchProducts, fetchShopProductDiscounts]);
+
+  // Mirrors SalesService's server-side resolution order exactly: a
+  // per-product (SKU) override for this shop wins if one exists,
+  // otherwise the shop's own overall discountPercent applies, otherwise 0.
+  const getDiscountPercentForProduct = (productId) => {
+    const override = shopProductDiscounts.find((d) => d.productId === productId);
+    if (override) return override.discountPercent ?? 0;
+    return shop.discountPercent ?? 0;
+  };
 
   const handleSaleQtyChange = (productId, val) => {
     setSaleQuantities((prev) => ({ ...prev, [productId]: val }));
@@ -135,6 +160,14 @@ export default function RecordVisitScreen({ route, navigation }) {
   const calculateCartTotal = () => cart.reduce((sum, item) => sum + item.totalPrice, 0);
   const calculateTotalSoldUnits = () => cart.reduce((sum, item) => sum + item.saleQty, 0);
   const calculateTotalReturnedUnits = () => cart.reduce((sum, item) => sum + item.returnQty, 0);
+  // Preview only — same salesmanPrice-then-discount order of operations as
+  // the server. item.totalPrice already reflects saleQty only (RETURN
+  // never contributes to it), matching the "SALE lines only" discount rule.
+  const calculateDiscountedCartTotal = () =>
+    cart.reduce((sum, item) => {
+      const discountPercent = getDiscountPercentForProduct(item.product.id);
+      return sum + item.totalPrice * (1 - discountPercent / 100);
+    }, 0);
 
   // The review screen below is the confirmation surface now — cross-check
   // Sold/Returned per product before submitting — so there's no separate
@@ -272,10 +305,29 @@ export default function RecordVisitScreen({ route, navigation }) {
               <Text style={styles.summaryText}>Total Returned:</Text>
               <Text style={styles.summaryValue}>{calculateTotalReturnedUnits()} units</Text>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryText}>Total Amount:</Text>
-              <Text style={styles.summaryTotal}>PKR {calculateCartTotal()}</Text>
-            </View>
+            {calculateDiscountedCartTotal() < calculateCartTotal() ? (
+              <>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryText}>Subtotal:</Text>
+                  <Text style={styles.summaryValue}>PKR {calculateCartTotal().toFixed(2)}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryText}>Shop Discount:</Text>
+                  <Text style={styles.summaryValue}>
+                    − PKR {(calculateCartTotal() - calculateDiscountedCartTotal()).toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryText}>Total Amount:</Text>
+                  <Text style={styles.summaryTotal}>PKR {calculateDiscountedCartTotal().toFixed(2)}</Text>
+                </View>
+              </>
+            ) : (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryText}>Total Amount:</Text>
+                <Text style={styles.summaryTotal}>PKR {calculateCartTotal()}</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.buttonGroup}>

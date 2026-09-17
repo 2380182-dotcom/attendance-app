@@ -599,6 +599,20 @@ export const apiService = {
       }
     },
     /**
+     * Per-product (SKU) discount overrides for one shop (Feature 2) — used
+     * only for the client-side discounted-total preview on RecordVisitScreen.
+     * The server independently resolves and applies the real discount at
+     * submission time; this is never trusted as the source of truth.
+     */
+    async getShopProductDiscounts(shopId) {
+      try {
+        const response = await api.get(`/lmt/customer-shops/${shopId}/product-discounts`);
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
+    /**
      * Today's LmtDailyStock (Phase C), or null if none has been entered
      * yet — the backend returns success:true with data:null in that case
      * (not a 404), so this resolves to null rather than throwing.

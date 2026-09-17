@@ -34,6 +34,7 @@ function LineItemsTable({ items }) {
           <TableCell>Product</TableCell>
           <TableCell align="right">Quantity</TableCell>
           <TableCell align="right">Unit Price</TableCell>
+          <TableCell align="right">Discount</TableCell>
           <TableCell align="right">Line Total</TableCell>
         </TableRow>
       </TableHead>
@@ -43,6 +44,7 @@ function LineItemsTable({ items }) {
             <TableCell>{item.productName}</TableCell>
             <TableCell align="right">{item.quantity}</TableCell>
             <TableCell align="right">PKR {(item.unitPrice ?? 0).toLocaleString()}</TableCell>
+            <TableCell align="right">{item.discountPercent ? `${item.discountPercent}%` : '—'}</TableCell>
             <TableCell align="right">PKR {(item.totalPrice ?? 0).toLocaleString()}</TableCell>
           </TableRow>
         ))}
@@ -218,6 +220,7 @@ export default function SalesHistoryPage() {
         productName: item?.productName ?? '',
         quantity: item?.quantity ?? '',
         unitPrice: item?.unitPrice ?? '',
+        discountPercent: item?.discountPercent ?? '',
         lineTotal: item?.totalPrice ?? '',
       }));
     });
@@ -229,6 +232,7 @@ export default function SalesHistoryPage() {
       { key: 'productName', label: 'Product' },
       { key: 'quantity', label: 'Quantity' },
       { key: 'unitPrice', label: 'Unit Price' },
+      { key: 'discountPercent', label: 'Discount %' },
       { key: 'lineTotal', label: 'Line Total' },
     ]);
     downloadCsv(`sales-${period}-${anchorDate.format('YYYY-MM-DD')}.csv`, csv);
@@ -245,6 +249,7 @@ export default function SalesHistoryPage() {
       { key: 'productName', label: 'Product' },
       { key: 'quantity', label: 'Quantity' },
       { key: 'unitPrice', label: 'Unit Price' },
+      { key: 'discountPercent', label: 'Discount %' },
       { key: 'lineTotal', label: 'Line Total' },
       { key: 'saleTotalAmount', label: 'Sale Total' },
     ]);

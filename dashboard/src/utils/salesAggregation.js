@@ -36,6 +36,7 @@ export function flattenSalesToLineItems(records, { getAgentName, getEmployeeId }
         productName: item?.productName ?? '',
         quantity: item?.quantity ?? '',
         unitPrice: item?.unitPrice ?? '',
+        discountPercent: item?.discountPercent ?? '',
         lineTotal: item?.totalPrice ?? '',
         saleTotalAmount: record.totalAmount ?? '',
       });

@@ -72,6 +72,18 @@ export const customerShopApi = {
     const response = await api.patch(`/lmt/customer-shops/${id}/reactivate`);
     return unwrap(response);
   },
+  async getProductDiscounts(shopId) {
+    const response = await api.get(`/lmt/customer-shops/${shopId}/product-discounts`);
+    return unwrap(response);
+  },
+  async upsertProductDiscount(shopId, productId, discountPercent) {
+    const response = await api.put(`/lmt/customer-shops/${shopId}/product-discounts/${productId}`, { discountPercent });
+    return unwrap(response);
+  },
+  async removeProductDiscount(shopId, productId) {
+    const response = await api.delete(`/lmt/customer-shops/${shopId}/product-discounts/${productId}`);
+    return unwrap(response);
+  },
 };
 
 export const lmtSettingsApi = {
