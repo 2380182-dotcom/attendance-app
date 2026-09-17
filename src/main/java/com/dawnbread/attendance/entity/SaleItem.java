@@ -72,6 +72,13 @@ public class SaleItem implements TenantAware {
     @Column(name = "total_price", nullable = false)
     private Double totalPrice;
 
+    // Per-shop discounts (Feature 2): the % actually applied to this
+    // line's revenue at submission time — auditable forever, same as
+    // unitPrice/totalPrice. Null/0 for every row that isn't an LMT SALE
+    // line (legacy Agent rows, RETURN, UNSOLD never get a discount).
+    @Column(name = "discount_percent")
+    private Double discountPercent;
+
     @Column(name = "product_image_url", length = 500)
     private String productImageUrl;
 
@@ -118,6 +125,9 @@ public class SaleItem implements TenantAware {
 
     public Double getTotalPrice() { return totalPrice; }
     public void setTotalPrice(Double totalPrice) { this.totalPrice = totalPrice; }
+
+    public Double getDiscountPercent() { return discountPercent; }
+    public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
 
     public String getProductImageUrl() { return productImageUrl; }
     public void setProductImageUrl(String productImageUrl) { this.productImageUrl = productImageUrl; }

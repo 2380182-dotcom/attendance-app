@@ -54,6 +54,14 @@ public class CustomerShop implements TenantAware {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    // Per-shop discounts (Feature 2): the overall % applied to a SALE
+    // line's revenue at this shop when no per-product override exists in
+    // ShopProductDiscount for that (shop, product) pair. Null/0 means no
+    // shop-level discount. Auto-applied server-side (SalesService) — the
+    // salesman never enters this.
+    @Column(name = "discount_percent")
+    private Double discountPercent;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -77,6 +85,7 @@ public class CustomerShop implements TenantAware {
     public Double getRadius() { return radius; }
     public Boolean getGeoFencingEnabled() { return geoFencingEnabled; }
     public Boolean getIsActive() { return isActive; }
+    public Double getDiscountPercent() { return discountPercent; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
     // Setters
@@ -97,5 +106,6 @@ public class CustomerShop implements TenantAware {
     public void setRadius(Double radius) { this.radius = radius; }
     public void setGeoFencingEnabled(Boolean geoFencingEnabled) { this.geoFencingEnabled = geoFencingEnabled; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }
