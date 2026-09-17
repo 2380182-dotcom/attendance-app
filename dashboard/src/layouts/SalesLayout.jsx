@@ -4,6 +4,7 @@ import DashboardLayout from './DashboardLayout';
 const SALES_NAV = [
   { path: '/sales', label: 'Overview' },
   { path: '/sales/history', label: 'Sales History' },
+  { path: '/sales/pricing', label: 'Product Pricing' },
 ];
 
 export default function SalesLayout() {

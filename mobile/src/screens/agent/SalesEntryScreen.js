@@ -93,7 +93,9 @@ export default function SalesEntryScreen({ navigation }) {
     const cartItem = {
       product,
       quantity: qty,
-      totalPrice: product.price * qty
+      // Display-only preview — the server independently recomputes the
+      // real amount from Product.agentPrice at submission time.
+      totalPrice: product.agentPrice * qty
     };
 
     setCart(prev => [...prev, cartItem]);
@@ -184,7 +186,7 @@ export default function SalesEntryScreen({ navigation }) {
               <ProductThumbnail uri={item.thumbnailUrl} size={40} style={styles.productImage} />
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productPrice}>PKR {item.price}</Text>
+                <Text style={styles.productPrice}>PKR {item.agentPrice}</Text>
               </View>
               <View style={styles.actionRow}>
                 <TextInput
@@ -230,7 +232,7 @@ export default function SalesEntryScreen({ navigation }) {
               <View style={styles.cartItem}>
                 <View style={styles.cartItemDetails}>
                   <Text style={styles.cartItemName}>{item.product.name}</Text>
-                  <Text style={styles.cartItemSub}>Qty: {item.quantity} x PKR {item.product.price}</Text>
+                  <Text style={styles.cartItemSub}>Qty: {item.quantity} x PKR {item.product.agentPrice}</Text>
                 </View>
                 <Text style={styles.cartItemTotal}>PKR {item.totalPrice}</Text>
                 <TouchableOpacity

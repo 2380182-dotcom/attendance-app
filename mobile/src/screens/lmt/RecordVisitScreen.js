@@ -122,7 +122,10 @@ export default function RecordVisitScreen({ route, navigation }) {
       return;
     }
 
-    setCart((prev) => [...prev, { product, saleQty, returnQty, totalPrice: product.price * saleQty }]);
+    // Display-only preview using the LMT's own role price — the server
+    // independently recomputes the real amount from Product.salesmanPrice
+    // (plus any shop discount, Feature 2) at submission time.
+    setCart((prev) => [...prev, { product, saleQty, returnQty, totalPrice: product.salesmanPrice * saleQty }]);
   };
 
   const handleRemoveFromCart = (productId) => {
@@ -315,7 +318,7 @@ export default function RecordVisitScreen({ route, navigation }) {
               <ProductThumbnail uri={item.thumbnailUrl} size={40} style={styles.productImage} />
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productPrice}>PKR {item.price}</Text>
+                <Text style={styles.productPrice}>PKR {item.salesmanPrice}</Text>
               </View>
               <View style={styles.actionRow}>
                 <View style={styles.qtyField}>
