@@ -22,6 +22,8 @@ public class CustomerShopDTO {
     private LocalDateTime createdAt;
     /** Populated only by GET /lmt/customer-shops/nearby — null everywhere else. */
     private Double distanceMeters;
+    /** Overall shop discount % (Feature 2) — falls back to 0 at sale time when null. Per-product overrides live at GET /{id}/product-discounts. */
+    private Double discountPercent;
 
     public CustomerShopDTO() {}
 
@@ -78,4 +80,7 @@ public class CustomerShopDTO {
 
     public Double getDistanceMeters() { return distanceMeters; }
     public void setDistanceMeters(Double distanceMeters) { this.distanceMeters = distanceMeters; }
+
+    public Double getDiscountPercent() { return discountPercent; }
+    public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
 }

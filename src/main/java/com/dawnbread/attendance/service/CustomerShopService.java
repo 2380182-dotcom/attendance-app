@@ -3,8 +3,12 @@ package com.dawnbread.attendance.service;
 import com.dawnbread.attendance.dto.CustomerShopCreateDTO;
 import com.dawnbread.attendance.entity.Area;
 import com.dawnbread.attendance.entity.CustomerShop;
+import com.dawnbread.attendance.entity.Product;
+import com.dawnbread.attendance.entity.ShopProductDiscount;
 import com.dawnbread.attendance.repository.AreaRepository;
 import com.dawnbread.attendance.repository.CustomerShopRepository;
+import com.dawnbread.attendance.repository.ProductRepository;
+import com.dawnbread.attendance.repository.ShopProductDiscountRepository;
 import com.dawnbread.attendance.util.GeoUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -28,6 +32,12 @@ public class CustomerShopService {
 
     @Autowired
     private LmtSettingsService lmtSettingsService;
+
+    @Autowired
+    private ShopProductDiscountRepository shopProductDiscountRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
 
     private Area resolveArea(Long areaId) {
         return areaRepository.findById(areaId)
@@ -96,6 +106,7 @@ public class CustomerShopService {
         if (dto.getGeoFencingEnabled() != null) {
             shop.setGeoFencingEnabled(dto.getGeoFencingEnabled());
         }
+        shop.setDiscountPercent(dto.getDiscountPercent());
         shop.setCreatedAt(LocalDateTime.now());
         shop.setIsActive(true);
         return customerShopRepository.save(shop);
@@ -172,6 +183,9 @@ public class CustomerShopService {
         if (dto.getGeoFencingEnabled() != null) {
             shop.setGeoFencingEnabled(dto.getGeoFencingEnabled());
         }
+        if (dto.getDiscountPercent() != null) {
+            shop.setDiscountPercent(dto.getDiscountPercent());
+        }
         return customerShopRepository.save(shop);
     }
 
@@ -192,5 +206,36 @@ public class CustomerShopService {
                 .orElseThrow(() -> new RuntimeException("Customer shop not found with id: " + id));
         shop.setIsActive(true);
         return customerShopRepository.save(shop);
+    }
+
+    /** All per-product (SKU) discount overrides for one shop — the admin shop-edit form's list, also read by mobile for the P6 discounted-total preview. */
+    public List<ShopProductDiscount> getProductDiscounts(Long shopId) {
+        if (!customerShopRepository.existsById(shopId)) {
+            throw new RuntimeException("Customer shop not found with id: " + shopId);
+        }
+        return shopProductDiscountRepository.findByCustomerShopIdWithProduct(shopId);
+    }
+
+    /** Creates or replaces the SKU override for (shopId, productId) — one row per pair, per the unique index. */
+    public ShopProductDiscount upsertProductDiscount(Long shopId, Long productId, Double discountPercent) {
+        CustomerShop shop = customerShopRepository.findById(shopId)
+                .orElseThrow(() -> new RuntimeException("Customer shop not found with id: " + shopId));
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+        ShopProductDiscount override = shopProductDiscountRepository
+                .findByCustomerShopIdAndProductId(shopId, productId)
+                .orElseGet(ShopProductDiscount::new);
+        override.setCustomerShop(shop);
+        override.setProduct(product);
+        override.setDiscountPercent(discountPercent);
+        return shopProductDiscountRepository.save(override);
+    }
+
+    /** Removes a shop's SKU override for one product — that product then falls back to the shop's overall discountPercent. */
+    public void removeProductDiscount(Long shopId, Long productId) {
+        ShopProductDiscount override = shopProductDiscountRepository
+                .findByCustomerShopIdAndProductId(shopId, productId)
+                .orElseThrow(() -> new RuntimeException("No discount override found for this shop/product"));
+        shopProductDiscountRepository.delete(override);
     }
 }

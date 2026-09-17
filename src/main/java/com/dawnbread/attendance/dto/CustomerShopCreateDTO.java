@@ -16,6 +16,8 @@ public class CustomerShopCreateDTO {
     private Double longitude;
     private Double radius;
     private Boolean geoFencingEnabled;
+    /** Overall shop discount % (Feature 2) — optional, null means "no overall discount". */
+    private Double discountPercent;
 
     public CustomerShopCreateDTO() {}
 
@@ -60,4 +62,7 @@ public class CustomerShopCreateDTO {
 
     public Boolean getGeoFencingEnabled() { return geoFencingEnabled; }
     public void setGeoFencingEnabled(Boolean geoFencingEnabled) { this.geoFencingEnabled = geoFencingEnabled; }
+
+    public Double getDiscountPercent() { return discountPercent; }
+    public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
 }

@@ -8,6 +8,8 @@ public class SaleItemDTO {
     private Double totalPrice;
     private String productImageUrl;
     private String transactionType;
+    /** Per-shop discount actually applied to this line (Feature 2) — null/0 for non-SALE lines or when none was configured. */
+    private Double discountPercent;
 
     public SaleItemDTO() {}
 
@@ -41,4 +43,7 @@ public class SaleItemDTO {
 
     public String getTransactionType() { return transactionType; }
     public void setTransactionType(String transactionType) { this.transactionType = transactionType; }
+
+    public Double getDiscountPercent() { return discountPercent; }
+    public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
 }

@@ -882,6 +882,7 @@ public class SalesService {
                 item.getProductImageUrl()
         );
         dto.setTransactionType(item.getTransactionType() != null ? item.getTransactionType().name() : null);
+        dto.setDiscountPercent(item.getDiscountPercent());
         return dto;
     }
 }

@@ -4,9 +4,11 @@ import com.dawnbread.attendance.dto.*;
 import com.dawnbread.attendance.entity.Area;
 import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.entity.HierarchyPerson;
+import com.dawnbread.attendance.entity.ShopProductDiscount;
 import com.dawnbread.attendance.security.AccessControl;
 import com.dawnbread.attendance.service.CustomerShopService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -148,6 +150,59 @@ public class CustomerShopController {
         }
     }
 
+    /**
+     * SKU discount overrides for one shop — unguarded read, same convention
+     * as /nearby and /code/{shopCode}: both the admin shop-edit dialog and
+     * the mobile discounted-total preview (Feature 2, P6) need this.
+     */
+    @GetMapping("/{id}/product-discounts")
+    public ResponseEntity<ApiResponse<List<ShopProductDiscountDTO>>> getProductDiscounts(@PathVariable Long id) {
+        try {
+            List<ShopProductDiscountDTO> dtos = customerShopService.getProductDiscounts(id).stream()
+                    .map(this::convertDiscountToDTO).collect(Collectors.toList());
+            return ResponseEntity.ok(ApiResponse.success("Shop product discounts retrieved successfully", dtos));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/product-discounts/{productId}")
+    public ResponseEntity<ApiResponse<ShopProductDiscountDTO>> upsertProductDiscount(
+            @PathVariable Long id, @PathVariable Long productId, @Valid @RequestBody ShopProductDiscountUpdateDTO dto) {
+        if (!AccessControl.hasRole(request, "ADMIN")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator can manage shop discounts."));
+        }
+        try {
+            ShopProductDiscount saved = customerShopService.upsertProductDiscount(id, productId, dto.getDiscountPercent());
+            return ResponseEntity.ok(ApiResponse.success("Shop product discount saved successfully", convertDiscountToDTO(saved)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}/product-discounts/{productId}")
+    public ResponseEntity<ApiResponse<Void>> removeProductDiscount(@PathVariable Long id, @PathVariable Long productId) {
+        if (!AccessControl.hasRole(request, "ADMIN")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator can manage shop discounts."));
+        }
+        try {
+            customerShopService.removeProductDiscount(id, productId);
+            return ResponseEntity.ok(ApiResponse.success("Shop product discount removed successfully", null));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    private ShopProductDiscountDTO convertDiscountToDTO(ShopProductDiscount discount) {
+        return new ShopProductDiscountDTO(
+                discount.getProduct().getId(),
+                discount.getProduct().getName(),
+                discount.getDiscountPercent()
+        );
+    }
+
     private HierarchyPersonDTO convertPersonToDTO(HierarchyPerson person) {
         if (person == null) {
             return null;
@@ -190,6 +245,7 @@ public class CustomerShopController {
         dto.setGeoFencingEnabled(shop.getGeoFencingEnabled());
         dto.setIsActive(shop.getIsActive());
         dto.setCreatedAt(shop.getCreatedAt());
+        dto.setDiscountPercent(shop.getDiscountPercent());
         return dto;
     }
 }
