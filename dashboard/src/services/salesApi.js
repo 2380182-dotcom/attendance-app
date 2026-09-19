@@ -17,9 +17,12 @@ export const salesApi = {
     return unwrap(response);
   },
 
-  /** Company-wide report anchored at a single date, spanning that day/week/month. */
-  async getReport(period, date) {
-    const response = await api.get(`/sales/reports/${period}`, { params: date ? { date } : {} });
+  /** Company-wide report anchored at a single date, spanning that day/week/month. Optional role (AGENT | SALESMAN_LMT) scopes it to that seller type. */
+  async getReport(period, date, role) {
+    const params = {};
+    if (date) params.date = date;
+    if (role) params.role = role;
+    const response = await api.get(`/sales/reports/${period}`, { params });
     return unwrap(response);
   },
 };

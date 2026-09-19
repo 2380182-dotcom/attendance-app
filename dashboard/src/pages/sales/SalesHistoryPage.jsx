@@ -7,7 +7,7 @@ import {
   Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   CircularProgress, Alert, Stack, MenuItem, Select, InputLabel, FormControl,
   ToggleButtonGroup, ToggleButton, TextField, InputAdornment, IconButton,
-  Collapse, Button,
+  Collapse, Button, Tabs, Tab,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -22,6 +22,8 @@ import { toCsv, downloadCsv } from '../../utils/csvExport';
 import SortableHeader from '../../components/SortableHeader';
 
 const ALL_AGENTS = 'ALL';
+const AGENT_ROLE = 'AGENT';
+const LMT_ROLE = 'SALESMAN_LMT';
 
 function LineItemsTable({ items }) {
   if (!items || items.length === 0) {
@@ -120,7 +122,10 @@ function ProductMixTable({ rows, title, searchActive }) {
   );
 }
 
-export default function SalesHistoryPage() {
+function SalesHistoryPanel({ role }) {
+  const isLmt = role === LMT_ROLE;
+  const sellerLabel = isLmt ? 'LMT Salesman' : 'Agent';
+  const allSellersLabel = isLmt ? 'All LMT Salesmen' : 'All Agents';
   const [selectedAgent, setSelectedAgent] = useState(ALL_AGENTS);
   const [period, setPeriod] = useState('daily');
   const [anchorDate, setAnchorDate] = useState(dayjs());
@@ -132,7 +137,11 @@ export default function SalesHistoryPage() {
   const [agentSort, onAgentSort] = useSort('revenue', 'desc');
   const [salesSort, onSalesSort] = useSort('saleDate', 'desc');
 
-  const activeAgents = useQuery({ queryKey: ['agents', 'active'], queryFn: () => agentApi.getActive() });
+  // Full roster narrowed to this tab's role, so each section only ever offers
+  // its own sellers (getActive() only covers the last 7 days of attendance).
+  const roster = useQuery({ queryKey: ['agents', 'all'], queryFn: () => agentApi.getAll() });
+  const sellers = useMemo(() => (roster.data || []).filter((a) => a.role === role), [roster.data, role]);
+  const activeAgents = { data: sellers };
 
   // Two genuinely different backend shapes, not a UI choice: /sales/reports/*
   // only supports a single anchor date spanning a fixed day/week/month period
@@ -141,8 +150,8 @@ export default function SalesHistoryPage() {
   // against an arbitrary range instead. Same underlying data, different query
   // shape depending on which filter is active.
   const companyReport = useQuery({
-    queryKey: ['sales-report', period, anchorDate.format('YYYY-MM-DD')],
-    queryFn: () => salesApi.getReport(period, anchorDate.format('YYYY-MM-DD')),
+    queryKey: ['sales-report', role, period, anchorDate.format('YYYY-MM-DD')],
+    queryFn: () => salesApi.getReport(period, anchorDate.format('YYYY-MM-DD'), role),
     enabled: selectedAgent === ALL_AGENTS,
   });
 
@@ -260,18 +269,23 @@ export default function SalesHistoryPage() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box>
-        <Typography variant="h5" gutterBottom>Sales History</Typography>
+        {isLmt && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Unit counts on this tab include returned and unsold quantities alongside sold ones — revenue is unaffected.
+            Sold-only unit counts need a small backend change and are pending.
+          </Alert>
+        )}
 
         <Stack direction="row" spacing={2} sx={{ mb: 3 }} alignItems="center" flexWrap="wrap" useFlexGap>
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel id="sales-agent-filter-label">Agent</InputLabel>
+            <InputLabel id="sales-agent-filter-label">{sellerLabel}</InputLabel>
             <Select
               labelId="sales-agent-filter-label"
-              label="Agent"
+              label={sellerLabel}
               value={selectedAgent}
               onChange={(e) => { setSelectedAgent(e.target.value); setSearch(''); }}
             >
-              <MenuItem value={ALL_AGENTS}>All Agents</MenuItem>
+              <MenuItem value={ALL_AGENTS}>{allSellersLabel}</MenuItem>
               {activeAgents.data?.map((agent) => (
                 <MenuItem key={agent.id} value={agent.id}>{agent.name}</MenuItem>
               ))}
@@ -315,7 +329,7 @@ export default function SalesHistoryPage() {
 
           <TextField
             size="small"
-            placeholder={selectedAgent === ALL_AGENTS ? 'Search agent…' : 'Search product or location…'}
+            placeholder={selectedAgent === ALL_AGENTS ? `Search ${sellerLabel.toLowerCase()}…` : 'Search product or location…'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
@@ -349,7 +363,7 @@ export default function SalesHistoryPage() {
             {companyReport.data && (
               <>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  {companyReport.data.title} — {companyReport.data.dateRange} — Revenue PKR {(companyReport.data.totalRevenue ?? 0).toLocaleString()}, {companyReport.data.totalUnits ?? 0} units, {companyReport.data.activeAgents ?? 0} active agents
+                  {companyReport.data.title} — {companyReport.data.dateRange} — Revenue PKR {(companyReport.data.totalRevenue ?? 0).toLocaleString()}, {companyReport.data.totalUnits ?? 0} units, {companyReport.data.activeAgents ?? 0} active {isLmt ? 'salesmen' : 'agents'}
                 </Typography>
                 {!canExpandAgentSummaries && (
                   <Alert severity="info" sx={{ mb: 2 }}>
@@ -361,7 +375,7 @@ export default function SalesHistoryPage() {
                     <TableHead>
                       <TableRow>
                         {canExpandAgentSummaries && <TableCell padding="checkbox" />}
-                        <SortableHeader label="Agent" sortKey="agentName" sort={agentSort} onSort={onAgentSort} />
+                        <SortableHeader label={sellerLabel} sortKey="agentName" sort={agentSort} onSort={onAgentSort} />
                         <SortableHeader label="Employee ID" sortKey="employeeId" sort={agentSort} onSort={onAgentSort} />
                         <SortableHeader label="Units" sortKey="totalUnits" sort={agentSort} onSort={onAgentSort} align="right" />
                         <SortableHeader label="Revenue" sortKey="totalRevenue" sort={agentSort} onSort={onAgentSort} align="right" />
@@ -399,14 +413,14 @@ export default function SalesHistoryPage() {
                   </Table></TableContainer>
                 </Paper>
 
-                <ProductMixTable rows={filteredCompanyProductMix} title="Product-wise Totals — All Agents" searchActive={!!productSearch.trim()} />
+                <ProductMixTable rows={filteredCompanyProductMix} title={`Product-wise Totals — ${allSellersLabel}`} searchActive={!!productSearch.trim()} />
               </>
             )}
           </>
         ) : (
           <>
             {agentSales.isLoading && <CircularProgress />}
-            {agentSales.isError && <Alert severity="error">Failed to load this agent's sales history. Try refreshing.</Alert>}
+            {agentSales.isError && <Alert severity="error">Failed to load this seller's sales history. Try refreshing.</Alert>}
             {agentSales.data && (
               <>
                 <Paper>
@@ -450,5 +464,19 @@ export default function SalesHistoryPage() {
         )}
       </Box>
     </LocalizationProvider>
+  );
+}
+
+export default function SalesHistoryPage() {
+  const [tab, setTab] = useState(AGENT_ROLE);
+  return (
+    <Box>
+      <Typography variant="h5" gutterBottom>Sales History</Typography>
+      <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ mb: 2 }} variant="scrollable" scrollButtons="auto">
+        <Tab value={AGENT_ROLE} label="Agents" />
+        <Tab value={LMT_ROLE} label="LMTs" />
+      </Tabs>
+      <SalesHistoryPanel key={tab} role={tab} />
+    </Box>
   );
 }
