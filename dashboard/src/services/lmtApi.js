@@ -86,6 +86,16 @@ export const customerShopApi = {
   },
 };
 
+export const lmtStockApi = {
+  /** Management-only reconciliation report: one record per LMT per day, items carry sold/returned/unsold/missing + returnsByShop. */
+  async getReconciliation(startDate, endDate, agentId) {
+    const params = { startDate, endDate };
+    if (agentId) params.agentId = agentId;
+    const response = await api.get('/lmt/stock/reconciliation', { params });
+    return unwrap(response);
+  },
+};
+
 export const lmtSettingsApi = {
   async get() {
     const response = await api.get('/lmt/settings');

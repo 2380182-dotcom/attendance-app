@@ -15,6 +15,7 @@ import AgentProfilePage from './pages/hr/AgentProfilePage';
 import SalesOverviewPage from './pages/sales/SalesOverviewPage';
 import SalesHistoryPage from './pages/sales/SalesHistoryPage';
 import ProductPricingPage from './pages/sales/ProductPricingPage';
+import LmtReconciliationPage from './pages/sales/LmtReconciliationPage';
 import HierarchyPeoplePage from './pages/admin/HierarchyPeoplePage';
 import AreasPage from './pages/admin/AreasPage';
 import CustomerShopsPage from './pages/admin/CustomerShopsPage';
@@ -52,6 +53,7 @@ export default function App() {
         >
           <Route index element={<SalesOverviewPage />} />
           <Route path="history" element={<SalesHistoryPage />} />
+          <Route path="reconciliation" element={<LmtReconciliationPage />} />
           <Route path="pricing" element={<ProductPricingPage />} />
         </Route>
 
