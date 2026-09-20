@@ -62,6 +62,10 @@ public class SalesService {
     @Autowired
     private ShopProductDiscountRepository shopProductDiscountRepository;
 
+    // Per-shop explicit prices (V24) — salesman shop-visit sales only.
+    @Autowired
+    private ShopProductPriceRepository shopProductPriceRepository;
+
     @Value("${sales.max-quantity-limit:500}")
     private int maxQuantityLimit;
 
@@ -388,6 +392,17 @@ public class SalesService {
             // totalAmount below; a discount on a quantity-only signal has
             // no meaning) and their totalPrice/discountPercent are
             // unaffected, exactly as before this feature.
+            //
+            // V24: the base price is this shop's explicit price for the
+            // product if the admin set one, else the global salesmanPrice.
+            // The discount below is applied ON TOP of that base price:
+            // final = basePrice x qty x (1 - discount%). Agents never
+            // reach this method, so agentPrice flows are unaffected.
+            double basePrice = shopProductPriceRepository
+                    .findByCustomerShopIdAndProductId(shop.getId(), product.getId())
+                    .map(ShopProductPrice::getPrice)
+                    .orElse(product.getSalesmanPrice());
+
             Double appliedDiscountPercent = null;
             double itemTotal;
             if (type == TransactionType.SALE) {
@@ -399,9 +414,9 @@ public class SalesService {
                     discountPercent = 0.0;
                 }
                 appliedDiscountPercent = discountPercent;
-                itemTotal = product.getSalesmanPrice() * itemReq.getQuantity() * (1 - discountPercent / 100.0);
+                itemTotal = basePrice * itemReq.getQuantity() * (1 - discountPercent / 100.0);
             } else {
-                itemTotal = product.getSalesmanPrice() * itemReq.getQuantity();
+                itemTotal = basePrice * itemReq.getQuantity();
             }
             // UNSOLD carries no revenue (it never left the shop); RETURN is
             // tracked as a credit rather than folded into totalAmount, so
@@ -414,7 +429,7 @@ public class SalesService {
             SaleItem item = new SaleItem();
             item.setProduct(product);
             item.setQuantity(itemReq.getQuantity());
-            item.setUnitPrice(product.getSalesmanPrice());
+            item.setUnitPrice(basePrice);
             item.setTotalPrice(itemTotal);
             item.setDiscountPercent(appliedDiscountPercent);
             item.setProductImageUrl(product.getImageUrl());

@@ -1,14 +1,17 @@
 package com.dawnbread.attendance.service;
 
 import com.dawnbread.attendance.dto.CustomerShopCreateDTO;
+import com.dawnbread.attendance.dto.ShopProductPricesUpdateDTO;
 import com.dawnbread.attendance.entity.Area;
 import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.entity.Product;
 import com.dawnbread.attendance.entity.ShopProductDiscount;
+import com.dawnbread.attendance.entity.ShopProductPrice;
 import com.dawnbread.attendance.repository.AreaRepository;
 import com.dawnbread.attendance.repository.CustomerShopRepository;
 import com.dawnbread.attendance.repository.ProductRepository;
 import com.dawnbread.attendance.repository.ShopProductDiscountRepository;
+import com.dawnbread.attendance.repository.ShopProductPriceRepository;
 import com.dawnbread.attendance.util.GeoUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -38,6 +41,16 @@ public class CustomerShopService {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private ShopProductPriceRepository shopProductPriceRepository;
+
+    /** Bad discount data would silently produce wrong revenue at sale time, so reject it at the door. */
+    private static void requireValidDiscount(Double discountPercent) {
+        if (discountPercent != null && (discountPercent < 0 || discountPercent > 100)) {
+            throw new RuntimeException("Discount percent must be between 0 and 100.");
+        }
+    }
 
     private Area resolveArea(Long areaId) {
         return areaRepository.findById(areaId)
@@ -86,6 +99,7 @@ public class CustomerShopService {
     }
 
     public CustomerShop create(CustomerShopCreateDTO dto) {
+        requireValidDiscount(dto.getDiscountPercent());
         if (customerShopRepository.existsByShopCode(dto.getShopCode())) {
             throw new RuntimeException("Shop code already exists: " + dto.getShopCode());
         }
@@ -134,6 +148,7 @@ public class CustomerShopService {
     }
 
     public CustomerShop update(Long id, CustomerShopCreateDTO dto) {
+        requireValidDiscount(dto.getDiscountPercent());
         CustomerShop shop = customerShopRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Customer shop not found with id: " + id));
 
@@ -218,6 +233,7 @@ public class CustomerShopService {
 
     /** Creates or replaces the SKU override for (shopId, productId) — one row per pair, per the unique index. */
     public ShopProductDiscount upsertProductDiscount(Long shopId, Long productId, Double discountPercent) {
+        requireValidDiscount(discountPercent);
         CustomerShop shop = customerShopRepository.findById(shopId)
                 .orElseThrow(() -> new RuntimeException("Customer shop not found with id: " + shopId));
         Product product = productRepository.findById(productId)
@@ -237,5 +253,46 @@ public class CustomerShopService {
                 .findByCustomerShopIdAndProductId(shopId, productId)
                 .orElseThrow(() -> new RuntimeException("No discount override found for this shop/product"));
         shopProductDiscountRepository.delete(override);
+    }
+
+    /** A shop's explicit per-product prices — read by the admin form and the mobile price display. */
+    public List<ShopProductPrice> getProductPrices(Long shopId) {
+        if (!customerShopRepository.existsById(shopId)) {
+            throw new RuntimeException("Customer shop not found with id: " + shopId);
+        }
+        return shopProductPriceRepository.findByCustomerShopIdWithProduct(shopId);
+    }
+
+    /**
+     * Applies a batch of shop prices in one transaction: a non-null price
+     * creates or replaces that product's shop price, a null price removes
+     * it (back to the global salesman price). Products not listed are left
+     * untouched.
+     */
+    public List<ShopProductPrice> applyProductPrices(Long shopId, List<ShopProductPricesUpdateDTO.Entry> entries) {
+        CustomerShop shop = customerShopRepository.findById(shopId)
+                .orElseThrow(() -> new RuntimeException("Customer shop not found with id: " + shopId));
+        // Validate the whole batch first so a bad row never leaves a half-applied save.
+        for (ShopProductPricesUpdateDTO.Entry entry : entries) {
+            if (entry.getPrice() != null && entry.getPrice() < 0) {
+                throw new RuntimeException("Shop price cannot be negative.");
+            }
+        }
+        for (ShopProductPricesUpdateDTO.Entry entry : entries) {
+            var existing = shopProductPriceRepository.findByCustomerShopIdAndProductId(shopId, entry.getProductId());
+            if (entry.getPrice() == null) {
+                existing.ifPresent(shopProductPriceRepository::delete);
+                continue;
+            }
+            Product product = productRepository.findById(entry.getProductId())
+                    .orElseThrow(() -> new RuntimeException("Product not found with id: " + entry.getProductId()));
+            ShopProductPrice row = existing.orElseGet(ShopProductPrice::new);
+            row.setCustomerShop(shop);
+            row.setProduct(product);
+            row.setPrice(entry.getPrice());
+            shopProductPriceRepository.save(row);
+        }
+        shopProductPriceRepository.flush();
+        return shopProductPriceRepository.findByCustomerShopIdWithProduct(shopId);
     }
 }

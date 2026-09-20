@@ -5,6 +5,7 @@ import com.dawnbread.attendance.entity.Area;
 import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.entity.HierarchyPerson;
 import com.dawnbread.attendance.entity.ShopProductDiscount;
+import com.dawnbread.attendance.entity.ShopProductPrice;
 import com.dawnbread.attendance.security.AccessControl;
 import com.dawnbread.attendance.service.CustomerShopService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -193,6 +194,38 @@ public class CustomerShopController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
+    }
+
+    /** Explicit per-shop prices — unguarded read, same convention as the discount reads above. */
+    @GetMapping("/{id}/product-prices")
+    public ResponseEntity<ApiResponse<List<ShopProductPriceDTO>>> getProductPrices(@PathVariable Long id) {
+        try {
+            List<ShopProductPriceDTO> dtos = customerShopService.getProductPrices(id).stream()
+                    .map(this::convertPriceToDTO).collect(Collectors.toList());
+            return ResponseEntity.ok(ApiResponse.success("Shop product prices retrieved successfully", dtos));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/product-prices")
+    public ResponseEntity<ApiResponse<List<ShopProductPriceDTO>>> applyProductPrices(
+            @PathVariable Long id, @Valid @RequestBody ShopProductPricesUpdateDTO dto) {
+        if (!AccessControl.hasRole(request, "ADMIN")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator can manage shop prices."));
+        }
+        try {
+            List<ShopProductPriceDTO> saved = customerShopService.applyProductPrices(id, dto.getPrices()).stream()
+                    .map(this::convertPriceToDTO).collect(Collectors.toList());
+            return ResponseEntity.ok(ApiResponse.success("Shop product prices saved successfully", saved));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    private ShopProductPriceDTO convertPriceToDTO(ShopProductPrice price) {
+        return new ShopProductPriceDTO(price.getProduct().getId(), price.getProduct().getName(), price.getPrice());
     }
 
     private ShopProductDiscountDTO convertDiscountToDTO(ShopProductDiscount discount) {
