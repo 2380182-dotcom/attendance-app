@@ -27,6 +27,10 @@ import RecordVisitScreen from '../screens/lmt/RecordVisitScreen';
 import MorningStockEntryScreen from '../screens/lmt/MorningStockEntryScreen';
 import EnterUnsoldScreen from '../screens/lmt/EnterUnsoldScreen';
 
+// Local Salesman Screens
+import LocalHomeScreen from '../screens/local/LocalHomeScreen';
+import LocalNearbyShopsScreen from '../screens/local/LocalNearbyShopsScreen';
+
 // Sales Screens
 import SalesDashboardScreen from '../screens/sales/SalesDashboardScreen';
 import SalesReportScreen from '../screens/sales/SalesReportScreen';
@@ -242,7 +246,34 @@ export default function AppNavigator() {
             </>
           )}
 
-          {role !== 'SALES' && role !== 'HR' && role !== 'ADMIN' && role !== 'SALESMAN_LMT' && (
+          {role === 'SALESMAN_LOCAL' && (
+            <>
+              {/*
+                Deliberately tiny stack: no Checkin/Checkout, no stock, no
+                face enrollment — this role has no duty concept at all.
+                LocalHome is the landing screen (first registered), and its
+                two actions lead to the nearby-shop list and then entry.
+              */}
+              <Stack.Screen
+                name="LocalHome"
+                component={LocalHomeScreen}
+                options={{ title: 'Dawn Bread' }}
+              />
+              <Stack.Screen
+                name="LocalNearbyShops"
+                component={LocalNearbyShopsScreen}
+                options={{ title: 'Nearby Shops' }}
+              />
+            </>
+          )}
+
+          {/*
+            The Agent stack below is the catch-all for every role not listed
+            above — so a role MUST be excluded here or it silently lands on
+            the Agent dashboard (check-in, face enrollment). SALESMAN_LOCAL
+            is excluded for exactly that reason.
+          */}
+          {role !== 'SALES' && role !== 'HR' && role !== 'ADMIN' && role !== 'SALESMAN_LMT' && role !== 'SALESMAN_LOCAL' && (
             <>
               <Stack.Screen
                 name="Dashboard"
