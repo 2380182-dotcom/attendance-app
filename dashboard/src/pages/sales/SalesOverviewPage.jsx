@@ -47,7 +47,7 @@ export default function SalesOverviewPage() {
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>Sales Overview — Today (Pakistan time)</Typography>
+      <Typography variant="h5" gutterBottom>Sales Overview — All Sellers — Today (Pakistan time)</Typography>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={4}><StatCard label="Revenue" value={`PKR ${(d.todayTotalRevenue ?? 0).toLocaleString()}`} /></Grid>

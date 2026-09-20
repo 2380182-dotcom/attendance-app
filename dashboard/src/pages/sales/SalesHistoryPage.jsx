@@ -25,6 +25,16 @@ import LmtShopBreakdown from './LmtShopBreakdown';
 const ALL_AGENTS = 'ALL';
 const AGENT_ROLE = 'AGENT';
 const LMT_ROLE = 'SALESMAN_LMT';
+const LOCAL_ROLE = 'SALESMAN_LOCAL';
+
+// The three seller types the backend's `role` report param separates. Agents
+// have no shops; LMT and Local salesmen record shop visits, so both get the
+// shop-wise breakdown, the Shop column and the Sale/Return type chips.
+const SELLER_TYPES = {
+  [AGENT_ROLE]: { tabLabel: 'Agents', sellerLabel: 'Agent', allLabel: 'All Agents', plural: 'agents', shopBased: false },
+  [LMT_ROLE]: { tabLabel: 'LMTs', sellerLabel: 'LMT Salesman', allLabel: 'All LMT Salesmen', plural: 'salesmen', shopBased: true },
+  [LOCAL_ROLE]: { tabLabel: 'Local Salesmen', sellerLabel: 'Local Salesman', allLabel: 'All Local Salesmen', plural: 'salesmen', shopBased: true },
+};
 
 function LineItemsTable({ items, showType }) {
   if (!items || items.length === 0) {
@@ -130,9 +140,7 @@ function ProductMixTable({ rows, title, searchActive }) {
 }
 
 function SalesHistoryPanel({ role }) {
-  const isLmt = role === LMT_ROLE;
-  const sellerLabel = isLmt ? 'LMT Salesman' : 'Agent';
-  const allSellersLabel = isLmt ? 'All LMT Salesmen' : 'All Agents';
+  const { sellerLabel, allLabel: allSellersLabel, plural, shopBased: isShopSeller } = SELLER_TYPES[role];
   const [selectedAgent, setSelectedAgent] = useState(ALL_AGENTS);
   const [period, setPeriod] = useState('daily');
   const [anchorDate, setAnchorDate] = useState(dayjs());
@@ -174,7 +182,7 @@ function SalesHistoryPanel({ role }) {
   // single-seller query above; the period's date range is applied client-side.
   const allView = selectedAgent === ALL_AGENTS;
   const lmtSalesQueries = useQueries({
-    queries: (isLmt && allView ? sellers : []).map((a) => ({
+    queries: (isShopSeller && allView ? sellers : []).map((a) => ({
       queryKey: ['agent-sales', a.id],
       queryFn: () => salesApi.getAgentSales(a.id),
     })),
@@ -196,7 +204,7 @@ function SalesHistoryPanel({ role }) {
   }, [agentSales.data, rangeStart, rangeEnd, search]);
 
   const shopRecords = useMemo(() => {
-    if (!isLmt) return [];
+    if (!isShopSeller) return [];
     if (!allView) return filteredAgentSales;
     const end = anchorDate;
     const start = period === 'daily' ? anchorDate
@@ -210,7 +218,7 @@ function SalesHistoryPanel({ role }) {
         return !d.isBefore(start, 'day') && !d.isAfter(last, 'day');
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLmt, allView, filteredAgentSales, anchorDate, period, lmtSalesSignature]);
+  }, [isShopSeller, allView, filteredAgentSales, anchorDate, period, lmtSalesSignature]);
 
   const sortedAgentSales = useMemo(
     () => sortRows(filteredAgentSales, salesSort.key, salesSort.direction),
@@ -394,7 +402,7 @@ function SalesHistoryPanel({ role }) {
             {companyReport.data && (
               <>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  {companyReport.data.title} — {companyReport.data.dateRange} — Revenue PKR {(companyReport.data.totalRevenue ?? 0).toLocaleString()}, {companyReport.data.totalUnits ?? 0} units, {companyReport.data.activeAgents ?? 0} active {isLmt ? 'salesmen' : 'agents'}
+                  {companyReport.data.title} — {companyReport.data.dateRange} — Revenue PKR {(companyReport.data.totalRevenue ?? 0).toLocaleString()}, {companyReport.data.totalUnits ?? 0} units, {companyReport.data.activeAgents ?? 0} active {plural}
                 </Typography>
                 {!canExpandAgentSummaries && (
                   <Alert severity="info" sx={{ mb: 2 }}>
@@ -422,7 +430,7 @@ function SalesHistoryPanel({ role }) {
                             key={row.employeeId}
                             colSpan={5}
                             items={row.items}
-                            showType={isLmt}
+                            showType={isShopSeller}
                             collapsedCells={
                               <>
                                 <TableCell>{row.agentName}</TableCell>
@@ -446,7 +454,7 @@ function SalesHistoryPanel({ role }) {
                 </Paper>
 
                 <ProductMixTable rows={filteredCompanyProductMix} title={`Product-wise Totals — ${allSellersLabel}`} searchActive={!!productSearch.trim()} />
-                {isLmt && (lmtSalesLoading
+                {isShopSeller && (lmtSalesLoading
                   ? <CircularProgress sx={{ mt: 3 }} />
                   : <LmtShopBreakdown records={shopRecords} filenameHint={`${period}-${anchorDate.format('YYYY-MM-DD')}`} />)}
               </>
@@ -465,26 +473,26 @@ function SalesHistoryPanel({ role }) {
                         <TableCell padding="checkbox" />
                         <SortableHeader label="Date" sortKey="saleDate" sort={salesSort} onSort={onSalesSort} />
                         <TableCell>Time</TableCell>
-                        {isLmt && <TableCell>Shop</TableCell>}
+                        {isShopSeller && <TableCell>Shop</TableCell>}
                         <TableCell>Location</TableCell>
                         <SortableHeader label="Amount" sortKey="totalAmount" sort={salesSort} onSort={onSalesSort} align="right" />
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {sortedAgentSales.length === 0 && (
-                        <TableRow><TableCell colSpan={isLmt ? 6 : 5} align="center">No sales in this date range.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={isShopSeller ? 6 : 5} align="center">No sales in this date range.</TableCell></TableRow>
                       )}
                       {sortedAgentSales.map((record) => (
                         <ExpandableRow
                           key={record.id}
-                          colSpan={isLmt ? 6 : 5}
+                          colSpan={isShopSeller ? 6 : 5}
                           items={record.items}
-                          showType={isLmt}
+                          showType={isShopSeller}
                           collapsedCells={
                             <>
                               <TableCell>{record.saleDate}</TableCell>
                               <TableCell>{formatSaleTimeToKarachi(record.saleDate, record.saleTime) || '—'}</TableCell>
-                              {isLmt && <TableCell>{record.customerShopName ? `${record.customerShopName} (${record.customerShopCode})` : '—'}</TableCell>}
+                              {isShopSeller && <TableCell>{record.customerShopName ? `${record.customerShopName} (${record.customerShopCode})` : '—'}</TableCell>}
                               <TableCell>{record.location || '—'}</TableCell>
                               <TableCell align="right">PKR {(record.totalAmount ?? 0).toLocaleString()}</TableCell>
                             </>
@@ -496,7 +504,7 @@ function SalesHistoryPanel({ role }) {
                 </Paper>
 
                 <ProductMixTable rows={filteredAgentProductMix} title="Product Mix — this range" searchActive={!!productSearch.trim()} />
-                {isLmt && (
+                {isShopSeller && (
                   <LmtShopBreakdown
                     records={shopRecords}
                     filenameHint={`${rangeStart.format('YYYY-MM-DD')}-to-${rangeEnd.format('YYYY-MM-DD')}`}
@@ -517,8 +525,9 @@ export default function SalesHistoryPage() {
     <Box>
       <Typography variant="h5" gutterBottom>Sales History</Typography>
       <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ mb: 2 }} variant="scrollable" scrollButtons="auto">
-        <Tab value={AGENT_ROLE} label="Agents" />
-        <Tab value={LMT_ROLE} label="LMTs" />
+        {Object.entries(SELLER_TYPES).map(([roleKey, cfg]) => (
+          <Tab key={roleKey} value={roleKey} label={cfg.tabLabel} />
+        ))}
       </Tabs>
       <SalesHistoryPanel key={tab} role={tab} />
     </Box>
