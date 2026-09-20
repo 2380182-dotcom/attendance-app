@@ -313,10 +313,19 @@ public class SalesService {
         // Attendance and never touches AttendanceService/Controller, so
         // regular Agent check-in/checkout behavior is completely
         // unaffected by this method existing.
-        Attendance openAttendance = attendanceRepository.findOpenAttendanceByAgentId(agent.getId()).orElse(null);
-        if (openAttendance == null || openAttendance.getMart() == null
-                || openAttendance.getMart().getMartType() != MartType.COMPANY) {
-            throw new IllegalArgumentException("You must check in at the company before recording sales.");
+        //
+        // SALESMAN_LOCAL has no duty concept at all (no check-in, no
+        // start/end of duty) — the gate simply doesn't apply to that role.
+        // Every other role, including SALESMAN_LMT, is gated exactly as
+        // before. The role comes from the stored Agent, never from the
+        // request.
+        boolean isLocalSalesman = "SALESMAN_LOCAL".equals(agent.getRole());
+        if (!isLocalSalesman) {
+            Attendance openAttendance = attendanceRepository.findOpenAttendanceByAgentId(agent.getId()).orElse(null);
+            if (openAttendance == null || openAttendance.getMart() == null
+                    || openAttendance.getMart().getMartType() != MartType.COMPANY) {
+                throw new IllegalArgumentException("You must check in at the company before recording sales.");
+            }
         }
 
         CustomerShop shop = customerShopService.getByShopCode(request.getShopCode())
@@ -329,8 +338,17 @@ public class SalesService {
         // geofence configured. Distance is always recorded when it can be
         // computed, whether or not the gate ends up blocking.
         Double distance = null;
-        if (Boolean.TRUE.equals(shop.getGeoFencingEnabled())
-                && shop.getLatitude() != null && shop.getLongitude() != null && shop.getRadius() != null) {
+        boolean shopHasGeofence = Boolean.TRUE.equals(shop.getGeoFencingEnabled())
+                && shop.getLatitude() != null && shop.getLongitude() != null && shop.getRadius() != null;
+        // A local salesman has no check-in to prove where they are, so the
+        // shop's location IS the proof: a shop with no geofence configured
+        // can't be verified, and must not be recordable from anywhere.
+        // (LMT keeps its existing behavior: an unconfigured shop skips the gate.)
+        if (isLocalSalesman && !shopHasGeofence) {
+            throw new IllegalArgumentException("'" + shop.getShopName()
+                    + "' has no location set up yet, so a visit here can't be verified. Ask the admin to set the shop's location.");
+        }
+        if (shopHasGeofence) {
             distance = GeoUtils.distanceMeters(request.getLatitude(), request.getLongitude(), shop.getLatitude(), shop.getLongitude());
             double buffer = lmtSettingsService.getOrCreate().getGeofenceBufferMeters();
             double allowedRadius = shop.getRadius() + buffer;

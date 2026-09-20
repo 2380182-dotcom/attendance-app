@@ -130,6 +130,16 @@ public class AgentService {
             agent.setFaceVerificationFrequency(0);
             agent.setFaceVerifyAnytime(false);
         }
+        // SALESMAN_LOCAL has no check-in, so nothing to verify a face against —
+        // face verification is fully off, fixed by role like the LMT policy
+        // above and placed after the generic reads so it always wins.
+        if ("SALESMAN_LOCAL".equals(agent.getRole())) {
+            agent.setFaceVerificationEnabled(false);
+            agent.setFaceVerifyOnCheckIn(false);
+            agent.setFaceVerifyOnCheckOut(false);
+            agent.setFaceVerifyAnytime(false);
+            agent.setFaceVerificationFrequency(0);
+        }
         if (dto.getIsActive() != null) {
             agent.setIsActive(dto.getIsActive());
         }

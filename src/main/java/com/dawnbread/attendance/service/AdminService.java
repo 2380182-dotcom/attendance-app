@@ -189,6 +189,16 @@ public class AdminService {
             agent.setFaceVerificationFrequency(0);
             agent.setFaceVerifyAnytime(false);
         }
+        // SALESMAN_LOCAL has no check-in, so nothing to verify a face against —
+        // face verification is fully off, fixed by role like the LMT policy
+        // above and placed after the generic reads so it always wins.
+        if ("SALESMAN_LOCAL".equals(agent.getRole())) {
+            agent.setFaceVerificationEnabled(false);
+            agent.setFaceVerifyOnCheckIn(false);
+            agent.setFaceVerifyOnCheckOut(false);
+            agent.setFaceVerifyAnytime(false);
+            agent.setFaceVerificationFrequency(0);
+        }
         agent.setShiftStartTime(dto.getShiftStartTime() != null ? dto.getShiftStartTime() : LocalTime.of(9, 0));
         agent.setShiftEndTime(dto.getShiftEndTime() != null ? dto.getShiftEndTime() : LocalTime.of(17, 0));
         agent.setGracePeriodMinutes(dto.getGracePeriodMinutes() != null ? dto.getGracePeriodMinutes() : 15);

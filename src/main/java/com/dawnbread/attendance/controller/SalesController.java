@@ -161,11 +161,11 @@ public class SalesController {
         String callerRole = AccessControl.callerRole(this.request);
         Long callerId = AccessControl.callerId(this.request);
         boolean isAdmin = "ADMIN".equals(callerRole);
-        boolean isSelfSalesman = "SALESMAN_LMT".equals(callerRole)
+        boolean isSelfSalesman = ("SALESMAN_LMT".equals(callerRole) || "SALESMAN_LOCAL".equals(callerRole))
                 && callerId != null && callerId.equals(request.getAgentId());
         if (!isAdmin && !isSelfSalesman) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Only a SALESMAN_LMT (for themselves) or an ADMIN can record a shop visit."));
+                    .body(ApiResponse.error("Only a salesman (for themselves) or an ADMIN can record a shop visit."));
         }
         try {
             SalesRecord record = salesService.submitShopVisit(request);
