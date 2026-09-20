@@ -30,6 +30,7 @@ import EnterUnsoldScreen from '../screens/lmt/EnterUnsoldScreen';
 // Local Salesman Screens
 import LocalHomeScreen from '../screens/local/LocalHomeScreen';
 import LocalNearbyShopsScreen from '../screens/local/LocalNearbyShopsScreen';
+import LocalEntryScreen from '../screens/local/LocalEntryScreen';
 
 // Sales Screens
 import SalesDashboardScreen from '../screens/sales/SalesDashboardScreen';
@@ -263,6 +264,11 @@ export default function AppNavigator() {
                 name="LocalNearbyShops"
                 component={LocalNearbyShopsScreen}
                 options={{ title: 'Nearby Shops' }}
+              />
+              <Stack.Screen
+                name="LocalEntry"
+                component={LocalEntryScreen}
+                options={{ title: 'Enter' }}
               />
             </>
           )}
