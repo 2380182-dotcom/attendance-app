@@ -70,10 +70,23 @@ export default function RecordVisitScreen({ route, navigation }) {
   const [returnQuantities, setReturnQuantities] = useState({});
   const [reviewMode, setReviewMode] = useState(false);
   const [shopProductDiscounts, setShopProductDiscounts] = useState([]);
+  const [shopPrices, setShopPrices] = useState([]);
+
+  // Explicit per-shop prices — display/preview only, same non-authoritative
+  // pattern as the discounts below. Fetched together with the products
+  // (before the list shows) so a cart line is never priced before they load.
+  const fetchShopPrices = useCallback(async () => {
+    try {
+      const data = await apiService.lmt.getShopProductPrices(shop.id);
+      setShopPrices(data || []);
+    } catch (e) {
+      console.warn('Could not load shop prices for preview', e);
+    }
+  }, [shop.id]);
 
   const fetchProducts = useCallback(async () => {
     try {
-      const data = await apiService.sales.getProducts();
+      const [data] = await Promise.all([apiService.sales.getProducts(), fetchShopPrices()]);
       setProducts(data);
     } catch (e) {
       console.error(e);
@@ -81,7 +94,7 @@ export default function RecordVisitScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchShopPrices]);
 
   // Client-side preview only, same non-authoritative pattern as the
   // geofence pre-check above — the server independently resolves and
@@ -101,6 +114,13 @@ export default function RecordVisitScreen({ route, navigation }) {
     fetchProducts();
     fetchShopProductDiscounts();
   }, [fetchProducts, fetchShopProductDiscounts]);
+
+  // This shop's explicit price for the product if the admin set one,
+  // otherwise the global salesmanPrice — mirrors the server's base price.
+  const getBasePrice = (product) => {
+    const override = shopPrices.find((p) => p.productId === product.id);
+    return override ? override.price : product.salesmanPrice;
+  };
 
   // Mirrors SalesService's server-side resolution order exactly: a
   // per-product (SKU) override for this shop wins if one exists,
@@ -147,10 +167,10 @@ export default function RecordVisitScreen({ route, navigation }) {
       return;
     }
 
-    // Display-only preview using the LMT's own role price — the server
-    // independently recomputes the real amount from Product.salesmanPrice
-    // (plus any shop discount, Feature 2) at submission time.
-    setCart((prev) => [...prev, { product, saleQty, returnQty, totalPrice: product.salesmanPrice * saleQty }]);
+    // Display-only preview using this shop's price (or the global
+    // salesmanPrice) — the server independently recomputes the real amount,
+    // plus any shop discount, at submission time.
+    setCart((prev) => [...prev, { product, saleQty, returnQty, totalPrice: getBasePrice(product) * saleQty }]);
   };
 
   const handleRemoveFromCart = (productId) => {
@@ -370,7 +390,7 @@ export default function RecordVisitScreen({ route, navigation }) {
               <ProductThumbnail uri={item.thumbnailUrl} size={40} style={styles.productImage} />
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productPrice}>PKR {item.salesmanPrice}</Text>
+                <Text style={styles.productPrice}>PKR {getBasePrice(item)}</Text>
               </View>
               <View style={styles.actionRow}>
                 <View style={styles.qtyField}>

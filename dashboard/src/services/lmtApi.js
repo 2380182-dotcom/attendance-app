@@ -84,6 +84,16 @@ export const customerShopApi = {
     const response = await api.delete(`/lmt/customer-shops/${shopId}/product-discounts/${productId}`);
     return unwrap(response);
   },
+  /** Explicit per-shop prices only — products absent from the result use the global salesman price. */
+  async getProductPrices(shopId) {
+    const response = await api.get(`/lmt/customer-shops/${shopId}/product-prices`);
+    return unwrap(response);
+  },
+  /** entries: [{ productId, price }] — a null price removes that product's shop price. */
+  async applyProductPrices(shopId, entries) {
+    const response = await api.put(`/lmt/customer-shops/${shopId}/product-prices`, { prices: entries });
+    return unwrap(response);
+  },
 };
 
 export const lmtStockApi = {

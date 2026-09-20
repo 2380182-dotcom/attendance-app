@@ -613,6 +613,19 @@ export const apiService = {
       }
     },
     /**
+     * Explicit per-shop product prices [{ productId, productName, price }] —
+     * products absent from the list use the global salesmanPrice. Display /
+     * preview only; the server resolves the real price at submission.
+     */
+    async getShopProductPrices(shopId) {
+      try {
+        const response = await api.get(`/lmt/customer-shops/${shopId}/product-prices`);
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
+    /**
      * Today's LmtDailyStock (Phase C), or null if none has been entered
      * yet — the backend returns success:true with data:null in that case
      * (not a 404), so this resolves to null rather than throwing.

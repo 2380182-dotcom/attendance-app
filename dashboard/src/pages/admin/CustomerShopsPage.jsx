@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
@@ -52,6 +52,13 @@ export default function CustomerShopsPage() {
   const [newOverrideProductId, setNewOverrideProductId] = useState('');
   const [newOverridePercent, setNewOverridePercent] = useState('');
   const [overrideError, setOverrideError] = useState('');
+  // Per-shop explicit prices: priceEdits holds what's typed (productId -> string,
+  // blank = "not set, use the global salesman price"), priceOriginal what the
+  // server had when the dialog opened, so Save only sends what actually changed.
+  const [priceEdits, setPriceEdits] = useState({});
+  const [priceOriginal, setPriceOriginal] = useState({});
+  const [pricesSeededFor, setPricesSeededFor] = useState(null);
+  const [priceSearch, setPriceSearch] = useState('');
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['lmt-customer-shops'] });
 
@@ -60,6 +67,22 @@ export default function CustomerShopsPage() {
     queryFn: () => customerShopApi.getProductDiscounts(editingId),
     enabled: dialogOpen && !!editingId,
   });
+  const shopPrices = useQuery({
+    queryKey: ['lmt-shop-product-prices', editingId],
+    queryFn: () => customerShopApi.getProductPrices(editingId),
+    enabled: dialogOpen && !!editingId,
+    refetchOnWindowFocus: false,
+  });
+  useEffect(() => {
+    if (!dialogOpen || pricesSeededFor === (editingId ?? 'new')) return;
+    if (editingId && !shopPrices.data) return;
+    const seeded = {};
+    (shopPrices.data || []).forEach((p) => { seeded[p.productId] = String(p.price); });
+    setPriceEdits(seeded);
+    setPriceOriginal(seeded);
+    setPricesSeededFor(editingId ?? 'new');
+  }, [dialogOpen, editingId, shopPrices.data, pricesSeededFor]);
+
   const invalidateDiscounts = () => queryClient.invalidateQueries({ queryKey: ['lmt-shop-product-discounts', editingId] });
 
   const upsertDiscountMutation = useMutation({
@@ -115,12 +138,12 @@ export default function CustomerShopsPage() {
 
   const createMutation = useMutation({
     mutationFn: customerShopApi.create,
-    onSuccess: () => { invalidate(); closeDialog(); },
+    onSuccess: invalidate,
     onError: (e) => setFormError(e.response?.data?.message || 'Failed to create shop.'),
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, dto }) => customerShopApi.update(id, dto),
-    onSuccess: () => { invalidate(); closeDialog(); },
+    onSuccess: invalidate,
     onError: (e) => setFormError(e.response?.data?.message || 'Failed to update shop.'),
   });
   const deactivateMutation = useMutation({
@@ -154,6 +177,10 @@ export default function CustomerShopsPage() {
     setOverrideError('');
     setNewOverrideProductId('');
     setNewOverridePercent('');
+    setPriceEdits({});
+    setPriceOriginal({});
+    setPriceSearch('');
+    setPricesSeededFor(null);
     setDialogOpen(true);
   };
   const openEditDialog = (shop) => {
@@ -169,14 +196,34 @@ export default function CustomerShopsPage() {
     setOverrideError('');
     setNewOverrideProductId('');
     setNewOverridePercent('');
+    setPriceEdits({});
+    setPriceOriginal({});
+    setPriceSearch('');
+    setPricesSeededFor(null);
     setDialogOpen(true);
   };
   const closeDialog = () => setDialogOpen(false);
 
-  const handleSave = () => {
+  const isInvalidPrice = (value) => {
+    const t = String(value ?? '').trim();
+    if (t === '') return false; // blank = fall back to the global salesman price
+    const n = Number(t);
+    return Number.isNaN(n) || n < 0;
+  };
+
+  const handleSave = async () => {
     if (!form.shopCode.trim()) { setFormError('Shop Code is required.'); return; }
     if (!form.shopName.trim()) { setFormError('Shop Name is required.'); return; }
     if (!form.areaId) { setFormError('Area is required.'); return; }
+    const discount = toNullableNumber(form.discountPercent);
+    if (discount !== null && (discount < 0 || discount > 100)) {
+      setFormError('Overall discount must be between 0 and 100.');
+      return;
+    }
+    if (Object.values(priceEdits).some(isInvalidPrice)) {
+      setFormError('Shop prices must be numbers of 0 or more — leave a price blank to use the default.');
+      return;
+    }
 
     const dto = {
       shopCode: form.shopCode.trim(),
@@ -193,13 +240,42 @@ export default function CustomerShopsPage() {
       longitude: toNullableNumber(form.longitude),
       radius: toNullableNumber(form.radius),
       geoFencingEnabled: form.geoFencingEnabled,
-      discountPercent: toNullableNumber(form.discountPercent),
+      discountPercent: discount,
     };
-    if (editingId) {
-      updateMutation.mutate({ id: editingId, dto });
-    } else {
-      createMutation.mutate(dto);
+
+    // Only products whose typed value differs from what the server had:
+    // blank -> null (removes the shop price), typed number (including 0 =
+    // free) -> that price.
+    const entries = (products.data || [])
+      .filter((p) => String(priceEdits[p.id] ?? '').trim() !== String(priceOriginal[p.id] ?? '').trim())
+      .map((p) => {
+        const t = String(priceEdits[p.id] ?? '').trim();
+        return { productId: p.id, price: t === '' ? null : Number(t) };
+      });
+
+    setFormError('');
+    let savedShop;
+    try {
+      savedShop = editingId
+        ? await updateMutation.mutateAsync({ id: editingId, dto })
+        : await createMutation.mutateAsync(dto);
+    } catch {
+      return; // the mutation's onError already showed the message
     }
+
+    if (entries.length > 0) {
+      try {
+        await customerShopApi.applyProductPrices(savedShop.id, entries);
+      } catch (e) {
+        // The shop itself saved — switch to edit mode so a retry updates it rather than trying to create a duplicate.
+        setEditingId(savedShop.id);
+        setPricesSeededFor(savedShop.id);
+        setFormError(`Shop saved, but its prices were not: ${e.response?.data?.message || 'please try Save again.'}`);
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['lmt-shop-product-prices', savedShop.id] });
+    }
+    closeDialog();
   };
 
   const saving = createMutation.isPending || updateMutation.isPending;
@@ -401,12 +477,67 @@ export default function CustomerShopsPage() {
           </Grid>
 
           <Divider sx={{ mb: 2 }} />
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>Discounts (LMT sales only)</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Product Prices for This Shop (salesmen only)</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            Type a price only for products that cost this shop something different. Leave blank to use the default price;
+            type 0 to make a product free here. The shop discount below is applied on top of these prices.
+          </Typography>
+          {editingId && shopPrices.isLoading ? (
+            <CircularProgress size={20} />
+          ) : (
+            <>
+              <TextField
+                size="small"
+                placeholder="Search products…"
+                value={priceSearch}
+                onChange={(e) => setPriceSearch(e.target.value)}
+                InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+                sx={{ mb: 1, minWidth: 220 }}
+              />
+              <TableContainer sx={{ maxHeight: 320, mb: 2 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Product</TableCell>
+                      <TableCell align="right">Default Price</TableCell>
+                      <TableCell align="right" sx={{ width: 160 }}>Price for This Shop</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(products.data || [])
+                      .filter((p) => p.name.toLowerCase().includes(priceSearch.trim().toLowerCase()))
+                      .map((p) => (
+                        <TableRow key={p.id} hover>
+                          <TableCell>{p.name}</TableCell>
+                          <TableCell align="right">{p.salesmanPrice}</TableCell>
+                          <TableCell align="right">
+                            <TextField
+                              size="small"
+                              type="number"
+                              placeholder={String(p.salesmanPrice)}
+                              value={priceEdits[p.id] ?? ''}
+                              onChange={(e) => setPriceEdits((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                              error={isInvalidPrice(priceEdits[p.id])}
+                              inputProps={{ min: 0, step: 'any' }}
+                              sx={{ width: 130 }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          )}
+
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Discounts (salesmen only)</Typography>
           <Grid container spacing={2} sx={{ mb: 1 }}>
             <Grid item xs={12} sm={6}>
               <TextField
                 label="Overall Discount %" type="number" fullWidth
-                helperText="Applies to every product at this shop unless a per-product override below is set."
+                inputProps={{ min: 0, max: 100, step: 'any' }}
+                helperText="0–100. Applies to every product at this shop unless a per-product override below is set."
                 value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })}
               />
             </Grid>
@@ -475,7 +606,7 @@ export default function CustomerShopsPage() {
                     <Button
                       variant="outlined"
                       size="small"
-                      disabled={!newOverrideProductId || newOverridePercent === '' || upsertDiscountMutation.isPending}
+                      disabled={!newOverrideProductId || newOverridePercent === '' || Number(newOverridePercent) < 0 || Number(newOverridePercent) > 100 || upsertDiscountMutation.isPending}
                       onClick={() => upsertDiscountMutation.mutate({
                         productId: newOverrideProductId,
                         discountPercent: toNullableNumber(newOverridePercent),
