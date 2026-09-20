@@ -631,7 +631,7 @@ public class SalesService {
         double totalRevenue = records.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
         int totalUnits = records.stream()
                 .flatMap(r -> r.getItems().stream())
-                .mapToInt(SaleItem::getQuantity).sum();
+                .filter(SalesService::isSaleLine).mapToInt(SaleItem::getQuantity).sum();
 
         Set<Long> uniqueAgents = records.stream().map(r -> r.getAgent().getId()).collect(Collectors.toSet());
 
@@ -644,7 +644,7 @@ public class SalesService {
                     double agentRevenue = agentRecords.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
                     int agentUnits = agentRecords.stream()
                             .flatMap(r -> r.getItems().stream())
-                            .mapToInt(SaleItem::getQuantity).sum();
+                            .filter(SalesService::isSaleLine).mapToInt(SaleItem::getQuantity).sum();
 
                     List<SaleItemDTO> itemDTOs = agentRecords.stream()
                             .flatMap(r -> r.getItems().stream())
@@ -654,7 +654,7 @@ public class SalesService {
                     return new ReportDTO.AgentReportSummary(agent.getName(), agent.getAgentId(), agentRevenue, agentUnits, itemDTOs);
                 }).collect(Collectors.toList());
 
-        List<ReportDTO.ProductPerformanceDetail> productPerformance = getProductPerformanceForRecords(records);
+        List<ReportDTO.ProductPerformanceDetail> productPerformance = getProductPerformanceForRecords(records, true);
 
         return new ReportDTO(
                 "DAWN BREAD - DAILY SALES REPORT (" + role + ")",
@@ -707,10 +707,10 @@ public class SalesService {
         LocalDate start = date.minusDays(6);
         List<SalesRecord> records = salesRecordRepository.findBySaleDateBetweenAndAgentRole(start, date, role);
         double totalRevenue = records.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
-        int totalUnits = records.stream().flatMap(r -> r.getItems().stream()).mapToInt(SaleItem::getQuantity).sum();
+        int totalUnits = records.stream().flatMap(r -> r.getItems().stream()).filter(SalesService::isSaleLine).mapToInt(SaleItem::getQuantity).sum();
         Set<Long> uniqueAgents = records.stream().map(r -> r.getAgent().getId()).collect(Collectors.toSet());
 
-        List<ReportDTO.ProductPerformanceDetail> productPerformance = getProductPerformanceForRecords(records);
+        List<ReportDTO.ProductPerformanceDetail> productPerformance = getProductPerformanceForRecords(records, true);
 
         return new ReportDTO(
                 "DAWN BREAD - WEEKLY SALES SUMMARY (" + role + ")",
@@ -766,10 +766,10 @@ public class SalesService {
         LocalDate end = date.withDayOfMonth(date.lengthOfMonth());
         List<SalesRecord> records = salesRecordRepository.findBySaleDateBetweenAndAgentRole(start, end, role);
         double totalRevenue = records.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
-        int totalUnits = records.stream().flatMap(r -> r.getItems().stream()).mapToInt(SaleItem::getQuantity).sum();
+        int totalUnits = records.stream().flatMap(r -> r.getItems().stream()).filter(SalesService::isSaleLine).mapToInt(SaleItem::getQuantity).sum();
         Set<Long> uniqueAgents = records.stream().map(r -> r.getAgent().getId()).collect(Collectors.toSet());
 
-        List<ReportDTO.ProductPerformanceDetail> productPerformance = getProductPerformanceForRecords(records);
+        List<ReportDTO.ProductPerformanceDetail> productPerformance = getProductPerformanceForRecords(records, true);
 
         return new ReportDTO(
                 "DAWN BREAD - MONTHLY SALES REPORT (" + role + ")",
@@ -835,13 +835,32 @@ public class SalesService {
         return saved;
     }
 
+    /**
+     * A line counts toward "sold" units and product revenue only if it's a
+     * SALE. LMT/local visits also record RETURN and UNSOLD lines, whose
+     * quantities must not be added to sold units. A null type is a legacy
+     * row and is a SALE (the column's default), so every Agent line — all of
+     * which are SALE — counts exactly as before.
+     */
+    private static boolean isSaleLine(SaleItem item) {
+        return item.getTransactionType() == null || item.getTransactionType() == TransactionType.SALE;
+    }
+
     // Helper: Map list of records to product performance details
     private List<ReportDTO.ProductPerformanceDetail> getProductPerformanceForRecords(List<SalesRecord> records) {
+        return getProductPerformanceForRecords(records, false);
+    }
+
+    /** saleOnly=true (the role-scoped reports) skips RETURN/UNSOLD lines; false keeps the original behavior exactly. */
+    private List<ReportDTO.ProductPerformanceDetail> getProductPerformanceForRecords(List<SalesRecord> records, boolean saleOnly) {
         Map<Product, Integer> qtyMap = new HashMap<>();
         Map<Product, Double> revMap = new HashMap<>();
 
         for (SalesRecord r : records) {
             for (SaleItem item : r.getItems()) {
+                if (saleOnly && !isSaleLine(item)) {
+                    continue;
+                }
                 qtyMap.put(item.getProduct(), qtyMap.getOrDefault(item.getProduct(), 0) + item.getQuantity());
                 revMap.put(item.getProduct(), revMap.getOrDefault(item.getProduct(), 0.0) + item.getTotalPrice());
             }

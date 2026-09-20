@@ -307,13 +307,6 @@ function SalesHistoryPanel({ role }) {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box>
-        {isLmt && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Unit counts on this tab include returned and unsold quantities alongside sold ones — revenue is unaffected.
-            Sold-only unit counts need a small backend change and are pending.
-          </Alert>
-        )}
-
         <Stack direction="row" spacing={2} sx={{ mb: 3 }} alignItems="center" flexWrap="wrap" useFlexGap>
           <FormControl size="small" sx={{ minWidth: 200 }}>
             <InputLabel id="sales-agent-filter-label">{sellerLabel}</InputLabel>
