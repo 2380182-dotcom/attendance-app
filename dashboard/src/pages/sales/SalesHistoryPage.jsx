@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import {
   Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   CircularProgress, Alert, Stack, MenuItem, Select, InputLabel, FormControl,
   ToggleButtonGroup, ToggleButton, TextField, InputAdornment, IconButton,
-  Collapse, Button, Tabs, Tab,
+  Collapse, Button, Tabs, Tab, Chip,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -20,12 +20,13 @@ import { sortRows, useSort } from '../../utils/sorting';
 import { aggregateProductMix, flattenSalesToLineItems } from '../../utils/salesAggregation';
 import { toCsv, downloadCsv } from '../../utils/csvExport';
 import SortableHeader from '../../components/SortableHeader';
+import LmtShopBreakdown from './LmtShopBreakdown';
 
 const ALL_AGENTS = 'ALL';
 const AGENT_ROLE = 'AGENT';
 const LMT_ROLE = 'SALESMAN_LMT';
 
-function LineItemsTable({ items }) {
+function LineItemsTable({ items, showType }) {
   if (!items || items.length === 0) {
     return <Typography color="text.secondary" sx={{ p: 2 }}>No product-level detail for this sale.</Typography>;
   }
@@ -34,6 +35,7 @@ function LineItemsTable({ items }) {
       <TableHead>
         <TableRow>
           <TableCell>Product</TableCell>
+          {showType && <TableCell>Type</TableCell>}
           <TableCell align="right">Quantity</TableCell>
           <TableCell align="right">Unit Price</TableCell>
           <TableCell align="right">Discount</TableCell>
@@ -44,6 +46,11 @@ function LineItemsTable({ items }) {
         {items.map((item, idx) => (
           <TableRow key={item.productId ?? idx}>
             <TableCell>{item.productName}</TableCell>
+            {showType && (
+              <TableCell>
+                <Chip size="small" label={item.transactionType || 'SALE'} color={item.transactionType === 'RETURN' ? 'warning' : 'default'} />
+              </TableCell>
+            )}
             <TableCell align="right">{item.quantity}</TableCell>
             <TableCell align="right">PKR {(item.unitPrice ?? 0).toLocaleString()}</TableCell>
             <TableCell align="right">{item.discountPercent ? `${item.discountPercent}%` : '—'}</TableCell>
@@ -55,7 +62,7 @@ function LineItemsTable({ items }) {
   );
 }
 
-function ExpandableRow({ collapsedCells, items, colSpan }) {
+function ExpandableRow({ collapsedCells, items, colSpan, showType }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -71,7 +78,7 @@ function ExpandableRow({ collapsedCells, items, colSpan }) {
         <TableCell colSpan={colSpan} sx={{ py: 0, borderBottom: open ? undefined : 'none' }}>
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Box sx={{ py: 1 }}>
-              <LineItemsTable items={items} />
+              <LineItemsTable items={items} showType={showType} />
             </Box>
           </Collapse>
         </TableCell>
@@ -161,6 +168,20 @@ function SalesHistoryPanel({ role }) {
     enabled: selectedAgent !== ALL_AGENTS,
   });
 
+  // LMT shop-wise detail needs per-visit records (shop + line types), which
+  // only /sales/agent-sales/{id} carries. In the All view that means one
+  // fetch per LMT (a small roster), sharing the same cache key as the
+  // single-seller query above; the period's date range is applied client-side.
+  const allView = selectedAgent === ALL_AGENTS;
+  const lmtSalesQueries = useQueries({
+    queries: (isLmt && allView ? sellers : []).map((a) => ({
+      queryKey: ['agent-sales', a.id],
+      queryFn: () => salesApi.getAgentSales(a.id),
+    })),
+  });
+  const lmtSalesLoading = lmtSalesQueries.some((q) => q.isLoading);
+  const lmtSalesSignature = lmtSalesQueries.map((q) => q.dataUpdatedAt).join(',');
+
   const filteredAgentSales = useMemo(() => {
     if (!agentSales.data) return [];
     return agentSales.data.filter((record) => {
@@ -173,6 +194,23 @@ function SalesHistoryPanel({ role }) {
       return (record.items || []).some((item) => (item.productName || '').toLowerCase().includes(q));
     });
   }, [agentSales.data, rangeStart, rangeEnd, search]);
+
+  const shopRecords = useMemo(() => {
+    if (!isLmt) return [];
+    if (!allView) return filteredAgentSales;
+    const end = anchorDate;
+    const start = period === 'daily' ? anchorDate
+      : period === 'weekly' ? anchorDate.subtract(6, 'day')
+      : anchorDate.startOf('month');
+    const last = period === 'monthly' ? anchorDate.endOf('month') : end;
+    return lmtSalesQueries
+      .flatMap((q) => q.data || [])
+      .filter((r) => {
+        const d = dayjs(r.saleDate);
+        return !d.isBefore(start, 'day') && !d.isAfter(last, 'day');
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLmt, allView, filteredAgentSales, anchorDate, period, lmtSalesSignature]);
 
   const sortedAgentSales = useMemo(
     () => sortRows(filteredAgentSales, salesSort.key, salesSort.direction),
@@ -391,6 +429,7 @@ function SalesHistoryPanel({ role }) {
                             key={row.employeeId}
                             colSpan={5}
                             items={row.items}
+                            showType={isLmt}
                             collapsedCells={
                               <>
                                 <TableCell>{row.agentName}</TableCell>
@@ -414,6 +453,9 @@ function SalesHistoryPanel({ role }) {
                 </Paper>
 
                 <ProductMixTable rows={filteredCompanyProductMix} title={`Product-wise Totals — ${allSellersLabel}`} searchActive={!!productSearch.trim()} />
+                {isLmt && (lmtSalesLoading
+                  ? <CircularProgress sx={{ mt: 3 }} />
+                  : <LmtShopBreakdown records={shopRecords} filenameHint={`${period}-${anchorDate.format('YYYY-MM-DD')}`} />)}
               </>
             )}
           </>
@@ -430,23 +472,26 @@ function SalesHistoryPanel({ role }) {
                         <TableCell padding="checkbox" />
                         <SortableHeader label="Date" sortKey="saleDate" sort={salesSort} onSort={onSalesSort} />
                         <TableCell>Time</TableCell>
+                        {isLmt && <TableCell>Shop</TableCell>}
                         <TableCell>Location</TableCell>
                         <SortableHeader label="Amount" sortKey="totalAmount" sort={salesSort} onSort={onSalesSort} align="right" />
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {sortedAgentSales.length === 0 && (
-                        <TableRow><TableCell colSpan={5} align="center">No sales in this date range.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={isLmt ? 6 : 5} align="center">No sales in this date range.</TableCell></TableRow>
                       )}
                       {sortedAgentSales.map((record) => (
                         <ExpandableRow
                           key={record.id}
-                          colSpan={5}
+                          colSpan={isLmt ? 6 : 5}
                           items={record.items}
+                          showType={isLmt}
                           collapsedCells={
                             <>
                               <TableCell>{record.saleDate}</TableCell>
                               <TableCell>{formatSaleTimeToKarachi(record.saleDate, record.saleTime) || '—'}</TableCell>
+                              {isLmt && <TableCell>{record.customerShopName ? `${record.customerShopName} (${record.customerShopCode})` : '—'}</TableCell>}
                               <TableCell>{record.location || '—'}</TableCell>
                               <TableCell align="right">PKR {(record.totalAmount ?? 0).toLocaleString()}</TableCell>
                             </>
@@ -458,6 +503,12 @@ function SalesHistoryPanel({ role }) {
                 </Paper>
 
                 <ProductMixTable rows={filteredAgentProductMix} title="Product Mix — this range" searchActive={!!productSearch.trim()} />
+                {isLmt && (
+                  <LmtShopBreakdown
+                    records={shopRecords}
+                    filenameHint={`${rangeStart.format('YYYY-MM-DD')}-to-${rangeEnd.format('YYYY-MM-DD')}`}
+                  />
+                )}
               </>
             )}
           </>
