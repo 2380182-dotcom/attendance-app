@@ -212,17 +212,26 @@ export default function LocalEntryScreen({ route, navigation }) {
           const unitPrice = getFinalUnitPrice(item, mode, shop, shopPrices, shopDiscounts);
           return (
             <View style={[styles.row, quantity > 0 && { borderColor: modeColor, borderWidth: 2 }]}>
-              <ProductThumbnail uri={item.thumbnailUrl} size={72} />
-              <View style={styles.rowInfo}>
-                <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-                <Text style={[styles.productPrice, { color: modeColor }]}>Rs {formatRs(unitPrice)}</Text>
+              <View style={styles.rowTop}>
+                <ProductThumbnail uri={item.thumbnailUrl} size={60} />
+                <View style={styles.rowInfo}>
+                  <Text style={styles.productName} numberOfLines={2} ellipsizeMode="tail">{item.name}</Text>
+                  <Text style={[styles.productPrice, { color: modeColor }]}>Rs {formatRs(unitPrice)}</Text>
+                  {quantity > 0 && (
+                    <Text style={[styles.lineTotal, { color: modeColor }]} numberOfLines={1}>
+                      {quantity} × {formatRs(unitPrice)} = {formatRs(unitPrice * quantity)}
+                    </Text>
+                  )}
+                </View>
               </View>
-              <QuantityStepper
-                value={quantity}
-                onChange={(next) => setQuantity(item.id, next)}
-                color={modeColor}
-                label={item.name}
-              />
+              <View style={styles.rowStepperWrap}>
+                <QuantityStepper
+                  value={quantity}
+                  onChange={(next) => setQuantity(item.id, next)}
+                  color={modeColor}
+                  label={item.name}
+                />
+              </View>
             </View>
           );
         }}
@@ -268,19 +277,29 @@ const createStyles = (colors) =>
     shopBannerMode: { fontSize: 15, color: '#FFFFFF', marginTop: 2 },
     search: { margin: 10 },
     listContent: { paddingHorizontal: 10, paddingBottom: 12 },
+    // Stacked, not a single row: photo+name/price on top (full card width),
+    // the stepper on its own line below. A single row here starves the name
+    // column — the stepper alone is ~210px wide, which on an average phone
+    // left under 40px for the product name and made text wrap letter by
+    // letter. Stacking guarantees the name/price/live-total always get the
+    // full card width to breathe in.
     row: {
-      flexDirection: 'row',
-      alignItems: 'center',
       backgroundColor: colors.surface,
       borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 10,
+      padding: 12,
       marginBottom: 10,
     },
-    rowInfo: { flex: 1, marginHorizontal: 10 },
-    productName: { fontSize: 18, fontWeight: 'bold', color: colors.textPrimary },
-    productPrice: { fontSize: 20, fontWeight: 'bold', marginTop: 4 },
+    rowTop: { flexDirection: 'row', alignItems: 'center' },
+    // minWidth: 0 is required for a flex:1 row-child in RN/Yoga to actually
+    // shrink and wrap its Text instead of overflowing or collapsing to a
+    // near-zero width (the root cause of the letter-by-letter wrapping).
+    rowInfo: { flex: 1, minWidth: 0, marginLeft: 12 },
+    productName: { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary, flexShrink: 1 },
+    productPrice: { fontSize: 17, fontWeight: '600', marginTop: 4 },
+    lineTotal: { fontSize: 16, fontWeight: 'bold', marginTop: 4 },
+    rowStepperWrap: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
     totalBar: {
       backgroundColor: colors.surface,
       padding: 12,
