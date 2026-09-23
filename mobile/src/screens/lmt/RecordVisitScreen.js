@@ -19,6 +19,7 @@ import ProductThumbnail from '../../components/ProductThumbnail';
 import SearchBar from '../../components/SearchBar';
 import AppButton from '../../components/AppButton';
 import EmptyState from '../../components/EmptyState';
+import SalesVoucher from '../../components/SalesVoucher';
 import { useTheme } from '../../theme';
 
 /**
@@ -71,6 +72,7 @@ export default function RecordVisitScreen({ route, navigation }) {
   const [reviewMode, setReviewMode] = useState(false);
   const [shopProductDiscounts, setShopProductDiscounts] = useState([]);
   const [shopPrices, setShopPrices] = useState([]);
+  const [voucher, setVoucher] = useState(null);
 
   // Explicit per-shop prices — display/preview only, same non-authoritative
   // pattern as the discounts below. Fetched together with the products
@@ -265,10 +267,11 @@ export default function RecordVisitScreen({ route, navigation }) {
         items,
       };
 
-      await apiService.lmt.submitShopVisit(shopVisitRequest);
-      Alert.alert('Success', 'Visit recorded successfully!', [
-        { text: 'OK', onPress: () => navigation.navigate('LmtHome') },
-      ]);
+      const saved = await apiService.lmt.submitShopVisit(shopVisitRequest);
+      // The voucher (SalesVoucher) is the confirmation now, shown next —
+      // no separate "Success" alert, so the salesman sees exactly what was
+      // recorded rather than just being told it worked.
+      setVoucher(saved);
     } catch (e) {
       console.error(e);
       Alert.alert('Submission Failed', e.message || 'Error occurred while recording this sale.');
@@ -284,6 +287,18 @@ export default function RecordVisitScreen({ route, navigation }) {
   }
   if (submitting) {
     return <Loading message="Recording visit..." fullScreen />;
+  }
+  if (voucher) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <SalesVoucher
+          record={voucher}
+          salesmanName={user?.name}
+          employeeId={user?.agentId}
+          onDone={() => navigation.navigate('LmtHome')}
+        />
+      </SafeAreaView>
+    );
   }
 
   if (reviewMode) {

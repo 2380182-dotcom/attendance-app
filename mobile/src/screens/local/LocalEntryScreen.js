@@ -9,6 +9,7 @@ import AppButton from '../../components/AppButton';
 import ProductThumbnail from '../../components/ProductThumbnail';
 import QuantityStepper from '../../components/QuantityStepper';
 import SearchBar from '../../components/SearchBar';
+import SalesVoucher from '../../components/SalesVoucher';
 import { useTheme } from '../../theme';
 import { STRINGS } from './strings';
 import { computeTotals, formatRs, getFinalUnitPrice } from './pricing';
@@ -43,6 +44,7 @@ export default function LocalEntryScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [voucher, setVoucher] = useState(null);
 
   useEffect(() => {
     navigation.setOptions({ title: modeLabel.en });
@@ -101,7 +103,7 @@ export default function LocalEntryScreen({ route, navigation }) {
       }
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
 
-      await apiService.lmt.submitShopVisit({
+      const saved = await apiService.lmt.submitShopVisit({
         agentId: user.id,
         shopCode: shop.shopCode,
         latitude: current.coords.latitude,
@@ -112,9 +114,10 @@ export default function LocalEntryScreen({ route, navigation }) {
           transactionType: mode,
         })),
       });
-      Alert.alert(`${STRINGS.savedTitle.en} · ${STRINGS.savedTitle.ur}`, `${STRINGS.savedBody.en}\n${STRINGS.savedBody.ur}`, [
-        { text: 'OK', onPress: () => navigation.navigate('LocalHome') },
-      ]);
+      // The voucher (SalesVoucher) is the confirmation now, shown next —
+      // no separate "Saved!" alert, so the salesman sees exactly what was
+      // recorded rather than just being told it worked.
+      setVoucher(saved);
     } catch (e) {
       console.error(e);
       // The server's message is plain English ("Too far from ...", "Duplicate entry ...").
@@ -130,6 +133,18 @@ export default function LocalEntryScreen({ route, navigation }) {
   }
   if (saving) {
     return <Loading message={`${STRINGS.saving.en}\n${STRINGS.saving.ur}`} fullScreen />;
+  }
+  if (voucher) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <SalesVoucher
+          record={voucher}
+          salesmanName={user?.name}
+          employeeId={user?.agentId}
+          onDone={() => navigation.navigate('LocalHome')}
+        />
+      </SafeAreaView>
+    );
   }
 
   const kindWord = isReturn ? STRINGS.returned : STRINGS.sold;
