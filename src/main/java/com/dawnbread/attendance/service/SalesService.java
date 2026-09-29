@@ -66,6 +66,15 @@ public class SalesService {
     @Autowired
     private ShopProductPriceRepository shopProductPriceRepository;
 
+    // QR shop-visit flow (Q1): resolves the effective geofence/QR
+    // requirement (per-shop toggle, unless the tenant's global mode
+    // overrides it) and the scan log the QR-required check reads.
+    @Autowired
+    private ShopRequirementService shopRequirementService;
+
+    @Autowired
+    private ShopVisitScanRepository shopVisitScanRepository;
+
     @Value("${sales.max-quantity-limit:500}")
     private int maxQuantityLimit;
 
@@ -338,7 +347,12 @@ public class SalesService {
         // geofence configured. Distance is always recorded when it can be
         // computed, whether or not the gate ends up blocking.
         Double distance = null;
-        boolean shopHasGeofence = Boolean.TRUE.equals(shop.getGeoFencingEnabled())
+        // QR shop-visit flow (Q1): isGeofenceRequired resolves the exact
+        // same value as the raw field read it replaces whenever the
+        // tenant's global mode is PER_SHOP (the default for every existing
+        // tenant) — so this line is behavior-preserving until an admin
+        // deliberately sets FORCE_ON/FORCE_OFF.
+        boolean shopHasGeofence = shopRequirementService.isGeofenceRequired(shop)
                 && shop.getLatitude() != null && shop.getLongitude() != null && shop.getRadius() != null;
         // A local salesman has no check-in to prove where they are, so the
         // shop's location IS the proof: a shop with no geofence configured
@@ -360,6 +374,21 @@ public class SalesService {
         }
 
         LocalDate today = LocalDate.now();
+
+        // QR shop-visit flow (Q1): a shop that requires QR (per-shop toggle,
+        // unless the tenant's global mode overrides it) cannot have a sale
+        // recorded unless this exact agent already scanned it successfully
+        // TODAY — checked fresh here, never trusting anything the client
+        // claims about having scanned. A shop with no such requirement
+        // (the default) is completely unaffected by this check.
+        if (shopRequirementService.isQrRequired(shop)) {
+            boolean scannedToday = shopVisitScanRepository.existsByAgentIdAndCustomerShopIdAndScanDateAndVisitStatus(
+                    agent.getId(), shop.getId(), today, ShopVisitStatus.SUCCESS);
+            if (!scannedToday) {
+                throw new IllegalArgumentException("'" + shop.getShopName()
+                        + "' requires a QR scan before recording sales — please scan the shop's QR code first.");
+            }
+        }
 
         // In-memory pre-check for a friendly error message — the widened
         // V19 unique index (agent, product, date, shop, type) is the real,

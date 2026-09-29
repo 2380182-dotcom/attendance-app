@@ -24,6 +24,8 @@ public class CustomerShopDTO {
     private Double distanceMeters;
     /** Overall shop discount % (Feature 2) — falls back to 0 at sale time when null. Per-product overrides live at GET /{id}/product-discounts. */
     private Double discountPercent;
+    /** QR shop-visit flow: does this shop require a successful QR scan before a sale/return can be recorded here? */
+    private Boolean qrRequired;
 
     public CustomerShopDTO() {}
 
@@ -83,4 +85,7 @@ public class CustomerShopDTO {
 
     public Double getDiscountPercent() { return discountPercent; }
     public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
+
+    public Boolean getQrRequired() { return qrRequired; }
+    public void setQrRequired(Boolean qrRequired) { this.qrRequired = qrRequired; }
 }

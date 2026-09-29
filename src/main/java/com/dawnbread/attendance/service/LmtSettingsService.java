@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.service;
 
+import com.dawnbread.attendance.entity.GlobalToggleMode;
 import com.dawnbread.attendance.entity.LmtSettings;
 import com.dawnbread.attendance.repository.LmtSettingsRepository;
 import com.dawnbread.attendance.security.TenantContext;
@@ -44,5 +45,30 @@ public class LmtSettingsService {
         settings.setGeofenceBufferMeters(geofenceBufferMeters);
         settings.setUpdatedAt(LocalDateTime.now());
         return lmtSettingsRepository.save(settings);
+    }
+
+    /**
+     * QR shop-visit flow (Q1) — the two tenant-wide master overrides. Both
+     * optional/independent: a null value leaves that mode unchanged, so an
+     * admin can update just one without resending the other.
+     */
+    public LmtSettings updateModes(String geofenceMode, String qrMode) {
+        LmtSettings settings = getOrCreate();
+        if (geofenceMode != null) {
+            settings.setGeofenceMode(parseMode(geofenceMode, "geofenceMode"));
+        }
+        if (qrMode != null) {
+            settings.setQrMode(parseMode(qrMode, "qrMode"));
+        }
+        settings.setUpdatedAt(LocalDateTime.now());
+        return lmtSettingsRepository.save(settings);
+    }
+
+    private GlobalToggleMode parseMode(String value, String fieldName) {
+        try {
+            return GlobalToggleMode.valueOf(value);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException(fieldName + " must be one of PER_SHOP, FORCE_ON, FORCE_OFF — got: " + value);
+        }
     }
 }

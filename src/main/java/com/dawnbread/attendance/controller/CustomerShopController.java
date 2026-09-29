@@ -279,6 +279,7 @@ public class CustomerShopController {
         dto.setIsActive(shop.getIsActive());
         dto.setCreatedAt(shop.getCreatedAt());
         dto.setDiscountPercent(shop.getDiscountPercent());
+        dto.setQrRequired(shop.getQrRequired());
         return dto;
     }
 }

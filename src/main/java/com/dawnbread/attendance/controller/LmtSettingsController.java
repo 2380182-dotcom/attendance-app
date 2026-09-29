@@ -40,7 +40,8 @@ public class LmtSettingsController {
                     .body(ApiResponse.error("Only an administrator can change LMT settings."));
         }
         try {
-            LmtSettings updated = lmtSettingsService.updateBuffer(dto.getGeofenceBufferMeters());
+            lmtSettingsService.updateBuffer(dto.getGeofenceBufferMeters());
+            LmtSettings updated = lmtSettingsService.updateModes(dto.getGeofenceMode(), dto.getQrMode());
             return ResponseEntity.ok(ApiResponse.success("LMT settings updated successfully", convertToDTO(updated)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
@@ -48,6 +49,10 @@ public class LmtSettingsController {
     }
 
     private LmtSettingsDTO convertToDTO(LmtSettings settings) {
-        return new LmtSettingsDTO(settings.getGeofenceBufferMeters(), settings.getUpdatedAt());
+        return new LmtSettingsDTO(
+                settings.getGeofenceBufferMeters(),
+                settings.getGeofenceMode().name(),
+                settings.getQrMode().name(),
+                settings.getUpdatedAt());
     }
 }

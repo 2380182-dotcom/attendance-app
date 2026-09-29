@@ -1,9 +1,13 @@
 package com.dawnbread.attendance.service;
 
+import com.dawnbread.attendance.dto.AreaDTO;
 import com.dawnbread.attendance.dto.CustomerShopCreateDTO;
+import com.dawnbread.attendance.dto.CustomerShopDTO;
+import com.dawnbread.attendance.dto.HierarchyPersonDTO;
 import com.dawnbread.attendance.dto.ShopProductPricesUpdateDTO;
 import com.dawnbread.attendance.entity.Area;
 import com.dawnbread.attendance.entity.CustomerShop;
+import com.dawnbread.attendance.entity.HierarchyPerson;
 import com.dawnbread.attendance.entity.Product;
 import com.dawnbread.attendance.entity.ShopProductDiscount;
 import com.dawnbread.attendance.entity.ShopProductPrice;
@@ -121,6 +125,9 @@ public class CustomerShopService {
             shop.setGeoFencingEnabled(dto.getGeoFencingEnabled());
         }
         shop.setDiscountPercent(dto.getDiscountPercent());
+        if (dto.getQrRequired() != null) {
+            shop.setQrRequired(dto.getQrRequired());
+        }
         shop.setCreatedAt(LocalDateTime.now());
         shop.setIsActive(true);
         return customerShopRepository.save(shop);
@@ -200,6 +207,9 @@ public class CustomerShopService {
         }
         if (dto.getDiscountPercent() != null) {
             shop.setDiscountPercent(dto.getDiscountPercent());
+        }
+        if (dto.getQrRequired() != null) {
+            shop.setQrRequired(dto.getQrRequired());
         }
         return customerShopRepository.save(shop);
     }
@@ -294,5 +304,58 @@ public class CustomerShopService {
         }
         shopProductPriceRepository.flush();
         return shopProductPriceRepository.findByCustomerShopIdWithProduct(shopId);
+    }
+
+    /**
+     * Full CustomerShopDTO mapping, for the new QR-scan flow (Q1) to hand
+     * back a shop shaped identically to what the nearby-shops/manual-lookup
+     * flows already return. Deliberately independent of
+     * CustomerShopController's own private convertToDTO (same mapping,
+     * kept separate rather than refactored into a shared call site, so
+     * this addition carries zero risk to that already-working controller).
+     */
+    public CustomerShopDTO toDTO(CustomerShop shop) {
+        CustomerShopDTO dto = new CustomerShopDTO();
+        dto.setId(shop.getId());
+        dto.setShopCode(shop.getShopCode());
+        dto.setShopName(shop.getShopName());
+        dto.setBranch(shop.getBranch());
+        dto.setAddress(shop.getAddress());
+        dto.setPhone(shop.getPhone());
+        dto.setMobile(shop.getMobile());
+        dto.setEmail(shop.getEmail());
+        dto.setStrn(shop.getStrn());
+        dto.setNtn(shop.getNtn());
+        dto.setArea(toAreaDTO(shop.getArea()));
+        dto.setLatitude(shop.getLatitude());
+        dto.setLongitude(shop.getLongitude());
+        dto.setRadius(shop.getRadius());
+        dto.setGeoFencingEnabled(shop.getGeoFencingEnabled());
+        dto.setIsActive(shop.getIsActive());
+        dto.setCreatedAt(shop.getCreatedAt());
+        dto.setDiscountPercent(shop.getDiscountPercent());
+        dto.setQrRequired(shop.getQrRequired());
+        return dto;
+    }
+
+    private AreaDTO toAreaDTO(Area area) {
+        if (area == null) {
+            return null;
+        }
+        AreaDTO dto = new AreaDTO(area.getId(), area.getName(), area.getCreatedAt());
+        dto.setTse(toPersonDTO(area.getTse()));
+        dto.setSrTse(toPersonDTO(area.getSrTse()));
+        dto.setAsm(toPersonDTO(area.getAsm()));
+        dto.setIsActive(area.getIsActive());
+        return dto;
+    }
+
+    private HierarchyPersonDTO toPersonDTO(HierarchyPerson person) {
+        if (person == null) {
+            return null;
+        }
+        HierarchyPersonDTO dto = new HierarchyPersonDTO(person.getId(), person.getName(), person.getRoleLabel(), person.getContact(), person.getCreatedAt());
+        dto.setIsActive(person.getIsActive());
+        return dto;
     }
 }

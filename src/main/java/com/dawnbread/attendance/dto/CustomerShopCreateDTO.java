@@ -18,6 +18,8 @@ public class CustomerShopCreateDTO {
     private Boolean geoFencingEnabled;
     /** Overall shop discount % (Feature 2) — optional, null means "no overall discount". */
     private Double discountPercent;
+    /** QR shop-visit flow — optional, null on update means "leave as-is"; defaults to false on create. */
+    private Boolean qrRequired;
 
     public CustomerShopCreateDTO() {}
 
@@ -65,4 +67,7 @@ public class CustomerShopCreateDTO {
 
     public Double getDiscountPercent() { return discountPercent; }
     public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
+
+    public Boolean getQrRequired() { return qrRequired; }
+    public void setQrRequired(Boolean qrRequired) { this.qrRequired = qrRequired; }
 }

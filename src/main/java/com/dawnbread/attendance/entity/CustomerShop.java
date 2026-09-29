@@ -62,6 +62,14 @@ public class CustomerShop implements TenantAware {
     @Column(name = "discount_percent")
     private Double discountPercent;
 
+    // QR shop-visit flow: does THIS shop require a successful QR scan
+    // before a salesman can record a sale/return here? Defaults false
+    // (opt-in) on every shop. The tenant-wide LmtSettings.qrMode can
+    // override this for every shop at once — see ShopRequirementService,
+    // the single place that resolves the effective value.
+    @Column(name = "qr_required")
+    private Boolean qrRequired = false;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -86,6 +94,7 @@ public class CustomerShop implements TenantAware {
     public Boolean getGeoFencingEnabled() { return geoFencingEnabled; }
     public Boolean getIsActive() { return isActive; }
     public Double getDiscountPercent() { return discountPercent; }
+    public Boolean getQrRequired() { return qrRequired; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
     // Setters
@@ -107,5 +116,6 @@ public class CustomerShop implements TenantAware {
     public void setGeoFencingEnabled(Boolean geoFencingEnabled) { this.geoFencingEnabled = geoFencingEnabled; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
+    public void setQrRequired(Boolean qrRequired) { this.qrRequired = qrRequired; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }
