@@ -20,6 +20,7 @@ import SearchBar from '../../components/SearchBar';
 import AppButton from '../../components/AppButton';
 import EmptyState from '../../components/EmptyState';
 import SalesVoucher from '../../components/SalesVoucher';
+import { cachedFetch } from '../../services/apiCache';
 import { useTheme } from '../../theme';
 
 /**
@@ -77,9 +78,12 @@ export default function RecordVisitScreen({ route, navigation }) {
   // Explicit per-shop prices — display/preview only, same non-authoritative
   // pattern as the discounts below. Fetched together with the products
   // (before the list shows) so a cart line is never priced before they load.
+  // Cached briefly (apiCache): an LMT opens this screen once per shop per
+  // day, often dozens of times a shift, and neither the shared product
+  // catalog nor a given shop's prices/discounts typically change within it.
   const fetchShopPrices = useCallback(async () => {
     try {
-      const data = await apiService.lmt.getShopProductPrices(shop.id);
+      const data = await cachedFetch(`shop-prices:${shop.id}`, () => apiService.lmt.getShopProductPrices(shop.id), 5 * 60 * 1000);
       setShopPrices(data || []);
     } catch (e) {
       console.warn('Could not load shop prices for preview', e);
@@ -88,7 +92,10 @@ export default function RecordVisitScreen({ route, navigation }) {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const [data] = await Promise.all([apiService.sales.getProducts(), fetchShopPrices()]);
+      const [data] = await Promise.all([
+        cachedFetch('products', () => apiService.sales.getProducts(), 5 * 60 * 1000),
+        fetchShopPrices(),
+      ]);
       setProducts(data);
     } catch (e) {
       console.error(e);
@@ -105,7 +112,7 @@ export default function RecordVisitScreen({ route, navigation }) {
   // means the preview falls back to showing undiscounted totals.
   const fetchShopProductDiscounts = useCallback(async () => {
     try {
-      const data = await apiService.lmt.getShopProductDiscounts(shop.id);
+      const data = await cachedFetch(`shop-discounts:${shop.id}`, () => apiService.lmt.getShopProductDiscounts(shop.id), 5 * 60 * 1000);
       setShopProductDiscounts(data || []);
     } catch (e) {
       console.warn('Could not load shop product discounts for preview', e);

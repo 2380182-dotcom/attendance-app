@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { apiService } from '../../services/api';
+import { cachedFetch } from '../../services/apiCache';
 import { AuthContext } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import ProductThumbnail from '../../components/ProductThumbnail';
@@ -45,7 +46,9 @@ export default function MorningStockEntryScreen({ navigation }) {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const data = await apiService.sales.getProducts();
+      // Cached briefly (apiCache) — the catalog is shared with the other
+      // LMT screens and rarely changes within a shift.
+      const data = await cachedFetch('products', () => apiService.sales.getProducts(), 5 * 60 * 1000);
       setProducts(data);
     } catch (e) {
       console.error(e);

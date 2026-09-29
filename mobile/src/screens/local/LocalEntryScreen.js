@@ -10,6 +10,7 @@ import ProductThumbnail from '../../components/ProductThumbnail';
 import QuantityStepper from '../../components/QuantityStepper';
 import SearchBar from '../../components/SearchBar';
 import SalesVoucher from '../../components/SalesVoucher';
+import { cachedFetch } from '../../services/apiCache';
 import { useTheme } from '../../theme';
 import { STRINGS } from './strings';
 import { computeTotals, formatRs, getFinalUnitPrice } from './pricing';
@@ -54,10 +55,14 @@ export default function LocalEntryScreen({ route, navigation }) {
     try {
       // Prices/discounts are a preview aid: if either fails to load, the
       // screen still works and the server still charges the right amount.
+      // A salesman opens this screen once per shop per mode, often dozens
+      // of times a day — the product catalog and a given shop's prices/
+      // discounts are cached briefly (apiCache) so repeat opens are
+      // instant instead of a full round trip every time.
       const [productList, prices, discounts] = await Promise.all([
-        apiService.sales.getProducts(),
-        apiService.lmt.getShopProductPrices(shop.id).catch(() => []),
-        apiService.lmt.getShopProductDiscounts(shop.id).catch(() => []),
+        cachedFetch('products', () => apiService.sales.getProducts(), 5 * 60 * 1000),
+        cachedFetch(`shop-prices:${shop.id}`, () => apiService.lmt.getShopProductPrices(shop.id), 5 * 60 * 1000).catch(() => []),
+        cachedFetch(`shop-discounts:${shop.id}`, () => apiService.lmt.getShopProductDiscounts(shop.id), 5 * 60 * 1000).catch(() => []),
       ]);
       setProducts(productList || []);
       setShopPrices(prices || []);

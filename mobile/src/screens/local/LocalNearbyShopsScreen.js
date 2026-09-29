@@ -1,15 +1,31 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import * as Location from 'expo-location';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import LocationService from '../../services/LocationService';
-import { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
 import AppButton from '../../components/AppButton';
 import ErrorState from '../../components/ErrorState';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
 import { STRINGS } from './strings';
+import { useNearbyShops } from '../../hooks/useNearbyShops';
+
+/** `{en, ur}` -> "English\nUrdu", the pattern every message on this screen uses. No Urdu (e.g. a raw server error) -> English only. */
+function bilingual(strings) {
+  return strings.ur ? `${strings.en}\n${strings.ur}` : strings.en;
+}
+
+function statusToStrings(status) {
+  if (status.key === 'SLOW_GPS') return STRINGS.slowGps;
+  if (status.key === 'SERVER_WAKING') return STRINGS.serverWaking(status.attempt, status.total);
+  return STRINGS.findingShops;
+}
+
+function errorToStrings(error) {
+  if (!error) return null;
+  if (error.key === 'PERMISSION') return STRINGS.locationNeeded;
+  if (error.key === 'GPS_TIMEOUT') return STRINGS.gpsTimeout;
+  return { en: error.detail || 'Unable to find nearby shops.', ur: '' };
+}
 
 /**
  * SALESMAN_LOCAL: shops the salesman is physically at, nearest first. Same
@@ -28,43 +44,14 @@ export default function LocalNearbyShopsScreen({ route, navigation }) {
   const modeLabel = mode === 'RETURN' ? STRINGS.enterReturn : STRINGS.enterSales;
   const modeColor = mode === 'RETURN' ? colors.warningDark : colors.successDark;
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [shops, setShops] = useState([]);
+  const { loading, error, shops, status, refetch } = useNearbyShops();
 
   useEffect(() => {
     navigation.setOptions({ title: modeLabel.en });
   }, [navigation, modeLabel.en]);
 
-  const fetchNearbyShops = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const status = await LocationService.getPermissionStatus();
-      if (!status.granted) {
-        const requestResult = await LocationService.requestPermissions();
-        if (!requestResult.success) {
-          setError(`${STRINGS.locationNeeded.en}\n${STRINGS.locationNeeded.ur}`);
-          return;
-        }
-      }
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const nearby = await apiService.lmt.getNearbyShops(current.coords.latitude, current.coords.longitude);
-      setShops(nearby || []);
-    } catch (e) {
-      console.error(e);
-      setError(e.message || 'Unable to find nearby shops.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchNearbyShops();
-  }, [fetchNearbyShops]);
-
   if (loading) {
-    return <Loading message={`${STRINGS.findingShops.en}\n${STRINGS.findingShops.ur}`} fullScreen />;
+    return <Loading message={bilingual(statusToStrings(status))} fullScreen />;
   }
 
   return (
@@ -75,7 +62,7 @@ export default function LocalNearbyShopsScreen({ route, navigation }) {
       </View>
 
       {error ? (
-        <ErrorState message={error} onRetry={fetchNearbyShops} />
+        <ErrorState message={bilingual(errorToStrings(error))} onRetry={refetch} />
       ) : (
         <FlatList
           data={shops}
@@ -117,7 +104,7 @@ export default function LocalNearbyShopsScreen({ route, navigation }) {
           variant="outline"
           size="lg"
           icon="refresh"
-          onPress={fetchNearbyShops}
+          onPress={refetch}
         />
       </View>
     </SafeAreaView>

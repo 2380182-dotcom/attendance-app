@@ -589,14 +589,46 @@ export const apiService = {
      * server's own real gate at submit time (SalesService.submitShopVisit)
      * uses the same radius+buffer formula, so a shop returned here is
      * guaranteed to also pass that gate.
+     *
+     * The Render backend cold-starts after idle (commonly 30-60s to wake),
+     * which is longer than this client's normal 10s request timeout — so a
+     * single attempt on a cold backend was guaranteed to time out and leave
+     * the salesman stuck. This retries with a growing per-attempt timeout
+     * instead of failing once: 8s, then 10s, then 15s (about 33s total),
+     * which covers most cold starts without the salesman having to
+     * manually mash Retry. onRetry (optional) is called before each retry
+     * so the caller can show what's happening ("server is waking up...").
      */
-    async getNearbyShops(latitude, longitude) {
-      try {
-        const response = await api.get('/lmt/customer-shops/nearby', { params: { latitude, longitude } });
-        return handleResponse(response);
-      } catch (error) {
-        return handleApiError(error);
+    async getNearbyShops(latitude, longitude, { onRetry } = {}) {
+      const attemptTimeoutsMs = [8000, 10000, 15000];
+      let lastError;
+      for (let attempt = 0; attempt < attemptTimeoutsMs.length; attempt++) {
+        try {
+          const response = await api.get('/lmt/customer-shops/nearby', {
+            params: { latitude, longitude },
+            timeout: attemptTimeoutsMs[attempt],
+          });
+          return handleResponse(response);
+        } catch (error) {
+          lastError = error;
+          // Retry only on the failure modes a cold/slow backend actually
+          // produces (our own timeout, no response at all, or a 5xx) — a
+          // real 4xx, or a 200 response the server itself marked
+          // success:false (handleResponse throws a plain, non-axios Error
+          // for that — isAxiosError distinguishes it from a real
+          // network/timeout failure), would just fail the same way again.
+          const isAxiosError = !!error.isAxiosError;
+          const isTimeoutOrNetwork = isAxiosError && (error.code === 'ECONNABORTED' || !error.response);
+          const isServerError = isAxiosError && error.response && error.response.status >= 500;
+          const hasMoreAttempts = attempt < attemptTimeoutsMs.length - 1;
+          if (hasMoreAttempts && (isTimeoutOrNetwork || isServerError)) {
+            onRetry?.(attempt + 1, attemptTimeoutsMs.length);
+            continue;
+          }
+          break;
+        }
       }
+      return handleApiError(lastError);
     },
     /**
      * Per-product (SKU) discount overrides for one shop (Feature 2) — used

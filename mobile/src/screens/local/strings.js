@@ -25,6 +25,19 @@ export const STRINGS = {
     en: 'Please allow location so we can find the shop you are at.',
     ur: 'براہ کرم لوکیشن کی اجازت دیں تاکہ آپ کی دکان مل سکے۔',
   },
+  slowGps: {
+    en: 'Still searching... check your GPS and internet connection.',
+    ur: 'تلاش جاری ہے... اپنا GPS اور انٹرنیٹ کنکشن چیک کریں۔',
+  },
+  gpsTimeout: {
+    en: 'Could not get your location in time. Move to an open area and try again.',
+    ur: 'بروقت لوکیشن حاصل نہیں ہو سکی۔ کھلی جگہ پر جائیں اور دوبارہ کوشش کریں۔',
+  },
+  /** Shown mid-retry while apiService.lmt.getNearbyShops waits out a cold-starting backend. */
+  serverWaking: (attempt, total) => ({
+    en: `Server is waking up (try ${attempt} of ${total})... this can take up to a minute.`,
+    ur: `سرور شروع ہو رہا ہے (کوشش ${attempt} از ${total})... اس میں ایک منٹ تک لگ سکتا ہے۔`,
+  }),
   searchBread: { en: 'Search bread...', ur: 'روٹی تلاش کریں' },
   loadingProducts: { en: 'Loading breads...', ur: 'روٹیاں لوڈ ہو رہی ہیں...' },
   totalBreads: { en: 'Total breads', ur: 'کل روٹیاں' },

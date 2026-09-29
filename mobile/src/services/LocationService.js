@@ -103,6 +103,36 @@ export const LocationService = {
   },
 
   /**
+   * A location fast enough for "which shops are near me" listing screens —
+   * NOT for the actual save/check-in call, which must keep using a fresh
+   * Location.getCurrentPositionAsync reading (the server verifies THAT
+   * exact fix against the shop's geofence at submit time).
+   *
+   * expo-location's getCurrentPositionAsync has no built-in timeout and can
+   * hang indefinitely on weak/no GPS signal (e.g. indoors) — the root cause
+   * of "Finding nearby shops..." spinning forever. This tries the device's
+   * last-known fix first (near-instant, from cache) and only falls back to
+   * a fresh fix — bounded by our own race-timeout — when there isn't one.
+   */
+  async getQuickLocation({ timeoutMs = 8000, maxAgeMs = 2 * 60 * 1000 } = {}) {
+    try {
+      const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: maxAgeMs, requiredAccuracy: 200 });
+      if (lastKnown) {
+        return lastKnown.coords;
+      }
+    } catch (e) {
+      // No cached fix available (or the platform doesn't support the call) — fall through to a fresh one.
+      debugLog('LocationService', `getLastKnownPositionAsync unavailable: ${e.message}`);
+    }
+
+    const fresh = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('GPS_TIMEOUT')), timeoutMs)),
+    ]);
+    return fresh.coords;
+  },
+
+  /**
    * Reads current permission status WITHOUT prompting the OS dialog.
    * Use this to detect if an agent has revoked location access after
    * previously granting it (e.g. from phone Settings), so check-in/out

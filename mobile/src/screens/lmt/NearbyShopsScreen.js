@@ -1,15 +1,13 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
-import * as Location from 'expo-location';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import LocationService from '../../services/LocationService';
-import { apiService } from '../../services/api';
 import Loading from '../../components/Loading';
 import AppCard from '../../components/AppCard';
 import AppButton from '../../components/AppButton';
 import ErrorState from '../../components/ErrorState';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
+import { useNearbyShops } from '../../hooks/useNearbyShops';
 
 /**
  * LMT flow redesign, D3: replaces manual shop-code entry as LmtHome's
@@ -24,46 +22,28 @@ import { useTheme } from '../../theme';
  * geofencing configured (which can never appear in this nearby list) or
  * whenever GPS/nearby lookup doesn't turn up the right shop.
  */
+const STATUS_TEXT = {
+  FINDING: 'Finding nearby shops...',
+  SLOW_GPS: 'Still searching... check your GPS and internet connection.',
+  SERVER_WAKING: ({ attempt, total }) => `Server is waking up (try ${attempt} of ${total})... this can take up to a minute.`,
+};
+
+const ERROR_TEXT = {
+  PERMISSION: 'Location permission is required to find nearby shops.',
+  GPS_TIMEOUT: 'Could not get your location in time. Move to an open area (or near a window) and try again.',
+  OTHER: (err) => err.detail,
+};
+
 export default function NearbyShopsScreen({ navigation }) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [shops, setShops] = useState([]);
   const [selectedShop, setSelectedShop] = useState(null);
-
-  const fetchNearbyShops = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      let status = await LocationService.getPermissionStatus();
-      if (!status.granted) {
-        const requestResult = await LocationService.requestPermissions();
-        if (!requestResult.success) {
-          setError('Location permission is required to find nearby shops.');
-          setLoading(false);
-          return;
-        }
-      }
-      const currentLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const { latitude, longitude } = currentLoc.coords;
-      const nearby = await apiService.lmt.getNearbyShops(latitude, longitude);
-      setShops(nearby || []);
-    } catch (e) {
-      console.error(e);
-      setError(e.message || 'Unable to find nearby shops.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    fetchNearbyShops();
-  }, [fetchNearbyShops]);
+  const { loading, error, shops, status, refetch } = useNearbyShops();
 
   if (loading) {
-    return <Loading message="Finding nearby shops..." fullScreen />;
+    const text = STATUS_TEXT[status.key];
+    return <Loading message={typeof text === 'function' ? text(status) : text} fullScreen />;
   }
 
   if (selectedShop) {
@@ -105,7 +85,10 @@ export default function NearbyShopsScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       {error ? (
-        <ErrorState message={error} onRetry={fetchNearbyShops} />
+        <ErrorState
+          message={error ? (typeof ERROR_TEXT[error.key] === 'function' ? ERROR_TEXT[error.key](error) : ERROR_TEXT[error.key]) : ''}
+          onRetry={refetch}
+        />
       ) : (
         <FlatList
           data={shops}
