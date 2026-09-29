@@ -13,6 +13,8 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
+import DownloadIcon from '@mui/icons-material/Download';
+import { QRCodeCanvas } from 'qrcode.react';
 import { customerShopApi, areaApi } from '../../services/lmtApi';
 import { productApi } from '../../services/productApi';
 import { sortRows, useSort } from '../../utils/sorting';
@@ -22,8 +24,36 @@ import SortableHeader from '../../components/SortableHeader';
 const emptyForm = {
   shopCode: '', shopName: '', branch: '', address: '', phone: '', mobile: '', email: '',
   strn: '', ntn: '', areaId: '', latitude: '', longitude: '', radius: '', geoFencingEnabled: true,
-  discountPercent: '',
+  discountPercent: '', qrRequired: false,
 };
+
+/** Renders the shop's QR (encodes its shop code, nothing else) plus a Download PNG button. No new data — the code already exists. */
+function ShopQrCode({ shopCode }) {
+  const canvasRef = React.useRef(null);
+  const handleDownload = () => {
+    const canvas = canvasRef.current?.querySelector('canvas');
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `shop-qr-${shopCode}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+  return (
+    <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1 }}>
+      <Box ref={canvasRef} sx={{ p: 1, backgroundColor: '#fff', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+        <QRCodeCanvas value={shopCode} size={120} includeMargin />
+      </Box>
+      <Stack spacing={1}>
+        <Typography variant="body2" color="text.secondary">
+          Encodes this shop's code ({shopCode}). Print and place it at the shop for the salesman's Scan QR flow.
+        </Typography>
+        <Button startIcon={<DownloadIcon />} variant="outlined" size="small" onClick={handleDownload} sx={{ alignSelf: 'flex-start' }}>
+          Download PNG
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
 
 function toNullableNumber(value) {
   if (value === '' || value === null || value === undefined) return null;
@@ -190,6 +220,7 @@ export default function CustomerShopsPage() {
       phone: shop.phone || '', mobile: shop.mobile || '', email: shop.email || '', strn: shop.strn || '', ntn: shop.ntn || '',
       areaId: shop.area?.id || '', latitude: shop.latitude ?? '', longitude: shop.longitude ?? '', radius: shop.radius ?? '',
       geoFencingEnabled: shop.geoFencingEnabled !== false, discountPercent: shop.discountPercent ?? '',
+      qrRequired: shop.qrRequired === true,
     });
     setFormError('');
     setLocationError('');
@@ -241,6 +272,7 @@ export default function CustomerShopsPage() {
       radius: toNullableNumber(form.radius),
       geoFencingEnabled: form.geoFencingEnabled,
       discountPercent: discount,
+      qrRequired: form.qrRequired,
     };
 
     // Only products whose typed value differs from what the server had:
@@ -322,6 +354,7 @@ export default function CustomerShopsPage() {
               <SortableHeader label="Shop Name" sortKey="shopName" sort={sort} onSort={onSort} />
               <TableCell>Area</TableCell>
               <TableCell>Geofence</TableCell>
+              <TableCell>QR</TableCell>
               <TableCell>Discount</TableCell>
               <TableCell>Status</TableCell>
               <TableCell align="right">Actions</TableCell>
@@ -329,7 +362,7 @@ export default function CustomerShopsPage() {
           </TableHead>
           <TableBody>
             {paged.length === 0 && (
-              <TableRow><TableCell colSpan={7} align="center">No customer shops match this filter.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} align="center">No customer shops match this filter.</TableCell></TableRow>
             )}
             {paged.map((shop) => (
               <TableRow key={shop.id} hover>
@@ -340,6 +373,9 @@ export default function CustomerShopsPage() {
                   {shop.geoFencingEnabled && shop.latitude != null && shop.longitude != null && shop.radius != null
                     ? `${shop.radius}m`
                     : 'Off'}
+                </TableCell>
+                <TableCell>
+                  {shop.qrRequired ? <Chip size="small" label="Required" color="primary" /> : '—'}
                 </TableCell>
                 <TableCell>{shop.discountPercent ? `${shop.discountPercent}%` : '—'}</TableCell>
                 <TableCell>
@@ -474,6 +510,37 @@ export default function CustomerShopsPage() {
                 label="Geofencing enabled for this shop"
               />
             </Grid>
+          </Grid>
+
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>QR Shop-Visit Flow</Typography>
+          <Grid container spacing={2} sx={{ mb: 1 }}>
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={form.qrRequired}
+                    onChange={(e) => setForm({ ...form, qrRequired: e.target.checked })}
+                  />
+                }
+                label="Require a QR scan before sales/returns can be recorded at this shop"
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.5 }}>
+                Can be overridden tenant-wide from LMT Settings, without changing this shop's own setting.
+              </Typography>
+            </Grid>
+            {editingId && (
+              <Grid item xs={12}>
+                <ShopQrCode shopCode={form.shopCode} />
+              </Grid>
+            )}
+            {!editingId && (
+              <Grid item xs={12}>
+                <Typography variant="caption" color="text.secondary">
+                  Save the shop first, then reopen it here to see and download its QR code.
+                </Typography>
+              </Grid>
+            )}
           </Grid>
 
           <Divider sx={{ mb: 2 }} />

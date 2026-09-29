@@ -106,13 +106,31 @@ export const lmtStockApi = {
   },
 };
 
+export const shopVisitApi = {
+  /** Every QR scan attempt (pass or fail) in a date range, across all salesmen or one. Management-only (ADMIN/HR/SALES). */
+  async getReport(startDate, endDate, agentId) {
+    const params = { startDate, endDate };
+    if (agentId) params.agentId = agentId;
+    const response = await api.get('/lmt/shop-visits', { params });
+    return unwrap(response);
+  },
+  /** One salesman's visits for one day, plus the total/successful/failed/unique-shops counts. */
+  async getDaySummary(agentId, date) {
+    const params = { agentId };
+    if (date) params.date = date;
+    const response = await api.get('/lmt/shop-visits/summary', { params });
+    return unwrap(response);
+  },
+};
+
 export const lmtSettingsApi = {
   async get() {
     const response = await api.get('/lmt/settings');
     return unwrap(response);
   },
-  async update(geofenceBufferMeters) {
-    const response = await api.put('/lmt/settings', { geofenceBufferMeters });
+  /** dto: { geofenceBufferMeters, geofenceMode?, qrMode? } — geofenceMode/qrMode are "PER_SHOP" | "FORCE_ON" | "FORCE_OFF"; omit to leave a mode unchanged. */
+  async update(dto) {
+    const response = await api.put('/lmt/settings', dto);
     return unwrap(response);
   },
 };

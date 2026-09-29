@@ -100,6 +100,14 @@ export default function LocalNearbyShopsScreen({ route, navigation }) {
 
       <View style={styles.footer}>
         <AppButton
+          title={`${STRINGS.scanQr.en} · ${STRINGS.scanQr.ur}`}
+          variant={mode === 'RETURN' ? 'warning' : 'success'}
+          size="lg"
+          icon="qr-code-scanner"
+          onPress={() => navigation.navigate('LocalScanShopQr', { mode })}
+          style={{ marginBottom: 8 }}
+        />
+        <AppButton
           title={`${STRINGS.refresh.en} · ${STRINGS.refresh.ur}`}
           variant="outline"
           size="lg"

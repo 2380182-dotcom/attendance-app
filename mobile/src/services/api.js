@@ -631,6 +631,23 @@ export const apiService = {
       return handleApiError(lastError);
     },
     /**
+     * QR shop-visit flow: submits a scanned code + fresh GPS.
+     * The server ALWAYS records the attempt and returns a normal 200 with
+     * the outcome in the body (SUCCESS/INVALID_CODE/SHOP_INACTIVE/
+     * OUTSIDE_GEOFENCE) — a rejected scan is not a thrown error, only a
+     * genuine precondition failure (e.g. LMT not checked in) is. Callers
+     * must branch on the returned visitStatus, not on try/catch, for the
+     * rejection cases.
+     */
+    async scanShopQr(agentId, scannedCode, latitude, longitude) {
+      try {
+        const response = await api.post('/lmt/shop-visits/scan', { agentId, scannedCode, latitude, longitude });
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
+    /**
      * Per-product (SKU) discount overrides for one shop (Feature 2) — used
      * only for the client-side discounted-total preview on RecordVisitScreen.
      * The server independently resolves and applies the real discount at

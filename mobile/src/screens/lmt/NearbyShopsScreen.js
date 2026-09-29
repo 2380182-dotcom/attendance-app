@@ -122,6 +122,13 @@ export default function NearbyShopsScreen({ navigation }) {
 
       <View style={styles.footer}>
         <AppButton
+          title="Scan Shop QR"
+          variant="primary"
+          icon="qr-code-scanner"
+          onPress={() => navigation.navigate('ScanShopQr')}
+          style={{ marginBottom: 8 }}
+        />
+        <AppButton
           title="Enter Shop Code Manually"
           variant="outline"
           icon="keyboard"

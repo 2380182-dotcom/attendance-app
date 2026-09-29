@@ -22,6 +22,7 @@ import SalesEntryScreen from '../screens/agent/SalesEntryScreen';
 // LMT (Salesman) Screens
 import LmtHomeScreen from '../screens/lmt/LmtHomeScreen';
 import NearbyShopsScreen from '../screens/lmt/NearbyShopsScreen';
+import ScanShopQrScreen from '../screens/lmt/ScanShopQrScreen';
 import ShopLookupScreen from '../screens/lmt/ShopLookupScreen';
 import RecordVisitScreen from '../screens/lmt/RecordVisitScreen';
 import MorningStockEntryScreen from '../screens/lmt/MorningStockEntryScreen';
@@ -30,6 +31,7 @@ import EnterUnsoldScreen from '../screens/lmt/EnterUnsoldScreen';
 // Local Salesman Screens
 import LocalHomeScreen from '../screens/local/LocalHomeScreen';
 import LocalNearbyShopsScreen from '../screens/local/LocalNearbyShopsScreen';
+import LocalScanShopQrScreen from '../screens/local/ScanShopQrScreen';
 import LocalEntryScreen from '../screens/local/LocalEntryScreen';
 
 // Sales Screens
@@ -189,6 +191,11 @@ export default function AppNavigator() {
                 component={NearbyShopsScreen}
                 options={{ title: 'Nearby Shops' }}
               />
+              <Stack.Screen
+                name="ScanShopQr"
+                component={ScanShopQrScreen}
+                options={{ title: 'Scan Shop QR' }}
+              />
               {/*
                 Fallback only — LmtHome no longer links here directly
                 (NearbyShops is the primary entry point, D3). Still needed
@@ -264,6 +271,11 @@ export default function AppNavigator() {
                 name="LocalNearbyShops"
                 component={LocalNearbyShopsScreen}
                 options={{ title: 'Nearby Shops' }}
+              />
+              <Stack.Screen
+                name="LocalScanShopQr"
+                component={LocalScanShopQrScreen}
+                options={{ title: 'Scan Shop QR' }}
               />
               <Stack.Screen
                 name="LocalEntry"

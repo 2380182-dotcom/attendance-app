@@ -55,4 +55,20 @@ export const STRINGS = {
   savedBody: { en: 'Your entry has been saved.', ur: 'آپ کی انٹری محفوظ ہو گئی ہے۔' },
   saveFailed: { en: 'Could not save', ur: 'محفوظ نہیں ہو سکا' },
   saving: { en: 'Saving...', ur: 'محفوظ ہو رہا ہے...' },
+
+  // QR shop-visit flow (Q3)
+  scanQr: { en: 'Scan Shop QR', ur: 'دکان کا QR اسکین کریں' },
+  pointCamera: { en: "Point the camera at the shop's QR code", ur: 'کیمرہ دکان کے QR کوڈ پر رکھیں' },
+  verifyingShop: { en: 'Verifying shop...', ur: 'دکان کی تصدیق ہو رہی ہے...' },
+  shopVerified: { en: 'Shop Verified', ur: 'دکان کی تصدیق ہو گئی' },
+  couldNotVerifyShop: { en: 'Could Not Verify Shop', ur: 'دکان کی تصدیق نہیں ہو سکی' },
+  distanceFromShop: { en: 'from shop', ur: 'دکان سے' },
+  continueLabel: { en: 'Continue', ur: 'جاری رکھیں' },
+  scanAgain: { en: 'Scan Again', ur: 'دوبارہ اسکین کریں' },
+  cancel: { en: 'Cancel', ur: 'منسوخ کریں' },
+  cameraPermissionNeeded: {
+    en: "Camera access is needed to scan a shop's QR code.",
+    ur: 'دکان کا QR کوڈ اسکین کرنے کے لیے کیمرہ کی اجازت درکار ہے۔',
+  },
+  allowCamera: { en: 'Allow Camera', ur: 'کیمرہ کی اجازت دیں' },
 };
