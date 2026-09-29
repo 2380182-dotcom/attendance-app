@@ -184,7 +184,7 @@ export default function MorningStockEntryScreen({ navigation }) {
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
             <View style={styles.productRow}>
-              <ProductThumbnail uri={item.thumbnailUrl} size={40} style={styles.productImage} />
+              <ProductThumbnail productId={item.id} uri={item.thumbnailUrl} size={40} style={styles.productImage} />
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{item.name}</Text>
               </View>

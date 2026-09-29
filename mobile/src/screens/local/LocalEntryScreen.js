@@ -233,7 +233,7 @@ export default function LocalEntryScreen({ route, navigation }) {
           return (
             <View style={[styles.row, quantity > 0 && { borderColor: modeColor, borderWidth: 2 }]}>
               <View style={styles.rowTop}>
-                <ProductThumbnail uri={item.thumbnailUrl} size={60} />
+                <ProductThumbnail productId={item.id} uri={item.thumbnailUrl} size={60} />
                 <View style={styles.rowInfo}>
                   <Text style={styles.productName} numberOfLines={2} ellipsizeMode="tail">{item.name}</Text>
                   <Text style={[styles.productPrice, { color: modeColor }]}>Rs {formatRs(unitPrice)}</Text>
