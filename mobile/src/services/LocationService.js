@@ -113,10 +113,17 @@ export const LocationService = {
    * of "Finding nearby shops..." spinning forever. This tries the device's
    * last-known fix first (near-instant, from cache) and only falls back to
    * a fresh fix — bounded by our own race-timeout — when there isn't one.
+   *
+   * The last-known fix must be genuinely fresh (not just "recent-ish") —
+   * this feeds a tight-radius nearby-shops search, so a fix that's merely
+   * a couple minutes and ~200m off can legitimately land just outside a
+   * shop's radius and silently return zero shops. Kept tight enough that
+   * a stationary re-open of the screen is still instant, without letting a
+   * fix from before the salesman arrived at their current spot slip through.
    */
-  async getQuickLocation({ timeoutMs = 8000, maxAgeMs = 2 * 60 * 1000 } = {}) {
+  async getQuickLocation({ timeoutMs = 8000, maxAgeMs = 20 * 1000 } = {}) {
     try {
-      const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: maxAgeMs, requiredAccuracy: 200 });
+      const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: maxAgeMs, requiredAccuracy: 50 });
       if (lastKnown) {
         return lastKnown.coords;
       }
