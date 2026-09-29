@@ -3,7 +3,7 @@ import LocationService from '../services/LocationService';
 import { apiService } from '../services/api';
 import { cachedFetch, clearCached } from '../services/apiCache';
 
-const GPS_TIMEOUT_MS = 8000;
+const GPS_TIMEOUT_MS = 25000; // the QR-scan location fetch has no timeout at all and routinely takes longer than 8s on real devices with a weak fix — match that tolerance instead of giving up early
 const SLOW_GPS_MESSAGE_DELAY_MS = 4000;
 const NEARBY_CACHE_KEY = 'nearby-shops';
 const NEARBY_CACHE_TTL_MS = 60 * 1000; // brief — a salesman is stationary at one spot far longer than this while picking a shop
