@@ -2,6 +2,8 @@ package com.dawnbread.attendance.service;
 
 import com.dawnbread.attendance.dto.*;
 import com.dawnbread.attendance.entity.*;
+import com.dawnbread.attendance.exception.ShopVisitConflictException;
+import com.dawnbread.attendance.exception.ShopVisitRequestIdRaceException;
 import com.dawnbread.attendance.repository.*;
 import com.dawnbread.attendance.util.GeoUtils;
 import org.slf4j.Logger;
@@ -74,6 +76,9 @@ public class SalesService {
 
     @Autowired
     private ShopVisitScanRepository shopVisitScanRepository;
+
+    @Autowired
+    private ShopVisitIdempotencyService shopVisitIdempotencyService;
 
     @Value("${sales.max-quantity-limit:500}")
     private int maxQuantityLimit;
@@ -312,6 +317,27 @@ public class SalesService {
         Agent agent = agentService.getAgentById(request.getAgentId())
                 .orElseThrow(() -> new IllegalArgumentException("Agent not found with ID: " + request.getAgentId()));
 
+        // Idempotency (Task 2): a requestId is optional (old app versions
+        // never send one, and behave exactly as before). When present and
+        // already attached to a saved record, this is a retry (double-tap
+        // or a slow-network resend) of a visit that already succeeded —
+        // short-circuit before any of the gating/side-effect logic below
+        // and hand back the SAME voucher rather than re-running checks that
+        // could now fail for unrelated reasons (e.g. the QR scan's
+        // same-day window). Only a genuine item mismatch under a reused
+        // requestId is treated as a real conflict.
+        String requestId = request.getRequestId();
+        if (requestId != null && !requestId.isBlank()) {
+            SalesRecord existing = shopVisitIdempotencyService.findByRequestIdOrNull(requestId);
+            if (existing != null) {
+                if (shopVisitIdempotencyService.itemsMatch(existing.getItems(), request.getItems())) {
+                    return existing;
+                }
+                throw new ShopVisitConflictException(
+                        "This requestId was already used for a different set of items — not a retry of the same visit.");
+            }
+        }
+
         // Company check-in gate: the LMT must currently be checked in
         // (open attendance, no checkout yet — same "on duty" semantics
         // LmtHomeScreen's own status banner already relies on) at a mart
@@ -498,6 +524,7 @@ public class SalesService {
         record.setCreatedAt(LocalDateTime.now());
         record.setTotalUnits(itemsToSave.stream().mapToInt(SaleItem::getQuantity).sum());
         record.setStatus("PENDING");
+        record.setRequestId(requestId != null && !requestId.isBlank() ? requestId : null);
 
         for (SaleItem item : itemsToSave) {
             record.addItem(item);
@@ -507,6 +534,18 @@ public class SalesService {
         try {
             saved = salesRecordRepository.save(record);
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // Two concurrent submissions with the SAME requestId can both
+            // pass the findByRequestId check above before either commits —
+            // the unique index (ux_sales_records_request_id) is the real,
+            // race-proof guard. The loser lands here. This transaction is
+            // now unrecoverable (Hibernate poisons a session after a failed
+            // flush — refuses even a plain SELECT until rollback), so let
+            // it roll back cleanly and hand off to the caller, a different
+            // bean, to resolve the outcome in a fresh transaction — see
+            // ShopVisitConflictException/ShopVisitIdempotencyException docs.
+            if (requestId != null && !requestId.isBlank()) {
+                throw new ShopVisitRequestIdRaceException(requestId);
+            }
             throw new IllegalArgumentException("Duplicate entry: a product/transaction in this submission has already been recorded today for this shop.");
         }
 

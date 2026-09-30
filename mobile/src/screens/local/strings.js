@@ -71,4 +71,29 @@ export const STRINGS = {
     ur: 'دکان کا QR کوڈ اسکین کرنے کے لیے کیمرہ کی اجازت درکار ہے۔',
   },
   allowCamera: { en: 'Allow Camera', ur: 'کیمرہ کی اجازت دیں' },
+
+  // One-voucher-per-visit (Task 2): sale + optional return in one flow.
+  recordVisit: { en: 'Record Shop Visit', ur: 'دکان کا وزٹ درج کریں' },
+  askReturn: { en: 'Is there any return?', ur: 'کیا کوئی واپسی ہے؟' },
+  yes: { en: 'Yes', ur: 'ہاں' },
+  no: { en: 'No', ur: 'نہیں' },
+  next: { en: 'Next', ur: 'اگلا' },
+  saleTotal: { en: 'Sale Total Rs', ur: 'فروخت کی رقم' },
+  returnTotal: { en: 'Return Total Rs', ur: 'واپسی کی رقم' },
+  netTotal: { en: 'Net Total Rs', ur: 'خالص رقم' },
+  netNegativeHint: {
+    en: 'Returns are more than sales on this visit.',
+    ur: 'اس وزٹ میں واپسی فروخت سے زیادہ ہے۔',
+  },
+  noSaleHint: {
+    en: 'No sale? Tap Next — you can log a return-only visit.',
+    ur: 'کوئی فروخت نہیں؟ اگلا دبائیں — آپ صرف واپسی درج کر سکتے ہیں۔',
+  },
+  nothingEnteredTitle: { en: 'Nothing entered', ur: 'کچھ درج نہیں ہوا' },
+  nothingEnteredBody: {
+    en: 'Add at least one sale or return item before saving.',
+    ur: 'محفوظ کرنے سے پہلے کم از کم ایک فروخت یا واپسی درج کریں۔',
+  },
+  soldItems: { en: 'Sold Items', ur: 'فروخت شدہ اشیاء' },
+  returnedItems: { en: 'Returned Items', ur: 'واپس شدہ اشیاء' },
 };

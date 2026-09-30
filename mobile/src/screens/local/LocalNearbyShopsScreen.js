@@ -34,21 +34,20 @@ function errorToStrings(error) {
  * card, and NO manual shop-code fallback: a local salesman's proof of being
  * at a shop is the geofence, and the server enforces it again at save time.
  *
- * mode is 'SALE' or 'RETURN' (from the home screen). Tapping a shop goes
- * straight to the entry screen for that mode.
+ * One-voucher-per-visit (Task 2): no more SALE/RETURN mode picked here —
+ * tapping a shop goes to LocalEntryScreen, which now covers sale and
+ * optional return together in one flow.
  */
-export default function LocalNearbyShopsScreen({ route, navigation }) {
-  const mode = route.params?.mode === 'RETURN' ? 'RETURN' : 'SALE';
+export default function LocalNearbyShopsScreen({ navigation }) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
-  const modeLabel = mode === 'RETURN' ? STRINGS.enterReturn : STRINGS.enterSales;
-  const modeColor = mode === 'RETURN' ? colors.warningDark : colors.successDark;
+  const modeColor = colors.successDark;
 
   const { loading, error, shops, status, refetch } = useNearbyShops();
 
   useEffect(() => {
-    navigation.setOptions({ title: modeLabel.en });
-  }, [navigation, modeLabel.en]);
+    navigation.setOptions({ title: STRINGS.recordVisit.en });
+  }, [navigation]);
 
   if (loading) {
     return <Loading message={bilingual(statusToStrings(status))} fullScreen />;
@@ -57,7 +56,7 @@ export default function LocalNearbyShopsScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={[styles.banner, { backgroundColor: modeColor }]}>
-        <Text style={styles.bannerEnglish}>{modeLabel.en} — {STRINGS.pickShop.en}</Text>
+        <Text style={styles.bannerEnglish}>{STRINGS.recordVisit.en} — {STRINGS.pickShop.en}</Text>
         <Text style={styles.bannerUrdu}>{STRINGS.pickShop.ur}</Text>
       </View>
 
@@ -72,7 +71,7 @@ export default function LocalNearbyShopsScreen({ route, navigation }) {
             <TouchableOpacity
               activeOpacity={0.8}
               style={styles.shopRow}
-              onPress={() => navigation.navigate('LocalEntry', { shop: item, mode })}
+              onPress={() => navigation.navigate('LocalEntry', { shop: item })}
               accessibilityRole="button"
               accessibilityLabel={item.shopName}
             >
@@ -101,10 +100,10 @@ export default function LocalNearbyShopsScreen({ route, navigation }) {
       <View style={styles.footer}>
         <AppButton
           title={`${STRINGS.scanQr.en} · ${STRINGS.scanQr.ur}`}
-          variant={mode === 'RETURN' ? 'warning' : 'success'}
+          variant="success"
           size="lg"
           icon="qr-code-scanner"
-          onPress={() => navigation.navigate('LocalScanShopQr', { mode })}
+          onPress={() => navigation.navigate('LocalScanShopQr')}
           style={{ marginBottom: 8 }}
         />
         <AppButton

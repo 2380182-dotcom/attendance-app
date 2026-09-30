@@ -82,6 +82,13 @@ public class SalesRecord implements TenantAware {
     @Column(name = "override_reason")
     private String overrideReason;
 
+    // Idempotency key for POST /sales/shop-visit (Task 2) — client-generated
+    // once per visit, reused on retries. Null for the legacy flow and for
+    // any app version that predates this. See ux_sales_records_request_id
+    // (V27) and SalesService.submitShopVisit for the dedup logic.
+    @Column(name = "request_id", length = 64)
+    private String requestId;
+
     @OneToMany(mappedBy = "salesRecord", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SaleItem> items = new ArrayList<>();
 
@@ -148,6 +155,9 @@ public class SalesRecord implements TenantAware {
 
     public String getOverrideReason() { return overrideReason; }
     public void setOverrideReason(String overrideReason) { this.overrideReason = overrideReason; }
+
+    public String getRequestId() { return requestId; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
 
     public List<SaleItem> getItems() { return items; }
     public void setItems(List<SaleItem> items) { this.items = items; }

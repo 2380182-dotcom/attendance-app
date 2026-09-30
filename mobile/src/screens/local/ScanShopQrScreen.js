@@ -15,23 +15,22 @@ function bilingual(strings) {
 /**
  * QR shop-visit flow (Q3), Local: a third way to pick a shop, alongside
  * the existing Nearby Shops list — that screen is untouched. A successful
- * scan hands off to the unchanged LocalEntryScreen exactly as tapping a
- * nearby shop already does.
+ * scan hands off to LocalEntryScreen exactly as tapping a nearby shop
+ * already does — one flow covering sale and optional return (Task 2), no
+ * SALE/RETURN mode picked ahead of time anymore.
  */
-export default function ScanShopQrScreen({ route, navigation }) {
-  const mode = route.params?.mode === 'RETURN' ? 'RETURN' : 'SALE';
+export default function ScanShopQrScreen({ navigation }) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const { user } = useContext(AuthContext);
-  const modeLabel = mode === 'RETURN' ? STRINGS.enterReturn : STRINGS.enterSales;
 
   const [result, setResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    navigation.setOptions({ title: modeLabel.en });
-  }, [navigation, modeLabel.en]);
+    navigation.setOptions({ title: STRINGS.recordVisit.en });
+  }, [navigation]);
 
   const scanAgain = () => {
     setResult(null);
@@ -91,10 +90,10 @@ export default function ScanShopQrScreen({ route, navigation }) {
           {success ? (
             <AppButton
               title={`${STRINGS.continueLabel.en} · ${STRINGS.continueLabel.ur}`}
-              variant={mode === 'RETURN' ? 'warning' : 'success'}
+              variant="success"
               size="lg"
               icon="shopping-cart"
-              onPress={() => navigation.replace('LocalEntry', { shop, mode })}
+              onPress={() => navigation.replace('LocalEntry', { shop })}
               style={{ marginTop: 20 }}
             />
           ) : (

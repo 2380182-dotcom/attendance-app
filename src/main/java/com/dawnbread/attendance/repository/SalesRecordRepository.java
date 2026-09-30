@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> {
@@ -65,4 +66,7 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
     List<SalesRecord> findBySaleDateBetweenAndAgentRole(@Param("start") LocalDate start,
                                                          @Param("end") LocalDate end,
                                                          @Param("role") String role);
+
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items WHERE sr.requestId = :requestId")
+    Optional<SalesRecord> findByRequestId(@Param("requestId") String requestId);
 }

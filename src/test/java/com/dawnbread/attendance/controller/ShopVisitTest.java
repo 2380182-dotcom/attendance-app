@@ -1,10 +1,13 @@
 package com.dawnbread.attendance.controller;
 
+import com.dawnbread.attendance.dto.ShopVisitItemRequest;
+import com.dawnbread.attendance.dto.ShopVisitRequest;
 import com.dawnbread.attendance.entity.*;
 import com.dawnbread.attendance.repository.*;
 import com.dawnbread.attendance.security.TenantContext;
 import com.dawnbread.attendance.security.TokenProvider;
 import com.dawnbread.attendance.service.SalesService;
+import com.dawnbread.attendance.service.ShopVisitIdempotencyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -44,6 +47,9 @@ class ShopVisitTest {
 
     @Autowired
     private SalesService salesService;
+
+    @Autowired
+    private ShopVisitIdempotencyService shopVisitIdempotencyService;
 
     @Autowired
     private AgentRepository agentRepository;
@@ -536,5 +542,146 @@ class ShopVisitTest {
                 .filter(i -> i.getAgentId().equals(agent.getId()) && i.getProduct().getId().equals(product.getId()))
                 .count();
         assertEquals(1, totalItemsForProduct, "Only one of the two concurrent submissions' items may have actually persisted");
+    }
+
+    // ===== Task 2: idempotent requestId under real concurrency =====
+
+    /**
+     * The scenario the requestId dedup exists for: a double-tap or a
+     * network retry that fires the SAME visit twice, genuinely
+     * concurrently. Both calls must succeed (no error surfaced to the
+     * salesman for what is, from their side, one save) and resolve to the
+     * SAME SalesRecord — never two vouchers for one visit.
+     */
+    @Test
+    void concurrentSameRequestIdBothSucceedWithTheSameVoucher() throws Exception {
+        Agent salesman = seedAgent("SV_IDEMPOTENT_CONCURRENT", "SALESMAN_LMT");
+        Product product = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-IDEMPOTENT", null, null, null, false);
+        seedCompanyCheckIn(salesman);
+        Long testTenantId = tenantId();
+
+        String sharedRequestId = "req-" + System.nanoTime();
+        java.util.function.Supplier<ShopVisitRequest> buildRequest = () -> {
+            ShopVisitRequest req = new ShopVisitRequest();
+            req.setAgentId(salesman.getId());
+            req.setShopCode(shop.getShopCode());
+            req.setLatitude(0.0);
+            req.setLongitude(0.0);
+            req.setRequestId(sharedRequestId);
+            ShopVisitItemRequest item = new ShopVisitItemRequest();
+            item.setProductId(product.getId());
+            item.setQuantity(5);
+            item.setTransactionType("SALE");
+            req.setItems(List.of(item));
+            return req;
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch readyLatch = new CountDownLatch(2);
+        CountDownLatch goLatch = new CountDownLatch(1);
+
+        Callable<Long> task = () -> {
+            TenantContext.setTenantId(testTenantId);
+            try {
+                readyLatch.countDown();
+                goLatch.await();
+                ShopVisitRequest req = buildRequest.get();
+                try {
+                    return salesService.submitShopVisit(req).getId();
+                } catch (com.dawnbread.attendance.exception.ShopVisitRequestIdRaceException race) {
+                    // Mirrors SalesController's own recovery path — the losing
+                    // thread's transaction already rolled back cleanly.
+                    return shopVisitIdempotencyService.resolveAfterConflict(race.getRequestId(), req.getItems()).getId();
+                }
+            } finally {
+                TenantContext.clear();
+            }
+        };
+
+        Future<Long> f1 = executor.submit(task);
+        Future<Long> f2 = executor.submit(task);
+        readyLatch.await(5, TimeUnit.SECONDS);
+        goLatch.countDown();
+
+        Long id1 = f1.get(15, TimeUnit.SECONDS);
+        Long id2 = f2.get(15, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertEquals(id1, id2, "Both concurrent calls with the same requestId must resolve to the SAME SalesRecord");
+
+        long recordCount = salesRecordRepository.findByRequestId(sharedRequestId).isPresent() ? 1 : 0;
+        assertEquals(1, recordCount);
+        long itemCount = saleItemRepository.findAll().stream()
+                .filter(i -> i.getAgentId().equals(salesman.getId()) && i.getProduct().getId().equals(product.getId()))
+                .count();
+        assertEquals(1, itemCount, "Only one SaleItem may exist — the loser must never have inserted its own copy");
+    }
+
+    @Test
+    void sameRequestIdWithDifferentItemsIsRejectedAsConflict() {
+        Agent salesman = seedAgent("SV_IDEMPOTENT_CONFLICT", "SALESMAN_LMT");
+        Product product = seedProduct();
+        Product otherProduct = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-IDEMPOTENT-CONFLICT", null, null, null, false);
+        seedCompanyCheckIn(salesman);
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
+
+        String requestId = "req-conflict-" + System.nanoTime();
+        Map<String, Object> firstBody = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0,
+                List.of(item(product.getId(), 5, "SALE")));
+        firstBody.put("requestId", requestId);
+        ResponseEntity<String> first = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(firstBody, token), String.class);
+        assertEquals(HttpStatus.OK, first.getStatusCode());
+
+        Map<String, Object> differentBody = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0,
+                List.of(item(otherProduct.getId(), 9, "SALE")));
+        differentBody.put("requestId", requestId);
+        ResponseEntity<String> second = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(differentBody, token), String.class);
+        assertEquals(HttpStatus.CONFLICT, second.getStatusCode(),
+                "Reusing a requestId with different items must be a 409, not a silent success or a generic 400");
+    }
+
+    @Test
+    void sameRequestIdWithSameItemsReturnsTheSameVoucherAsSuccess() {
+        Agent salesman = seedAgent("SV_IDEMPOTENT_RETRY", "SALESMAN_LMT");
+        Product product = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-IDEMPOTENT-RETRY", null, null, null, false);
+        seedCompanyCheckIn(salesman);
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
+
+        String requestId = "req-retry-" + System.nanoTime();
+        Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0,
+                List.of(item(product.getId(), 5, "SALE")));
+        body.put("requestId", requestId);
+
+        ResponseEntity<String> first = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+        assertEquals(HttpStatus.OK, first.getStatusCode());
+
+        ResponseEntity<String> retry = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+        assertEquals(HttpStatus.OK, retry.getStatusCode(), "A sequential retry with the same requestId and same items must succeed, not error");
+
+        long recordCount = salesRecordRepository.findByRequestId(requestId).isPresent() ? 1 : 0;
+        assertEquals(1, recordCount, "The retry must not have created a second SalesRecord");
+    }
+
+    @Test
+    void oldClientWithNoRequestIdBehavesExactlyAsBeforeIdempotencyExisted() {
+        Agent salesman = seedAgent("SV_NO_REQUEST_ID", "SALESMAN_LMT");
+        Product product = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-NO-REQUEST-ID", null, null, null, false);
+        seedCompanyCheckIn(salesman);
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
+
+        // No "requestId" key at all — simulates an app version that predates this field.
+        Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0, 0,
+                List.of(item(product.getId(), 5, "SALE")));
+        ResponseEntity<String> response = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode(), "Omitting requestId entirely must work exactly as before");
     }
 }

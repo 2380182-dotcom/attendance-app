@@ -4,12 +4,15 @@ import com.dawnbread.attendance.dto.*;
 import com.dawnbread.attendance.entity.Product;
 import com.dawnbread.attendance.entity.SalesRecord;
 import com.dawnbread.attendance.entity.SalesSyncLog;
+import com.dawnbread.attendance.exception.ShopVisitConflictException;
+import com.dawnbread.attendance.exception.ShopVisitRequestIdRaceException;
 import com.dawnbread.attendance.repository.ProductRepository;
 import com.dawnbread.attendance.repository.SalesSyncLogRepository;
 import com.dawnbread.attendance.security.AccessControl;
 import com.dawnbread.attendance.service.DashboardService;
 import com.dawnbread.attendance.service.ExcelExportService;
 import com.dawnbread.attendance.service.SalesService;
+import com.dawnbread.attendance.service.ShopVisitIdempotencyService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +37,9 @@ public class SalesController {
 
     @Autowired
     private SalesService salesService;
+
+    @Autowired
+    private ShopVisitIdempotencyService shopVisitIdempotencyService;
 
     @Autowired
     private DashboardService dashboardService;
@@ -171,6 +177,21 @@ public class SalesController {
             SalesRecord record = salesService.submitShopVisit(request);
             SalesDTO dto = salesService.convertToDTO(record);
             return ResponseEntity.ok(ApiResponse.success("Shop visit recorded successfully", dto));
+        } catch (ShopVisitRequestIdRaceException race) {
+            // submitShopVisit's own transaction already rolled back cleanly
+            // (see its doc) — resolve the outcome here, a different bean, in
+            // ShopVisitIdempotencyService's own fresh transaction.
+            try {
+                SalesRecord winner = shopVisitIdempotencyService.resolveAfterConflict(race.getRequestId(), request.getItems());
+                SalesDTO dto = salesService.convertToDTO(winner);
+                return ResponseEntity.ok(ApiResponse.success("Shop visit recorded successfully", dto));
+            } catch (ShopVisitConflictException conflict) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(conflict.getMessage()));
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            }
+        } catch (ShopVisitConflictException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }

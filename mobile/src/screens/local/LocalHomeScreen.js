@@ -6,14 +6,16 @@ import { useTheme } from '../../theme';
 import { STRINGS } from './strings';
 
 /**
- * SALESMAN_LOCAL landing screen. The whole flow is two actions — Enter
- * Sales and Enter Return — so there is deliberately no check-in, duty, stock
- * or face step anywhere in this role's stack.
+ * SALESMAN_LOCAL landing screen. One action — Record Shop Visit — covers
+ * sale and/or return together in one voucher (Task 2): the old separate
+ * "Enter Sales" / "Enter Return" tiles each produced their own voucher for
+ * the same physical visit, which is exactly the bug this redesign fixes.
+ * LocalEntryScreen now asks about a return itself, after the sale step.
  *
- * The two actions are big tiles on the screen itself AND in the hamburger
- * menu: the menu was asked for, but hiding the only two things this user
- * ever does behind an icon would be the wrong trade for a low-literacy
- * audience, so nothing here depends on finding it.
+ * The action is a big tile on the screen itself AND in the hamburger menu:
+ * the menu was asked for, but hiding the only thing this user ever does
+ * behind an icon would be the wrong trade for a low-literacy audience, so
+ * nothing here depends on finding it.
  */
 export default function LocalHomeScreen({ navigation }) {
   const { colors } = useTheme();
@@ -37,9 +39,9 @@ export default function LocalHomeScreen({ navigation }) {
     });
   }, [navigation, colors.textOnPrimary]);
 
-  const go = (mode) => {
+  const go = () => {
     setMenuOpen(false);
-    navigation.navigate('LocalNearbyShops', { mode });
+    navigation.navigate('LocalNearbyShops');
   };
 
   return (
@@ -55,16 +57,9 @@ export default function LocalHomeScreen({ navigation }) {
         <BigTile
           styles={styles}
           color={colors.successDark}
-          icon="shopping-cart"
-          label={STRINGS.enterSales}
-          onPress={() => go('SALE')}
-        />
-        <BigTile
-          styles={styles}
-          color={colors.warningDark}
-          icon="assignment-return"
-          label={STRINGS.enterReturn}
-          onPress={() => go('RETURN')}
+          icon="storefront"
+          label={STRINGS.recordVisit}
+          onPress={go}
         />
       </View>
 
@@ -72,8 +67,7 @@ export default function LocalHomeScreen({ navigation }) {
         <Pressable style={styles.overlay} onPress={() => setMenuOpen(false)}>
           <Pressable style={styles.panel} onPress={() => {}}>
             <Text style={styles.panelTitle}>{STRINGS.menu.en} · {STRINGS.menu.ur}</Text>
-            <MenuRow styles={styles} icon="shopping-cart" label={STRINGS.enterSales} onPress={() => go('SALE')} />
-            <MenuRow styles={styles} icon="assignment-return" label={STRINGS.enterReturn} onPress={() => go('RETURN')} />
+            <MenuRow styles={styles} icon="storefront" label={STRINGS.recordVisit} onPress={go} />
             <View style={styles.menuDivider} />
             <MenuRow
               styles={styles}

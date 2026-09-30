@@ -57,11 +57,17 @@ function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   return R * c * 1000;
 }
 
+/** Once per screen mount — reused across retries of the same visit so a double-tap or a network-retry resubmit is idempotent. A fresh visit (new screen instance) always gets its own id. */
+function generateRequestId() {
+  return `visit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export default function RecordVisitScreen({ route, navigation }) {
   const { shop } = route.params;
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const { user } = useContext(AuthContext);
+  const requestIdRef = React.useRef(generateRequestId());
 
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -178,8 +184,12 @@ export default function RecordVisitScreen({ route, navigation }) {
 
     // Display-only preview using this shop's price (or the global
     // salesmanPrice) — the server independently recomputes the real amount,
-    // plus any shop discount, at submission time.
-    setCart((prev) => [...prev, { product, saleQty, returnQty, totalPrice: getBasePrice(product) * saleQty }]);
+    // plus any shop discount, at submission time. RETURN is never
+    // discounted (mirrors SalesService.submitShopVisit).
+    setCart((prev) => [
+      ...prev,
+      { product, saleQty, returnQty, totalPrice: getBasePrice(product) * saleQty, returnTotalPrice: getBasePrice(product) * returnQty },
+    ]);
   };
 
   const handleRemoveFromCart = (productId) => {
@@ -187,6 +197,7 @@ export default function RecordVisitScreen({ route, navigation }) {
   };
 
   const calculateCartTotal = () => cart.reduce((sum, item) => sum + item.totalPrice, 0);
+  const calculateReturnTotal = () => cart.reduce((sum, item) => sum + item.returnTotalPrice, 0);
   const calculateTotalSoldUnits = () => cart.reduce((sum, item) => sum + item.saleQty, 0);
   const calculateTotalReturnedUnits = () => cart.reduce((sum, item) => sum + item.returnQty, 0);
   // Preview only — same salesmanPrice-then-discount order of operations as
@@ -197,6 +208,7 @@ export default function RecordVisitScreen({ route, navigation }) {
       const discountPercent = getDiscountPercentForProduct(item.product.id);
       return sum + item.totalPrice * (1 - discountPercent / 100);
     }, 0);
+  const calculateNetTotal = () => calculateDiscountedCartTotal() - calculateReturnTotal();
 
   // The review screen below is the confirmation surface now — cross-check
   // Sold/Returned per product before submitting — so there's no separate
@@ -272,6 +284,7 @@ export default function RecordVisitScreen({ route, navigation }) {
         latitude,
         longitude,
         items,
+        requestId: requestIdRef.current,
       };
 
       const saved = await apiService.lmt.submitShopVisit(shopVisitRequest);
@@ -360,15 +373,28 @@ export default function RecordVisitScreen({ route, navigation }) {
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryText}>Total Amount:</Text>
-                  <Text style={styles.summaryTotal}>PKR {calculateDiscountedCartTotal().toFixed(2)}</Text>
+                  <Text style={styles.summaryText}>Sale Total:</Text>
+                  <Text style={styles.summaryValue}>PKR {calculateDiscountedCartTotal().toFixed(2)}</Text>
                 </View>
               </>
             ) : (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryText}>Total Amount:</Text>
-                <Text style={styles.summaryTotal}>PKR {calculateCartTotal()}</Text>
+                <Text style={styles.summaryText}>Sale Total:</Text>
+                <Text style={styles.summaryValue}>PKR {calculateCartTotal().toFixed(2)}</Text>
               </View>
+            )}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>Return Total:</Text>
+              <Text style={styles.summaryValue}>PKR {calculateReturnTotal().toFixed(2)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>Net Total:</Text>
+              <Text style={[styles.summaryTotal, calculateNetTotal() < 0 && styles.summaryTotalNegative]}>
+                PKR {calculateNetTotal().toFixed(2)}
+              </Text>
+            </View>
+            {calculateNetTotal() < 0 && (
+              <Text style={styles.netNegativeHint}>Returns exceed sales on this visit.</Text>
             )}
           </View>
 
@@ -498,8 +524,18 @@ export default function RecordVisitScreen({ route, navigation }) {
             <Text style={styles.summaryValue}>{calculateTotalReturnedUnits()} units</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>Total Amount:</Text>
-            <Text style={styles.summaryTotal}>PKR {calculateCartTotal()}</Text>
+            <Text style={styles.summaryText}>Sale Total:</Text>
+            <Text style={styles.summaryValue}>PKR {calculateCartTotal()}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>Return Total:</Text>
+            <Text style={styles.summaryValue}>PKR {calculateReturnTotal()}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>Net Total:</Text>
+            <Text style={[styles.summaryTotal, calculateCartTotal() - calculateReturnTotal() < 0 && styles.summaryTotalNegative]}>
+              PKR {calculateCartTotal() - calculateReturnTotal()}
+            </Text>
           </View>
         </View>
 
@@ -657,5 +693,7 @@ const createStyles = (colors) =>
     summaryText: { fontSize: 13, color: colors.textSecondary },
     summaryValue: { fontWeight: '600', fontSize: 13, color: colors.textPrimary },
     summaryTotal: { fontWeight: 'bold', fontSize: 16, color: colors.secondary },
+    summaryTotalNegative: { color: colors.error },
+    netNegativeHint: { fontSize: 11, color: colors.error, textAlign: 'right', marginTop: 2 },
     buttonGroup: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
   });

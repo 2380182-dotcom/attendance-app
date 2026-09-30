@@ -55,11 +55,13 @@ function buildRows(items) {
         unitPrice: item.unitPrice ?? 0,
         discountPercent: 0,
         netAmount: 0,
+        returnAmount: 0,
       };
       byProduct.set(key, row);
     }
     if (item.transactionType === 'RETURN') {
       row.returned += item.quantity ?? 0;
+      row.returnAmount += item.totalPrice ?? 0;
     } else if (item.transactionType === 'UNSOLD') {
       // Unsold lines don't belong to a shop visit — ignored defensively.
     } else {
@@ -83,6 +85,9 @@ export default function SalesVoucher({ record, salesmanName, employeeId, onDone 
   const rows = useMemo(() => buildRows(record?.items), [record]);
   const totalSold = rows.reduce((sum, r) => sum + r.sold, 0);
   const totalReturned = rows.reduce((sum, r) => sum + r.returned, 0);
+  const saleAmount = Number(record?.totalAmount) || 0;
+  const returnAmount = rows.reduce((sum, r) => sum + r.returnAmount, 0);
+  const netAmount = saleAmount - returnAmount;
   const flagged = record?.distanceFromShopMeters != null && record.distanceFromShopMeters > 100;
 
   return (
@@ -139,10 +144,23 @@ export default function SalesVoucher({ record, salesmanName, employeeId, onDone 
             <Text style={styles.summaryLabel}>Total Returned</Text>
             <Text style={styles.summaryValue}>{totalReturned} breads</Text>
           </View>
-          <View style={[styles.summaryRow, styles.summaryRowFinal]}>
-            <Text style={styles.summaryLabelFinal}>Total Sale (Rs)</Text>
-            <Text style={styles.summaryValueFinal}>{formatRs(record?.totalAmount)}</Text>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Sale Total (Rs)</Text>
+            <Text style={styles.summaryValue}>{formatRs(saleAmount)}</Text>
           </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Return Total (Rs)</Text>
+            <Text style={styles.summaryValue}>{formatRs(returnAmount)}</Text>
+          </View>
+          <View style={[styles.summaryRow, styles.summaryRowFinal]}>
+            <Text style={styles.summaryLabelFinal}>Net Total (Rs)</Text>
+            <Text style={[styles.summaryValueFinal, netAmount < 0 && styles.summaryValueFinalNegative]}>
+              {formatRs(netAmount)}
+            </Text>
+          </View>
+          {netAmount < 0 && (
+            <Text style={styles.netNegativeNote}>Returns exceeded sales on this visit.</Text>
+          )}
         </View>
       </ScrollView>
 
@@ -216,5 +234,7 @@ const createStyles = (colors) =>
     summaryRowFinal: { marginTop: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.divider },
     summaryLabelFinal: { fontSize: 17, fontWeight: 'bold', color: colors.textPrimary },
     summaryValueFinal: { fontSize: 20, fontWeight: 'bold', color: colors.successDark },
+    summaryValueFinalNegative: { color: colors.error },
+    netNegativeNote: { fontSize: 12, color: colors.error, textAlign: 'right', marginTop: 2 },
     footer: { padding: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.divider },
   });

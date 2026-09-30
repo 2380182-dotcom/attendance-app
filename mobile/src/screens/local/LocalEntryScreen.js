@@ -15,47 +15,59 @@ import { useTheme } from '../../theme';
 import { STRINGS } from './strings';
 import { computeTotals, formatRs, getFinalUnitPrice } from './pricing';
 
+/** Once per screen mount — reused across retries of the same visit so a double-tap or a network-retry resubmit is idempotent. Re-entering this screen (a fresh visit) always gets its own id. */
+function generateRequestId() {
+  return `visit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /**
- * SALESMAN_LOCAL entry screen for ONE shop, ONE kind of entry (sales OR
- * returns, chosen on the home screen). Every product is a row — photo on the
- * left, name, the price the shop will actually pay, then the − / number / +
- * stepper — so there is no "Add" step: the number IS the entry. Totals at the
- * bottom update on every tap.
+ * SALESMAN_LOCAL entry screen for ONE shop, sale AND optional return
+ * together in ONE voucher (Task 2 — the old separate "Enter Sales"/"Enter
+ * Return" screens each produced their own SalesRecord for the same visit,
+ * which is exactly the bug this redesign fixes; mirrors what
+ * RecordVisitScreen already does for LMT).
  *
- * Saving asks first, in plain words ("Sold 20 breads — Total Rs 2,000"), then
- * sends the same /sales/shop-visit request the LMT flow uses. Prices and
- * totals shown here are a preview only; the server recomputes the real
- * amounts and enforces the geofence again at save time.
+ * Flow: SALE (product list, steppers) -> ASK_RETURN ("Is there any
+ * return?") -> RETURN (product list, steppers, only if Yes) -> CONFIRM
+ * (sold items, returned items, sale/return/net totals) -> one submit.
+ * A visit with zero sale AND zero return can't be saved — a return-only
+ * visit (zero sale, some return) is fine, matching the spec exactly.
+ *
+ * Every product is a row — photo on the left, name, the price the shop will
+ * actually pay, then the − / number / + stepper — so there is no "Add"
+ * step: the number IS the entry. Totals at the bottom update on every tap.
+ * Prices and totals shown here are a preview only; the server recomputes
+ * the real amounts and enforces the geofence again at save time.
  */
 export default function LocalEntryScreen({ route, navigation }) {
   const { shop } = route.params;
-  const mode = route.params.mode === 'RETURN' ? 'RETURN' : 'SALE';
-  const isReturn = mode === 'RETURN';
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const { user } = useContext(AuthContext);
-  const modeColor = isReturn ? colors.warningDark : colors.successDark;
-  const modeLabel = isReturn ? STRINGS.enterReturn : STRINGS.enterSales;
+  const requestIdRef = React.useRef(generateRequestId());
 
   const [products, setProducts] = useState([]);
   const [shopPrices, setShopPrices] = useState([]);
   const [shopDiscounts, setShopDiscounts] = useState([]);
-  const [quantities, setQuantities] = useState({});
+  const [saleQuantities, setSaleQuantities] = useState({});
+  const [returnQuantities, setReturnQuantities] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [voucher, setVoucher] = useState(null);
+  // 'SALE' | 'ASK_RETURN' | 'RETURN' | 'CONFIRM'
+  const [step, setStep] = useState('SALE');
 
   useEffect(() => {
-    navigation.setOptions({ title: modeLabel.en });
-  }, [navigation, modeLabel.en]);
+    const titles = { SALE: STRINGS.enterSales, RETURN: STRINGS.enterReturn };
+    navigation.setOptions({ title: (titles[step] || STRINGS.recordVisit).en });
+  }, [navigation, step]);
 
   const load = useCallback(async () => {
     try {
       // Prices/discounts are a preview aid: if either fails to load, the
       // screen still works and the server still charges the right amount.
-      // A salesman opens this screen once per shop per mode, often dozens
+      // A salesman opens this screen once per shop per visit, often dozens
       // of times a day — the product catalog and a given shop's prices/
       // discounts are cached briefly (apiCache) so repeat opens are
       // instant instead of a full round trip every time.
@@ -79,18 +91,38 @@ export default function LocalEntryScreen({ route, navigation }) {
     load();
   }, [load]);
 
-  const totals = useMemo(
-    () => computeTotals(products, quantities, mode, shop, shopPrices, shopDiscounts),
-    [products, quantities, mode, shop, shopPrices, shopDiscounts]
+  const saleTotals = useMemo(
+    () => computeTotals(products, saleQuantities, 'SALE', shop, shopPrices, shopDiscounts),
+    [products, saleQuantities, shop, shopPrices, shopDiscounts]
   );
+  const returnTotals = useMemo(
+    () => computeTotals(products, returnQuantities, 'RETURN', shop, shopPrices, shopDiscounts),
+    [products, returnQuantities, shop, shopPrices, shopDiscounts]
+  );
+  const netRs = saleTotals.totalRs - returnTotals.totalRs;
+  const hasNothing = saleTotals.totalBreads === 0 && returnTotals.totalBreads === 0;
 
   const visibleProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return q ? products.filter((p) => p.name.toLowerCase().includes(q)) : products;
   }, [products, searchQuery]);
 
-  const setQuantity = (productId, next) => {
-    setQuantities((prev) => ({ ...prev, [productId]: next }));
+  const setSaleQuantity = (productId, next) => {
+    setSaleQuantities((prev) => ({ ...prev, [productId]: next }));
+  };
+  const setReturnQuantity = (productId, next) => {
+    setReturnQuantities((prev) => ({ ...prev, [productId]: next }));
+  };
+
+  const goToConfirm = () => {
+    if (hasNothing) {
+      Alert.alert(
+        `${STRINGS.nothingEnteredTitle.en} · ${STRINGS.nothingEnteredTitle.ur}`,
+        `${STRINGS.nothingEnteredBody.en}\n${STRINGS.nothingEnteredBody.ur}`
+      );
+      return;
+    }
+    setStep('CONFIRM');
   };
 
   const submit = async () => {
@@ -103,21 +135,24 @@ export default function LocalEntryScreen({ route, navigation }) {
         const requestResult = await LocationService.requestPermissions();
         if (!requestResult.success) {
           Alert.alert(STRINGS.saveFailed.en, `${STRINGS.locationNeeded.en}\n${STRINGS.locationNeeded.ur}`);
+          setSaving(false);
           return;
         }
       }
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+
+      const items = [
+        ...saleTotals.lines.map((line) => ({ productId: line.product.id, quantity: line.quantity, transactionType: 'SALE' })),
+        ...returnTotals.lines.map((line) => ({ productId: line.product.id, quantity: line.quantity, transactionType: 'RETURN' })),
+      ];
 
       const saved = await apiService.lmt.submitShopVisit({
         agentId: user.id,
         shopCode: shop.shopCode,
         latitude: current.coords.latitude,
         longitude: current.coords.longitude,
-        items: totals.lines.map((line) => ({
-          productId: line.product.id,
-          quantity: line.quantity,
-          transactionType: mode,
-        })),
+        items,
+        requestId: requestIdRef.current,
       });
       // The voucher (SalesVoucher) is the confirmation now, shown next —
       // no separate "Saved!" alert, so the salesman sees exactly what was
@@ -126,7 +161,6 @@ export default function LocalEntryScreen({ route, navigation }) {
     } catch (e) {
       console.error(e);
       // The server's message is plain English ("Too far from ...", "Duplicate entry ...").
-      setConfirming(false);
       Alert.alert(`${STRINGS.saveFailed.en} · ${STRINGS.saveFailed.ur}`, e.message || 'Error occurred while saving.');
     } finally {
       setSaving(false);
@@ -152,10 +186,49 @@ export default function LocalEntryScreen({ route, navigation }) {
     );
   }
 
-  const kindWord = isReturn ? STRINGS.returned : STRINGS.sold;
-  const amountLabel = isReturn ? STRINGS.returnValue : STRINGS.totalRs;
+  if (step === 'ASK_RETURN') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.askContent}>
+          <Text style={styles.askQuestion}>{STRINGS.askReturn.en}</Text>
+          <Text style={styles.askQuestionUrdu}>{STRINGS.askReturn.ur}</Text>
 
-  if (confirming) {
+          {saleTotals.totalBreads > 0 && (
+            <View style={styles.askSummary}>
+              <Text style={styles.askSummaryText}>
+                {STRINGS.sold.en} {saleTotals.totalBreads} {STRINGS.breads.en} — {STRINGS.totalRs.en} {formatRs(saleTotals.totalRs)}
+              </Text>
+            </View>
+          )}
+
+          <AppButton
+            title={`${STRINGS.yes.en} · ${STRINGS.yes.ur}`}
+            variant="warning"
+            size="lg"
+            icon="assignment-return"
+            onPress={() => setStep('RETURN')}
+            style={{ marginTop: 24, marginBottom: 12 }}
+          />
+          <AppButton
+            title={`${STRINGS.no.en} · ${STRINGS.no.ur}`}
+            variant="success"
+            size="lg"
+            icon="check-circle"
+            onPress={goToConfirm}
+          />
+          <AppButton
+            title={`${STRINGS.goBack.en} · ${STRINGS.goBack.ur}`}
+            variant="outline"
+            size="lg"
+            onPress={() => setStep('SALE')}
+            style={{ marginTop: 24 }}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (step === 'CONFIRM') {
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.confirmContent}>
@@ -163,28 +236,51 @@ export default function LocalEntryScreen({ route, navigation }) {
           <Text style={styles.confirmPrompt}>{STRINGS.checkThenSave.en}</Text>
           <Text style={styles.confirmPromptUrdu}>{STRINGS.checkThenSave.ur}</Text>
 
-          <View style={[styles.summaryBox, { borderColor: modeColor }]}>
-            <Text style={[styles.summaryLine, { color: modeColor }]}>
-              {kindWord.en} {totals.totalBreads} {STRINGS.breads.en}
-            </Text>
-            <Text style={[styles.summaryLineUrdu, { color: modeColor }]}>
-              {kindWord.ur} {totals.totalBreads} {STRINGS.breads.ur}
-            </Text>
-            <Text style={styles.summaryAmount}>
-              {amountLabel.en} {formatRs(totals.totalRs)}
-            </Text>
-            <Text style={styles.summaryAmountUrdu}>
-              {amountLabel.ur} {formatRs(totals.totalRs)}
-            </Text>
+          <View style={[styles.summaryBox, { borderColor: netRs < 0 ? colors.error : colors.successDark }]}>
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>{STRINGS.saleTotal.en}</Text>
+              <Text style={styles.totalsValue}>{formatRs(saleTotals.totalRs)}</Text>
+            </View>
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>{STRINGS.returnTotal.en}</Text>
+              <Text style={styles.totalsValue}>{formatRs(returnTotals.totalRs)}</Text>
+            </View>
+            <View style={[styles.totalsRow, styles.netRow]}>
+              <Text style={styles.netLabel}>{STRINGS.netTotal.en}</Text>
+              <Text style={[styles.netValue, netRs < 0 && { color: colors.error }]}>{formatRs(netRs)}</Text>
+            </View>
+            {netRs < 0 && (
+              <Text style={styles.netNegativeHint}>
+                {STRINGS.netNegativeHint.en} · {STRINGS.netNegativeHint.ur}
+              </Text>
+            )}
           </View>
 
-          {totals.lines.map((line) => (
-            <View key={line.product.id} style={styles.confirmLine}>
-              <Text style={styles.confirmLineName} numberOfLines={2}>{line.product.name}</Text>
-              <Text style={styles.confirmLineQty}>× {line.quantity}</Text>
-              <Text style={styles.confirmLineTotal}>{formatRs(line.lineTotal)}</Text>
-            </View>
-          ))}
+          {saleTotals.lines.length > 0 && (
+            <>
+              <Text style={styles.confirmSectionHeader}>{STRINGS.soldItems.en} · {STRINGS.soldItems.ur}</Text>
+              {saleTotals.lines.map((line) => (
+                <View key={`sale-${line.product.id}`} style={styles.confirmLine}>
+                  <Text style={styles.confirmLineName} numberOfLines={2}>{line.product.name}</Text>
+                  <Text style={styles.confirmLineQty}>× {line.quantity}</Text>
+                  <Text style={styles.confirmLineTotal}>{formatRs(line.lineTotal)}</Text>
+                </View>
+              ))}
+            </>
+          )}
+
+          {returnTotals.lines.length > 0 && (
+            <>
+              <Text style={styles.confirmSectionHeader}>{STRINGS.returnedItems.en} · {STRINGS.returnedItems.ur}</Text>
+              {returnTotals.lines.map((line) => (
+                <View key={`return-${line.product.id}`} style={styles.confirmLine}>
+                  <Text style={styles.confirmLineName} numberOfLines={2}>{line.product.name}</Text>
+                  <Text style={styles.confirmLineQty}>× {line.quantity}</Text>
+                  <Text style={styles.confirmLineTotal}>{formatRs(line.lineTotal)}</Text>
+                </View>
+              ))}
+            </>
+          )}
         </ScrollView>
 
         <View style={styles.confirmButtons}>
@@ -200,12 +296,21 @@ export default function LocalEntryScreen({ route, navigation }) {
             title={`${STRINGS.goBack.en} · ${STRINGS.goBack.ur}`}
             variant="outline"
             size="lg"
-            onPress={() => setConfirming(false)}
+            onPress={() => setStep('SALE')}
           />
         </View>
       </SafeAreaView>
     );
   }
+
+  // step === 'SALE' or 'RETURN' — same product-list UI, bound to a different quantity map.
+  const isReturn = step === 'RETURN';
+  const modeColor = isReturn ? colors.warningDark : colors.successDark;
+  const modeLabel = isReturn ? STRINGS.enterReturn : STRINGS.enterSales;
+  const quantities = isReturn ? returnQuantities : saleQuantities;
+  const setQuantity = isReturn ? setReturnQuantity : setSaleQuantity;
+  const totals = isReturn ? returnTotals : saleTotals;
+  const amountLabel = isReturn ? STRINGS.returnValue : STRINGS.totalRs;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -229,7 +334,7 @@ export default function LocalEntryScreen({ route, navigation }) {
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
           const quantity = quantities[item.id] || 0;
-          const unitPrice = getFinalUnitPrice(item, mode, shop, shopPrices, shopDiscounts);
+          const unitPrice = getFinalUnitPrice(item, isReturn ? 'RETURN' : 'SALE', shop, shopPrices, shopDiscounts);
           return (
             <View style={[styles.row, quantity > 0 && { borderColor: modeColor, borderWidth: 2 }]}>
               <View style={styles.rowTop}>
@@ -260,8 +365,8 @@ export default function LocalEntryScreen({ route, navigation }) {
       <View style={styles.totalBar}>
         {totals.totalBreads === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: 6 }}>
-            <Text style={styles.hint}>{STRINGS.nothingYet.en}</Text>
-            <Text style={styles.hintUrdu}>{STRINGS.nothingYet.ur}</Text>
+            <Text style={styles.hint}>{isReturn ? STRINGS.nothingYet.en : STRINGS.noSaleHint.en}</Text>
+            <Text style={styles.hintUrdu}>{isReturn ? STRINGS.nothingYet.ur : STRINGS.noSaleHint.ur}</Text>
           </View>
         ) : (
           <View style={styles.totalsRow}>
@@ -276,12 +381,11 @@ export default function LocalEntryScreen({ route, navigation }) {
           </View>
         )}
         <AppButton
-          title={`${STRINGS.save.en} · ${STRINGS.save.ur}`}
+          title={`${STRINGS.next.en} · ${STRINGS.next.ur}`}
           variant={isReturn ? 'warning' : 'success'}
           size="lg"
-          icon="save"
-          disabled={totals.totalBreads === 0}
-          onPress={() => setConfirming(true)}
+          icon="arrow-forward"
+          onPress={() => (isReturn ? goToConfirm() : setStep('ASK_RETURN'))}
           style={{ marginTop: 8 }}
         />
       </View>
@@ -333,6 +437,11 @@ const createStyles = (colors) =>
     totalValue: { fontSize: 30, fontWeight: 'bold', color: colors.textPrimary },
     hint: { fontSize: 17, color: colors.textSecondary },
     hintUrdu: { fontSize: 15, color: colors.textMuted },
+    askContent: { flex: 1, padding: 24, justifyContent: 'center' },
+    askQuestion: { fontSize: 28, fontWeight: 'bold', color: colors.textPrimary, textAlign: 'center' },
+    askQuestionUrdu: { fontSize: 22, color: colors.textSecondary, textAlign: 'center', marginTop: 6 },
+    askSummary: { marginTop: 20, alignItems: 'center' },
+    askSummaryText: { fontSize: 16, color: colors.textSecondary, textAlign: 'center' },
     confirmContent: { padding: 20 },
     confirmShop: { fontSize: 24, fontWeight: 'bold', color: colors.textPrimary },
     confirmPrompt: { fontSize: 18, color: colors.textSecondary, marginTop: 6 },
@@ -344,10 +453,20 @@ const createStyles = (colors) =>
       padding: 18,
       marginBottom: 16,
     },
-    summaryLine: { fontSize: 30, fontWeight: 'bold' },
-    summaryLineUrdu: { fontSize: 24, marginBottom: 12 },
-    summaryAmount: { fontSize: 30, fontWeight: 'bold', color: colors.textPrimary },
-    summaryAmountUrdu: { fontSize: 24, color: colors.textPrimary },
+    totalsLabel: { fontSize: 16, color: colors.textSecondary },
+    totalsValue: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
+    netRow: { marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.divider },
+    netLabel: { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary },
+    netValue: { fontSize: 24, fontWeight: 'bold', color: colors.textPrimary },
+    netNegativeHint: { fontSize: 13, color: colors.error, textAlign: 'right', marginTop: 6 },
+    confirmSectionHeader: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      marginTop: 12,
+      marginBottom: 4,
+    },
     confirmLine: {
       flexDirection: 'row',
       alignItems: 'center',

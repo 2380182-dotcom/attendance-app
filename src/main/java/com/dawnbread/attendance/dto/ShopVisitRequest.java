@@ -26,6 +26,11 @@ public class ShopVisitRequest {
     @Valid
     private List<ShopVisitItemRequest> items;
 
+    // Idempotency key (Task 2) — optional so old app versions that never
+    // send one keep working exactly as before. Generated once per visit on
+    // the client and reused on retries (double-tap, network retry).
+    private String requestId;
+
     public ShopVisitRequest() {}
 
     public Long getAgentId() { return agentId; }
@@ -42,4 +47,7 @@ public class ShopVisitRequest {
 
     public List<ShopVisitItemRequest> getItems() { return items; }
     public void setItems(List<ShopVisitItemRequest> items) { this.items = items; }
+
+    public String getRequestId() { return requestId; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
 }
