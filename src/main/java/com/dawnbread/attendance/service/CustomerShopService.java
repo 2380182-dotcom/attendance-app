@@ -5,12 +5,14 @@ import com.dawnbread.attendance.dto.CustomerShopCreateDTO;
 import com.dawnbread.attendance.dto.CustomerShopDTO;
 import com.dawnbread.attendance.dto.HierarchyPersonDTO;
 import com.dawnbread.attendance.dto.ShopProductPricesUpdateDTO;
+import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Area;
 import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.entity.HierarchyPerson;
 import com.dawnbread.attendance.entity.Product;
 import com.dawnbread.attendance.entity.ShopProductDiscount;
 import com.dawnbread.attendance.entity.ShopProductPrice;
+import com.dawnbread.attendance.repository.AgentRepository;
 import com.dawnbread.attendance.repository.AreaRepository;
 import com.dawnbread.attendance.repository.CustomerShopRepository;
 import com.dawnbread.attendance.repository.ProductRepository;
@@ -48,6 +50,9 @@ public class CustomerShopService {
 
     @Autowired
     private ShopProductPriceRepository shopProductPriceRepository;
+
+    @Autowired
+    private AgentRepository agentRepository;
 
     /** Bad discount data would silently produce wrong revenue at sale time, so reject it at the door. */
     private static void requireValidDiscount(Double discountPercent) {
@@ -127,6 +132,10 @@ public class CustomerShopService {
         shop.setDiscountPercent(dto.getDiscountPercent());
         if (dto.getQrRequired() != null) {
             shop.setQrRequired(dto.getQrRequired());
+        }
+        if (dto.getAssignedAgentId() != null) {
+            shop.setAssignedAgent(agentRepository.findById(dto.getAssignedAgentId())
+                    .orElseThrow(() -> new RuntimeException("Agent not found with id: " + dto.getAssignedAgentId())));
         }
         shop.setCreatedAt(LocalDateTime.now());
         shop.setIsActive(true);
@@ -233,6 +242,28 @@ public class CustomerShopService {
         return customerShopRepository.save(shop);
     }
 
+    /**
+     * Task 3: assign or reassign a shop to an LMT salesman, or unassign it
+     * (agentId == null). A dedicated endpoint rather than folding this into
+     * update() — that method's convention is "null means leave as-is" for
+     * every field, which can never express "explicitly clear this."
+     */
+    public CustomerShop assignToAgent(Long shopId, Long agentId) {
+        CustomerShop shop = customerShopRepository.findById(shopId)
+                .orElseThrow(() -> new RuntimeException("Customer shop not found with id: " + shopId));
+        if (agentId == null) {
+            shop.setAssignedAgent(null);
+        } else {
+            Agent agent = agentRepository.findById(agentId)
+                    .orElseThrow(() -> new RuntimeException("Agent not found with id: " + agentId));
+            if (!"SALESMAN_LMT".equals(agent.getRole())) {
+                throw new RuntimeException("Only an LMT salesman can be assigned a shop.");
+            }
+            shop.setAssignedAgent(agent);
+        }
+        return customerShopRepository.save(shop);
+    }
+
     /** All per-product (SKU) discount overrides for one shop — the admin shop-edit form's list, also read by mobile for the P6 discounted-total preview. */
     public List<ShopProductDiscount> getProductDiscounts(Long shopId) {
         if (!customerShopRepository.existsById(shopId)) {
@@ -335,6 +366,10 @@ public class CustomerShopService {
         dto.setCreatedAt(shop.getCreatedAt());
         dto.setDiscountPercent(shop.getDiscountPercent());
         dto.setQrRequired(shop.getQrRequired());
+        if (shop.getAssignedAgent() != null) {
+            dto.setAssignedAgentId(shop.getAssignedAgent().getId());
+            dto.setAssignedAgentName(shop.getAssignedAgent().getName());
+        }
         return dto;
     }
 

@@ -70,6 +70,14 @@ public class CustomerShop implements TenantAware {
     @Column(name = "qr_required")
     private Boolean qrRequired = false;
 
+    // Task 3: "Not Visited" for an LMT salesman means their assigned
+    // outlets, not any unscanned shop — this is the only place that
+    // relationship exists. Null = unassigned (every shop, by default).
+    // Local shops are never assigned; Task 3's Local report ignores this.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_agent_id")
+    private Agent assignedAgent;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -95,6 +103,7 @@ public class CustomerShop implements TenantAware {
     public Boolean getIsActive() { return isActive; }
     public Double getDiscountPercent() { return discountPercent; }
     public Boolean getQrRequired() { return qrRequired; }
+    public Agent getAssignedAgent() { return assignedAgent; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
     // Setters
@@ -117,5 +126,6 @@ public class CustomerShop implements TenantAware {
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public void setDiscountPercent(Double discountPercent) { this.discountPercent = discountPercent; }
     public void setQrRequired(Boolean qrRequired) { this.qrRequired = qrRequired; }
+    public void setAssignedAgent(Agent assignedAgent) { this.assignedAgent = assignedAgent; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

@@ -487,7 +487,8 @@ class ShopVisitScanTest {
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         seedScan(local, shop, today, ShopVisitStatus.OUTSIDE_GEOFENCE);
 
-        List<ShopVisitScanRecordDTO> report = shopVisitScanService.getReport(today, today, null);
+        List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
+                today, today, null, null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
 
         assertEquals(2, report.size());
         assertTrue(report.stream().anyMatch(r -> r.getAgentId().equals(lmt.getId()) && "SUCCESS".equals(r.getVisitStatus())));
@@ -503,7 +504,8 @@ class ShopVisitScanTest {
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         seedScan(other, shop, today, ShopVisitStatus.SUCCESS);
 
-        List<ShopVisitScanRecordDTO> report = shopVisitScanService.getReport(today, today, lmt.getId());
+        List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
+                today, today, lmt.getId(), null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
 
         assertEquals(1, report.size());
         assertEquals(lmt.getId(), report.get(0).getAgentId());
@@ -518,7 +520,8 @@ class ShopVisitScanTest {
         LocalDate today = LocalDate.now();
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
 
-        ShopVisitScanRecordDTO row = shopVisitScanService.getReport(today, today, lmt.getId()).get(0);
+        ShopVisitScanRecordDTO row = shopVisitScanService.getPagedReport(
+                today, today, lmt.getId(), null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent().get(0);
 
         assertEquals(shop.getId(), row.getShopId());
         assertEquals("ISB-I14-005", row.getShopCode());
@@ -532,7 +535,8 @@ class ShopVisitScanTest {
         LocalDate today = LocalDate.now();
         seedInvalidScan(lmt, "BOGUS-CODE", today);
 
-        List<ShopVisitScanRecordDTO> report = shopVisitScanService.getReport(today, today, lmt.getId());
+        List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
+                today, today, lmt.getId(), null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
 
         assertEquals(1, report.size());
         assertEquals("INVALID_CODE", report.get(0).getVisitStatus());
@@ -547,7 +551,8 @@ class ShopVisitScanTest {
         Agent lmt = seedLmt("REPORT_OUT_OF_RANGE");
         seedScan(lmt, shop, LocalDate.now().minusDays(10), ShopVisitStatus.SUCCESS);
 
-        List<ShopVisitScanRecordDTO> report = shopVisitScanService.getReport(LocalDate.now(), LocalDate.now(), lmt.getId());
+        List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
+                LocalDate.now(), LocalDate.now(), lmt.getId(), null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
 
         assertTrue(report.isEmpty());
     }
@@ -581,5 +586,221 @@ class ShopVisitScanTest {
         ShopVisitDaySummaryDTO summary = shopVisitScanService.getDaySummary(lmt.getId(), LocalDate.now());
 
         assertEquals(0, summary.getTotalVisits());
+    }
+
+    // ===== Section D: Task 3 — Not Visited (LMT assignment vs Local), summary counts, voucher-without-scan =====
+
+    private void assignShop(CustomerShop shop, Agent agent) {
+        shop.setAssignedAgent(agent);
+        customerShopRepository.save(shop);
+    }
+
+    @Test
+    void lmtNotVisitedShowsOnlyThisSalesmansAssignedButUnscannedShops() {
+        Agent lmt = seedLmt("NV_LMT_1");
+        Agent otherLmt = seedLmt("NV_LMT_2");
+        CustomerShop assignedScanned = seedShop(true, false);
+        CustomerShop assignedUnscanned = seedShop(true, false);
+        CustomerShop notAssignedToThisAgent = seedShop(true, false);
+        assignShop(assignedScanned, lmt);
+        assignShop(assignedUnscanned, lmt);
+        assignShop(notAssignedToThisAgent, otherLmt);
+        LocalDate today = LocalDate.now();
+        seedScan(lmt, assignedScanned, today, ShopVisitStatus.SUCCESS);
+
+        var page = shopVisitScanService.getNotVisited(today, "SALESMAN_LMT", lmt.getId(), null,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(1, page.getTotalElements(), "Only the assigned-but-unscanned shop should appear — not the scanned one, not another salesman's shop");
+        assertEquals(assignedUnscanned.getId(), page.getContent().get(0).getShopId());
+        assertEquals(lmt.getId(), page.getContent().get(0).getAssignedAgentId());
+    }
+
+    @Test
+    void lmtNotVisitedAcrossAllSalesmenGroupsCorrectlyPerAgent() {
+        Agent lmtA = seedLmt("NV_LMT_ALL_A");
+        Agent lmtB = seedLmt("NV_LMT_ALL_B");
+        CustomerShop shopA = seedShop(true, false);
+        CustomerShop shopB = seedShop(true, false);
+        assignShop(shopA, lmtA);
+        assignShop(shopB, lmtB);
+        LocalDate today = LocalDate.now();
+        seedScan(lmtA, shopA, today, ShopVisitStatus.SUCCESS); // A's shop IS scanned
+        // B's shop is never scanned
+
+        var page = shopVisitScanService.getNotVisited(today, "SALESMAN_LMT", null, null,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(1, page.getTotalElements());
+        assertEquals(shopB.getId(), page.getContent().get(0).getShopId());
+        assertEquals(lmtB.getId(), page.getContent().get(0).getAssignedAgentId());
+    }
+
+    @Test
+    void unassignedShopsNeverAppearInLmtNotVisited() {
+        Agent lmt = seedLmt("NV_LMT_UNASSIGNED");
+        seedShop(true, false); // never assigned to anyone
+
+        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LMT", lmt.getId(), null,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(0, page.getTotalElements());
+    }
+
+    @Test
+    void localNotVisitedShowsEveryActiveUnscannedShopRegardlessOfAssignment() {
+        Agent local = seedLocal("NV_LOCAL_1");
+        CustomerShop scanned = seedShop(true, false);
+        CustomerShop unscanned = seedShop(true, false);
+        LocalDate today = LocalDate.now();
+        seedScan(local, scanned, today, ShopVisitStatus.SUCCESS);
+
+        // Not asserting an exact total: the full suite shares one DB across
+        // test classes, so other tests' own active shops for "today" are
+        // also legitimately present here. Assert containment instead.
+        var page = shopVisitScanService.getNotVisited(today, "SALESMAN_LOCAL", null, null,
+                org.springframework.data.domain.PageRequest.of(0, 1000));
+
+        assertTrue(page.getContent().stream().anyMatch(d -> d.getShopId().equals(unscanned.getId())),
+                "The unscanned shop must appear in Not Visited");
+        assertTrue(page.getContent().stream().noneMatch(d -> d.getShopId().equals(scanned.getId())),
+                "The scanned shop must NOT appear in Not Visited");
+        var unscannedRow = page.getContent().stream().filter(d -> d.getShopId().equals(unscanned.getId())).findFirst().orElseThrow();
+        assertNull(unscannedRow.getAssignedAgentId(), "Local rows are never assigned to anyone, even if the shop happens to have an LMT assignment");
+    }
+
+    @Test
+    void notVisitedShopSearchFiltersByNameOrCode() {
+        Agent local = seedLocal("NV_SEARCH");
+        CustomerShop shop = seedShop(true, false);
+        shop.setShopName("Findable Bakery");
+        customerShopRepository.save(shop);
+        seedShop(true, false); // a second, unrelated unscanned shop
+
+        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LOCAL", null, "findable",
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(1, page.getTotalElements());
+        assertEquals(shop.getId(), page.getContent().get(0).getShopId());
+    }
+
+    @Test
+    void notVisitedIsPaginatedCorrectly() {
+        // Scoped to one freshly-created LMT salesman's own assignments —
+        // unlike the Local report (global, no agentId scoping possible),
+        // this is fully isolated from other tests' leftover data in the
+        // shared full-suite database, so an exact count is safe here.
+        Agent lmt = seedLmt("NV_PAGINATION");
+        for (int i = 0; i < 5; i++) {
+            assignShop(seedShop(true, false), lmt);
+        }
+
+        var firstPage = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LMT", lmt.getId(), null,
+                org.springframework.data.domain.PageRequest.of(0, 2));
+
+        assertEquals(5, firstPage.getTotalElements());
+        assertEquals(2, firstPage.getContent().size());
+        assertEquals(3, firstPage.getTotalPages());
+    }
+
+    @Test
+    void summaryCountsAddUpCorrectlyForLmt() {
+        Agent lmt = seedLmt("SUMMARY_COUNTS_LMT");
+        CustomerShop visited = seedShop(true, false);
+        CustomerShop notVisited = seedShop(true, false);
+        assignShop(visited, lmt);
+        assignShop(notVisited, lmt);
+        LocalDate today = LocalDate.now();
+        seedScan(lmt, visited, today, ShopVisitStatus.SUCCESS);
+
+        var summary = shopVisitScanService.getSummaryCounts(today, "SALESMAN_LMT", lmt.getId());
+
+        assertEquals(2, summary.getTotalShops());
+        assertEquals(1, summary.getVisitedShops());
+        assertEquals(1, summary.getNotVisitedShops());
+    }
+
+    @Test
+    void voucherWithoutScanDetectsASaleWithNoMatchingSuccessfulScan() {
+        Product product = seedProduct();
+        Agent lmt = seedLmt("VWS_1");
+        CustomerShop shop = seedShop(false, false); // geofence disabled so submitSale doesn't need a real scan/position
+        seedCompanyCheckIn(lmt);
+
+        SalesRecord saved = submitSale(lmt, shop, product, 24.86, 67.0);
+        // No scan recorded for this agent/shop/day at all.
+
+        // Scoped to this test's own agentId — isolated from other tests'
+        // leftover vouchers in the shared full-suite database.
+        var page = shopVisitScanService.getVouchersWithoutScan(LocalDate.now(), LocalDate.now(), lmt.getId(), null,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(1, page.getTotalElements());
+        assertEquals(saved.getId(), page.getContent().get(0).getSalesRecordId());
+    }
+
+    @Test
+    void voucherWithoutScanExcludesAVoucherThatDoesHaveAMatchingSuccessfulScan() {
+        Product product = seedProduct();
+        Agent lmt = seedLmt("VWS_2");
+        CustomerShop shop = seedShop(false, false);
+        seedCompanyCheckIn(lmt);
+        LocalDate today = LocalDate.now();
+        seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
+
+        submitSale(lmt, shop, product, 24.86, 67.0);
+
+        var page = shopVisitScanService.getVouchersWithoutScan(today, today, lmt.getId(), null,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(0, page.getTotalElements());
+    }
+
+    @Test
+    void pagedReportVoucherCreatedColumnReflectsWhetherASaleExistsForThatAgentShopDay() {
+        Product product = seedProduct();
+        Agent lmt = seedLmt("VC_COLUMN");
+        CustomerShop shop = seedShop(false, false);
+        seedCompanyCheckIn(lmt);
+        LocalDate today = LocalDate.now();
+        seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
+        submitSale(lmt, shop, product, 24.86, 67.0);
+
+        var page = shopVisitScanService.getPagedReport(today, today, lmt.getId(), null, null, false,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(1, page.getTotalElements());
+        assertTrue(page.getContent().get(0).getVoucherCreated());
+    }
+
+    @Test
+    void pagedReportFailedOnlyFilterExcludesSuccessfulScans() {
+        Agent lmt = seedLmt("FAILED_ONLY");
+        CustomerShop shop = seedShop(true, false);
+        LocalDate today = LocalDate.now();
+        seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
+        seedScan(lmt, shop, today, ShopVisitStatus.OUTSIDE_GEOFENCE);
+
+        var page = shopVisitScanService.getPagedReport(today, today, lmt.getId(), null, null, true,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(1, page.getTotalElements());
+        assertEquals("OUTSIDE_GEOFENCE", page.getContent().get(0).getVisitStatus());
+    }
+
+    @Test
+    void pagedReportRoleFilterScopesToOneRoleOnly() {
+        Agent lmt = seedLmt("ROLE_FILTER_LMT");
+        Agent local = seedLocal("ROLE_FILTER_LOCAL");
+        CustomerShop shop = seedShop(true, false);
+        LocalDate today = LocalDate.now();
+        seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
+        seedScan(local, shop, today, ShopVisitStatus.SUCCESS);
+
+        var page = shopVisitScanService.getPagedReport(today, today, null, "SALESMAN_LMT", null, false,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(1, page.getTotalElements());
+        assertEquals(lmt.getId(), page.getContent().get(0).getAgentId());
     }
 }

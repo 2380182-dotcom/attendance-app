@@ -20,6 +20,8 @@ public class CustomerShopCreateDTO {
     private Double discountPercent;
     /** QR shop-visit flow — optional, null on update means "leave as-is"; defaults to false on create. */
     private Boolean qrRequired;
+    /** Task 3: the LMT salesman this shop is assigned to — optional, null means unassigned. */
+    private Long assignedAgentId;
 
     public CustomerShopCreateDTO() {}
 
@@ -70,4 +72,7 @@ public class CustomerShopCreateDTO {
 
     public Boolean getQrRequired() { return qrRequired; }
     public void setQrRequired(Boolean qrRequired) { this.qrRequired = qrRequired; }
+
+    public Long getAssignedAgentId() { return assignedAgentId; }
+    public void setAssignedAgentId(Long assignedAgentId) { this.assignedAgentId = assignedAgentId; }
 }

@@ -69,4 +69,24 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
 
     @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items WHERE sr.requestId = :requestId")
     Optional<SalesRecord> findByRequestId(@Param("requestId") String requestId);
+
+    /**
+     * Task 3 "voucher created?" column — bulk, not per-row, to avoid N+1
+     * across a page of scan results: every (agentId, shopId, saleDate)
+     * combination that has at least one SalesRecord in this range. Raw
+     * Object[] rows rather than an entity projection — the caller only
+     * needs the key to build a lookup set, not the full record. The date
+     * has to be part of the key, not just the range bound — the "voucher
+     * created?" column must match on the SAME day as each scan, not "any
+     * day in range."
+     */
+    @Query("SELECT DISTINCT sr.agent.id, sr.customerShop.id, sr.saleDate FROM SalesRecord sr " +
+            "WHERE sr.saleDate BETWEEN :start AND :end AND sr.customerShop IS NOT NULL")
+    List<Object[]> findAgentShopDatePairsWithVoucherBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /** Task 3 "voucher without scan": every SalesRecord with a shop in this date range, fetch-joined for the report's display fields. */
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.customerShop " +
+            "WHERE sr.saleDate BETWEEN :start AND :end AND sr.customerShop IS NOT NULL " +
+            "ORDER BY sr.saleDate DESC, sr.saleTime DESC")
+    List<SalesRecord> findBySaleDateBetweenWithShopNotNull(@Param("start") LocalDate start, @Param("end") LocalDate end);
 }

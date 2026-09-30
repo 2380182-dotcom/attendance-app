@@ -27,6 +27,27 @@ public class SalesService {
 
     private static final Logger logger = LoggerFactory.getLogger(SalesService.class);
 
+    // Same rationale as AttendanceService/FaceVerificationService/
+    // ShopVisitScanService's own KARACHI_ZONE (see their docs) — the server
+    // runs on UTC (Render) but every agent/salesman is in Pakistan. saleDate
+    // and saleTime are separate DATE/TIME columns (not one UTC instant), so
+    // unlike checkInTime's fix this has to happen at the WRITE site, not a
+    // comparison-boundary conversion — there's no single instant to convert
+    // day-boundaries from. Applied to all three submission paths
+    // (addSalesWithImages, submitSalesEntry, submitShopVisit) together,
+    // since they share the same columns and the same dashboard display
+    // function (formatSaleTimeToKarachi) — fixing only one would make that
+    // shared function correct for some rows and wrong for others at once.
+    // Trade-off, stated plainly: sale records written before this fix will
+    // display their saleTime 5 hours off afterward, since the display
+    // function can no longer tell old rows from new ones — consistent with
+    // this project's standing "don't backfill old data" rule, but a real,
+    // visible change for old data, not just new.
+    // Injected (TimeConfig) rather than a bare ZoneId so a test can prove
+    // the exact day-boundary behavior with a fixed instant.
+    @Autowired
+    private java.time.Clock clock;
+
     @Autowired
     private ProductRepository productRepository;
 
@@ -98,7 +119,7 @@ public class SalesService {
         Agent agent = agentService.getAgentById(request.getAgentId())
                 .orElseThrow(() -> new IllegalArgumentException("Agent not found with ID: " + request.getAgentId()));
 
-        LocalDate saleDate = request.getSaleDate() != null ? request.getSaleDate() : LocalDate.now();
+        LocalDate saleDate = request.getSaleDate() != null ? request.getSaleDate() : LocalDate.now(clock);
 
         List<SalesRecord> existingSales = salesRecordRepository.findByAgentIdAndSaleDate(agent.getId(), saleDate);
         Set<Long> existingProductIds = existingSales.stream()
@@ -149,7 +170,7 @@ public class SalesService {
         record.setTotalAmount(totalAmount);
         record.setTotalUnits(totalUnits);
         record.setSaleDate(saleDate);
-        record.setSaleTime(LocalTime.now());
+        record.setSaleTime(LocalTime.now(clock));
         record.setSubmittedAt(LocalDateTime.now());
         record.setLocation(request.getStoreName());
         record.setStatus("PENDING");
@@ -185,7 +206,7 @@ public class SalesService {
     }
 
     public SalesDashboardDTO getTodaySummary() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         List<SalesRecord> records = salesRecordRepository.findBySaleDate(today);
         double totalAmount = records.stream().mapToDouble(SalesRecord::getTotalAmount).sum();
         int totalUnits = records.stream()
@@ -210,7 +231,7 @@ public class SalesService {
         Agent agent = agentService.getAgentById(request.getAgentId())
                 .orElseThrow(() -> new IllegalArgumentException("Agent not found with ID: " + request.getAgentId()));
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
 
         // 2. Fetch today's existing sales for duplicate check
         List<SalesRecord> todaySales = salesRecordRepository.findByAgentIdAndSaleDate(agent.getId(), today);
@@ -265,7 +286,7 @@ public class SalesService {
         record.setAgent(agent);
         record.setTotalAmount(totalAmount);
         record.setSaleDate(today);
-        record.setSaleTime(LocalTime.now());
+        record.setSaleTime(LocalTime.now(clock));
         record.setLocation(request.getLocation() != null ? request.getLocation() : "North Outlet");
         record.setCreatedAt(LocalDateTime.now());
         record.setTotalUnits(itemsToSave.stream().mapToInt(SaleItem::getQuantity).sum());
@@ -399,7 +420,7 @@ public class SalesService {
             }
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
 
         // QR shop-visit flow (Q1): a shop that requires QR (per-shop toggle,
         // unless the tenant's global mode overrides it) cannot have a sale
@@ -519,7 +540,7 @@ public class SalesService {
         record.setDistanceFromShopMeters(distance);
         record.setTotalAmount(totalAmount);
         record.setSaleDate(today);
-        record.setSaleTime(LocalTime.now());
+        record.setSaleTime(LocalTime.now(clock));
         record.setLocation(shop.getShopName());
         record.setCreatedAt(LocalDateTime.now());
         record.setTotalUnits(itemsToSave.stream().mapToInt(SaleItem::getQuantity).sum());

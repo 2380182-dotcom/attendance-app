@@ -26,6 +26,9 @@ public class CustomerShopDTO {
     private Double discountPercent;
     /** QR shop-visit flow: does this shop require a successful QR scan before a sale/return can be recorded here? */
     private Boolean qrRequired;
+    /** Task 3: the LMT salesman this shop is assigned to, if any — null means unassigned. */
+    private Long assignedAgentId;
+    private String assignedAgentName;
 
     public CustomerShopDTO() {}
 
@@ -88,4 +91,10 @@ public class CustomerShopDTO {
 
     public Boolean getQrRequired() { return qrRequired; }
     public void setQrRequired(Boolean qrRequired) { this.qrRequired = qrRequired; }
+
+    public Long getAssignedAgentId() { return assignedAgentId; }
+    public void setAssignedAgentId(Long assignedAgentId) { this.assignedAgentId = assignedAgentId; }
+
+    public String getAssignedAgentName() { return assignedAgentName; }
+    public void setAssignedAgentName(String assignedAgentName) { this.assignedAgentName = assignedAgentName; }
 }

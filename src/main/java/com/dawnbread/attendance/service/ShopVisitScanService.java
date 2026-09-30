@@ -1,26 +1,39 @@
 package com.dawnbread.attendance.service;
 
+import com.dawnbread.attendance.dto.NotVisitedShopDTO;
+import com.dawnbread.attendance.dto.QrVisitSummaryDTO;
 import com.dawnbread.attendance.dto.ShopVisitDaySummaryDTO;
 import com.dawnbread.attendance.dto.ShopVisitScanRecordDTO;
 import com.dawnbread.attendance.dto.ShopVisitScanRequest;
 import com.dawnbread.attendance.dto.ShopVisitScanResponseDTO;
+import com.dawnbread.attendance.dto.VoucherWithoutScanDTO;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.entity.GeofenceStatus;
 import com.dawnbread.attendance.entity.MartType;
+import com.dawnbread.attendance.entity.SalesRecord;
 import com.dawnbread.attendance.entity.ShopVisitScan;
 import com.dawnbread.attendance.entity.ShopVisitStatus;
 import com.dawnbread.attendance.repository.AttendanceRepository;
+import com.dawnbread.attendance.repository.CustomerShopRepository;
+import com.dawnbread.attendance.repository.SalesRecordRepository;
 import com.dawnbread.attendance.repository.ShopVisitScanRepository;
 import com.dawnbread.attendance.util.GeoUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -36,6 +49,19 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 public class ShopVisitScanService {
+
+    // Same rationale as AttendanceService.KARACHI_ZONE / FaceVerificationService.KARACHI_ZONE:
+    // the server runs on UTC (Render) but every salesman and admin is in
+    // Pakistan — a scan between UTC midnight and ~5am (i.e. before 5am, up
+    // to Karachi's own midnight) would otherwise land on the wrong calendar
+    // day for "today" checks, the Not Visited report, and voucher-without-
+    // scan cross-referencing. Unlike SalesRecord.saleTime (see SalesService),
+    // nothing anywhere converts scanTime for display, so fixing the write
+    // site here is a pure improvement with no historical-display tradeoff.
+    // Injected (TimeConfig) rather than a bare ZoneId so a test can prove
+    // the exact day-boundary behavior with a fixed instant.
+    @Autowired
+    private java.time.Clock clock;
 
     @Autowired
     private AgentService agentService;
@@ -57,6 +83,12 @@ public class ShopVisitScanService {
     @Autowired
     private AttendanceRepository attendanceRepository;
 
+    @Autowired
+    private CustomerShopRepository customerShopRepository;
+
+    @Autowired
+    private SalesRecordRepository salesRecordRepository;
+
     public ShopVisitScanResponseDTO recordScan(ShopVisitScanRequest request) {
         Agent agent = agentService.getAgentById(request.getAgentId())
                 .orElseThrow(() -> new IllegalArgumentException("Agent not found with ID: " + request.getAgentId()));
@@ -76,7 +108,7 @@ public class ShopVisitScanService {
             }
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         ShopVisitScan scan = new ShopVisitScan();
         scan.setAgentId(agent.getId());
         scan.setScannedCode(request.getScannedCode().trim());
@@ -162,16 +194,34 @@ public class ShopVisitScanService {
     }
 
     /**
-     * Q2 — the admin's "QR / Shop Visits" report: every scan attempt (pass
-     * or fail) in a date range, across all salesmen or one. Mirrors
-     * LmtStockService.getReconciliationReport's exact shape (agentId
-     * optional, date range required).
+     * Task 3 — the admin's "QR / Shop Visits" report, server-side paginated
+     * and filtered (date range, optional agentId/role/shopSearch/failedOnly).
+     * Replaces the old unpaginated getReport — only the dashboard's
+     * QrShopVisitsPage called it, rewritten in the same change.
+     * voucherCreated is computed in one bulk query per page, never per row.
      */
-    public List<ShopVisitScanRecordDTO> getReport(LocalDate startDate, LocalDate endDate, Long agentId) {
-        List<ShopVisitScan> scans = agentId != null
-                ? shopVisitScanRepository.findByAgentIdAndScanDateBetweenWithShop(agentId, startDate, endDate)
-                : shopVisitScanRepository.findByScanDateBetweenWithShop(startDate, endDate);
-        return scans.stream().map(this::toRecordDTO).collect(Collectors.toList());
+    public Page<ShopVisitScanRecordDTO> getPagedReport(LocalDate startDate, LocalDate endDate, Long agentId,
+                                                         String role, String shopSearch, boolean failedOnly,
+                                                         Pageable pageable) {
+        Page<ShopVisitScan> page = shopVisitScanRepository.findFiltered(
+                startDate, endDate, agentId, role,
+                (shopSearch == null || shopSearch.isBlank()) ? null : shopSearch.trim(),
+                failedOnly, pageable);
+
+        Set<String> voucheredKeys = new HashSet<>();
+        for (Object[] row : salesRecordRepository.findAgentShopDatePairsWithVoucherBetween(startDate, endDate)) {
+            voucheredKeys.add(row[0] + ":" + row[1] + ":" + row[2]);
+        }
+
+        return page.map(scan -> {
+            ShopVisitScanRecordDTO dto = toRecordDTO(scan);
+            if (scan.getCustomerShop() != null) {
+                dto.setVoucherCreated(voucheredKeys.contains(scan.getAgentId() + ":" + scan.getCustomerShop().getId() + ":" + scan.getScanDate()));
+            } else {
+                dto.setVoucherCreated(false);
+            }
+            return dto;
+        });
     }
 
     /** Q2 — one salesman's visit history for one day, plus the four summary counts from the spec's example screen. */
@@ -193,6 +243,138 @@ public class ShopVisitScanService {
         dto.setUniqueShopsVisited(uniqueShopIds.size());
         dto.setVisits(scans.stream().map(this::toRecordDTO).collect(Collectors.toList()));
         return dto;
+    }
+
+    private static final String ROLE_LMT = "SALESMAN_LMT";
+
+    /**
+     * Task 3 "Not Visited" — LMT means the salesman's ASSIGNED outlets
+     * weren't scanned (per your decision to build real assignment rather
+     * than approximate it); Local means every active shop with no
+     * successful scan at all, since Local has no assignment concept —
+     * labeled via NotVisitedShopDTO.assignedAgentId staying null.
+     */
+    private List<NotVisitedShopDTO> computeNotVisited(LocalDate date, String role, Long agentId) {
+        List<NotVisitedShopDTO> result = new ArrayList<>();
+        if (ROLE_LMT.equals(role)) {
+            List<CustomerShop> assignedShops = agentId != null
+                    ? customerShopRepository.findByIsActiveTrueAndAssignedAgentId(agentId)
+                    : customerShopRepository.findByIsActiveTrueAndAssignedAgentIsNotNull();
+            Map<Long, Set<Long>> scannedByAgent = new HashMap<>();
+            for (CustomerShop shop : assignedShops) {
+                Long shopAgentId = shop.getAssignedAgent().getId();
+                Set<Long> scanned = scannedByAgent.computeIfAbsent(shopAgentId,
+                        id -> shopVisitScanRepository.findSuccessfullyScannedShopIdsForAgentAndDate(id, date));
+                if (!scanned.contains(shop.getId())) {
+                    result.add(toNotVisitedDTO(shop, "LMT"));
+                }
+            }
+        } else {
+            List<CustomerShop> activeShops = customerShopRepository.findByIsActiveTrueWithArea();
+            Set<Long> scannedShopIds = shopVisitScanRepository.findSuccessfullyScannedShopIdsForDate(date);
+            for (CustomerShop shop : activeShops) {
+                if (!scannedShopIds.contains(shop.getId())) {
+                    result.add(toNotVisitedDTO(shop, "LOCAL"));
+                }
+            }
+        }
+        return result;
+    }
+
+    public Page<NotVisitedShopDTO> getNotVisited(LocalDate date, String role, Long agentId, String shopSearch, Pageable pageable) {
+        List<NotVisitedShopDTO> all = computeNotVisited(date, role, agentId);
+        if (shopSearch != null && !shopSearch.isBlank()) {
+            String q = shopSearch.trim().toLowerCase();
+            all = all.stream()
+                    .filter(d -> (d.getShopName() != null && d.getShopName().toLowerCase().contains(q))
+                            || (d.getShopCode() != null && d.getShopCode().toLowerCase().contains(q)))
+                    .collect(Collectors.toList());
+        }
+        return paginate(all, pageable);
+    }
+
+    /** Task 3 summary counts (Total Shops / Visited / Not Visited / Voucher-Without-Scan) for one date + role. */
+    public QrVisitSummaryDTO getSummaryCounts(LocalDate date, String role, Long agentId) {
+        int totalShops;
+        if (ROLE_LMT.equals(role)) {
+            totalShops = agentId != null
+                    ? customerShopRepository.findByIsActiveTrueAndAssignedAgentId(agentId).size()
+                    : customerShopRepository.findByIsActiveTrueAndAssignedAgentIsNotNull().size();
+        } else {
+            totalShops = customerShopRepository.findByIsActiveTrueWithArea().size();
+        }
+        int notVisited = computeNotVisited(date, role, agentId).size();
+        int visited = totalShops - notVisited;
+        int voucherWithoutScan = computeVouchersWithoutScan(date, date, agentId, role).size();
+        return new QrVisitSummaryDTO(totalShops, visited, notVisited, voucherWithoutScan);
+    }
+
+    /** Task 3 "voucher without scan": a SalesRecord exists for this agent/shop/day but no successful scan does. */
+    private List<VoucherWithoutScanDTO> computeVouchersWithoutScan(LocalDate startDate, LocalDate endDate, Long agentId, String role) {
+        List<SalesRecord> records = salesRecordRepository.findBySaleDateBetweenWithShopNotNull(startDate, endDate);
+        Set<String> scannedKeys = new HashSet<>();
+        for (Object[] row : shopVisitScanRepository.findSuccessfulScanKeysBetween(startDate, endDate)) {
+            scannedKeys.add(row[0] + ":" + row[1] + ":" + row[2]);
+        }
+        List<VoucherWithoutScanDTO> result = new ArrayList<>();
+        for (SalesRecord r : records) {
+            if (r.getAgent() == null || r.getCustomerShop() == null) {
+                continue;
+            }
+            if (agentId != null && !agentId.equals(r.getAgent().getId())) {
+                continue;
+            }
+            if (role != null && !role.equals(r.getAgent().getRole())) {
+                continue;
+            }
+            String key = r.getAgent().getId() + ":" + r.getCustomerShop().getId() + ":" + r.getSaleDate();
+            if (!scannedKeys.contains(key)) {
+                result.add(toVoucherWithoutScanDTO(r));
+            }
+        }
+        return result;
+    }
+
+    public Page<VoucherWithoutScanDTO> getVouchersWithoutScan(LocalDate startDate, LocalDate endDate, Long agentId, String role, Pageable pageable) {
+        return paginate(computeVouchersWithoutScan(startDate, endDate, agentId, role), pageable);
+    }
+
+    private NotVisitedShopDTO toNotVisitedDTO(CustomerShop shop, String role) {
+        NotVisitedShopDTO dto = new NotVisitedShopDTO();
+        dto.setShopId(shop.getId());
+        dto.setShopCode(shop.getShopCode());
+        dto.setShopName(shop.getShopName());
+        dto.setAreaName(shop.getArea() != null ? shop.getArea().getName() : null);
+        dto.setCity(parseCity(shop.getShopCode()));
+        dto.setRole(role);
+        if (shop.getAssignedAgent() != null) {
+            dto.setAssignedAgentId(shop.getAssignedAgent().getId());
+            dto.setAssignedAgentName(shop.getAssignedAgent().getName());
+        }
+        return dto;
+    }
+
+    private VoucherWithoutScanDTO toVoucherWithoutScanDTO(SalesRecord record) {
+        VoucherWithoutScanDTO dto = new VoucherWithoutScanDTO();
+        dto.setSalesRecordId(record.getId());
+        dto.setAgentId(record.getAgent().getId());
+        dto.setShopId(record.getCustomerShop().getId());
+        dto.setShopCode(record.getCustomerShop().getShopCode());
+        dto.setShopName(record.getCustomerShop().getShopName());
+        dto.setSaleDate(record.getSaleDate());
+        dto.setSaleTime(record.getSaleTime());
+        dto.setTotalAmount(record.getTotalAmount());
+        return dto;
+    }
+
+    /** Manual in-memory pagination for reports that can't be expressed as a single SQL page (Not Visited / voucher-without-scan both require a Java-side set difference). */
+    private <T> Page<T> paginate(List<T> all, Pageable pageable) {
+        int start = (int) pageable.getOffset();
+        if (start >= all.size()) {
+            return new PageImpl<>(List.of(), pageable, all.size());
+        }
+        int end = Math.min(start + pageable.getPageSize(), all.size());
+        return new PageImpl<>(all.subList(start, end), pageable, all.size());
     }
 
     private ShopVisitScanRecordDTO toRecordDTO(ShopVisitScan scan) {

@@ -27,6 +27,8 @@ public class ShopVisitScanRecordDTO {
     private String geofenceStatus;
     /** SUCCESS | INVALID_CODE | SHOP_INACTIVE | OUTSIDE_GEOFENCE */
     private String visitStatus;
+    /** Task 3: does a SalesRecord exist for this agent/shop/day? Independent of whether THIS scan succeeded — a later scan or a different attempt that day may be the one the voucher pairs with. */
+    private Boolean voucherCreated;
 
     public ShopVisitScanRecordDTO() {}
 
@@ -68,4 +70,7 @@ public class ShopVisitScanRecordDTO {
 
     public String getVisitStatus() { return visitStatus; }
     public void setVisitStatus(String visitStatus) { this.visitStatus = visitStatus; }
+
+    public Boolean getVoucherCreated() { return voucherCreated; }
+    public void setVoucherCreated(Boolean voucherCreated) { this.voucherCreated = voucherCreated; }
 }

@@ -204,13 +204,18 @@ class ShopVisitScanControllerTest {
         assertTrue(response.getBody().contains(shop.getShopCode()), response.getBody());
     }
 
+    /**
+     * Task 3: "QR Scanned Shops" moved to its own Admin-sidebar item and
+     * became admin-only per the user's explicit decision — HR/SALES could
+     * view this report before that change, now they can't.
+     */
     @Test
-    void hrAndSalesCanAlsoViewTheReport() {
+    void hrAndSalesCanNoLongerViewTheReport() {
         Agent hr = seedAgent("SCAN_HTTP_REPORT_HR", "HR");
         Agent sales = seedAgent("SCAN_HTTP_REPORT_SALES", "SALES");
-        assertEquals(HttpStatus.OK, restTemplate.exchange(url("/api/lmt/shop-visits"), HttpMethod.GET,
+        assertEquals(HttpStatus.FORBIDDEN, restTemplate.exchange(url("/api/lmt/shop-visits"), HttpMethod.GET,
                 withToken(null, tokenFor(hr)), String.class).getStatusCode());
-        assertEquals(HttpStatus.OK, restTemplate.exchange(url("/api/lmt/shop-visits"), HttpMethod.GET,
+        assertEquals(HttpStatus.FORBIDDEN, restTemplate.exchange(url("/api/lmt/shop-visits"), HttpMethod.GET,
                 withToken(null, tokenFor(sales)), String.class).getStatusCode());
     }
 

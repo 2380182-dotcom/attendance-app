@@ -124,6 +124,31 @@ public class CustomerShopController {
         }
     }
 
+    /**
+     * Task 3: assign/reassign/unassign a shop to an LMT salesman — separate
+     * from the generic update() above, whose "null means leave as-is"
+     * convention can never express an explicit unassign. Body:
+     * {"agentId": 123} to assign/reassign, {"agentId": null} to unassign.
+     */
+    @PutMapping("/{id}/assign")
+    public ResponseEntity<ApiResponse<CustomerShopDTO>> assign(@PathVariable Long id, @RequestBody AssignShopRequest body) {
+        if (!AccessControl.hasRole(request, "ADMIN")) {
+            return adminOnly();
+        }
+        try {
+            CustomerShop updated = customerShopService.assignToAgent(id, body.getAgentId());
+            return ResponseEntity.ok(ApiResponse.success("Shop assignment updated successfully", convertToDTO(updated)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    public static class AssignShopRequest {
+        private Long agentId;
+        public Long getAgentId() { return agentId; }
+        public void setAgentId(Long agentId) { this.agentId = agentId; }
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long id) {
         if (!AccessControl.hasRole(request, "ADMIN")) {
@@ -280,6 +305,10 @@ public class CustomerShopController {
         dto.setCreatedAt(shop.getCreatedAt());
         dto.setDiscountPercent(shop.getDiscountPercent());
         dto.setQrRequired(shop.getQrRequired());
+        if (shop.getAssignedAgent() != null) {
+            dto.setAssignedAgentId(shop.getAssignedAgent().getId());
+            dto.setAssignedAgentName(shop.getAssignedAgent().getName());
+        }
         return dto;
     }
 }
