@@ -11,20 +11,34 @@ import java.util.List;
 
 @Repository
 public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> {
-    List<SalesRecord> findByAgentIdOrderBySaleDateDescSaleTimeDesc(Long agentId);
-    List<SalesRecord> findBySaleDate(LocalDate date);
-    List<SalesRecord> findBySaleDateBetween(LocalDate start, LocalDate end);
 
-    @Query("SELECT sr FROM SalesRecord sr WHERE sr.agent.id = :agentId AND sr.saleDate = :date")
+    // Every method below is called by a report/dashboard/export path that
+    // then iterates record.getItems() — items is LAZY with no batch-fetch
+    // configured, so without an explicit JOIN FETCH each of these was an
+    // N+1 (one extra query per SalesRecord returned). DISTINCT avoids the
+    // duplicate parent rows a one-to-many join otherwise produces.
+
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items LEFT JOIN FETCH sr.agent " +
+            "WHERE sr.agent.id = :agentId ORDER BY sr.saleDate DESC, sr.saleTime DESC")
+    List<SalesRecord> findByAgentIdOrderBySaleDateDescSaleTimeDesc(@Param("agentId") Long agentId);
+
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items LEFT JOIN FETCH sr.agent WHERE sr.saleDate = :date")
+    List<SalesRecord> findBySaleDate(@Param("date") LocalDate date);
+
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items LEFT JOIN FETCH sr.agent " +
+            "WHERE sr.saleDate BETWEEN :start AND :end")
+    List<SalesRecord> findBySaleDateBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items WHERE sr.agent.id = :agentId AND sr.saleDate = :date")
     List<SalesRecord> findByAgentIdAndSaleDate(@Param("agentId") Long agentId, @Param("date") LocalDate date);
 
-    @Query("SELECT sr FROM SalesRecord sr WHERE sr.agent.id = :agentId AND sr.saleDate BETWEEN :start AND :end " +
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items WHERE sr.agent.id = :agentId AND sr.saleDate BETWEEN :start AND :end " +
             "ORDER BY sr.saleDate DESC, sr.saleTime DESC")
     List<SalesRecord> findByAgentIdAndSaleDateBetween(@Param("agentId") Long agentId,
                                                        @Param("start") LocalDate start,
                                                        @Param("end") LocalDate end);
 
-    @Query("SELECT sr FROM SalesRecord sr JOIN sr.agent a WHERE " +
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items JOIN FETCH sr.agent a WHERE " +
             "(:agentName IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', :agentName, '%'))) AND " +
             "(:date IS NULL OR sr.saleDate = :date) AND " +
             "(:storeName IS NULL OR LOWER(sr.storeName) LIKE LOWER(CONCAT('%', :storeName, '%')) OR LOWER(sr.location) LIKE LOWER(CONCAT('%', :storeName, '%'))) " +
@@ -33,7 +47,8 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
                                   @Param("date") LocalDate date,
                                   @Param("storeName") String storeName);
 
-    @Query("SELECT sr FROM SalesRecord sr JOIN sr.agent a WHERE a.department = :department ORDER BY sr.saleDate DESC")
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items JOIN FETCH sr.agent a " +
+            "WHERE a.department = :department ORDER BY sr.saleDate DESC")
     List<SalesRecord> findByAgentDepartment(@Param("department") String department);
 
     /**
@@ -42,10 +57,11 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
      * is an implementation artifact of the shop-visit flow, not the actual
      * business fact of who made the sale) — see SalesService.
      */
-    @Query("SELECT sr FROM SalesRecord sr JOIN sr.agent a WHERE sr.saleDate = :date AND a.role = :role")
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items JOIN FETCH sr.agent a WHERE sr.saleDate = :date AND a.role = :role")
     List<SalesRecord> findBySaleDateAndAgentRole(@Param("date") LocalDate date, @Param("role") String role);
 
-    @Query("SELECT sr FROM SalesRecord sr JOIN sr.agent a WHERE sr.saleDate BETWEEN :start AND :end AND a.role = :role")
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items JOIN FETCH sr.agent a " +
+            "WHERE sr.saleDate BETWEEN :start AND :end AND a.role = :role")
     List<SalesRecord> findBySaleDateBetweenAndAgentRole(@Param("start") LocalDate start,
                                                          @Param("end") LocalDate end,
                                                          @Param("role") String role);

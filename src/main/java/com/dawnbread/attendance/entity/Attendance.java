@@ -19,11 +19,11 @@ public class Attendance implements TenantAware {
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "agent_id", nullable = false)
     private Agent agent;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "mart_id", nullable = false)
     private Mart mart;
 

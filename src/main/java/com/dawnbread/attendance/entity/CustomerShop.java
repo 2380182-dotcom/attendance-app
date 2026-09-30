@@ -40,7 +40,7 @@ public class CustomerShop implements TenantAware {
     private String strn;
     private String ntn;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "area_id", nullable = false)
     private Area area;
 

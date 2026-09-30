@@ -25,15 +25,15 @@ public class Area implements TenantAware {
 
     private String name;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tse_id")
     private HierarchyPerson tse;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sr_tse_id")
     private HierarchyPerson srTse;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "asm_id")
     private HierarchyPerson asm;
 

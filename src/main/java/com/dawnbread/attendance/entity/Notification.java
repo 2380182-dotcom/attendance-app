@@ -18,7 +18,7 @@ public class Notification implements TenantAware {
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "agent_id")
     private Agent agent;
 

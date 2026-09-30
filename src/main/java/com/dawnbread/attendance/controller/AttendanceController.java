@@ -7,12 +7,16 @@ import com.dawnbread.attendance.dto.CheckInRequest;
 import com.dawnbread.attendance.dto.CheckOutRequest;
 import com.dawnbread.attendance.dto.FaceVerificationStatusDTO;
 import com.dawnbread.attendance.dto.FaceResultRequest;
+import com.dawnbread.attendance.dto.PageResponse;
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.security.AccessControl;
 import com.dawnbread.attendance.service.AttendanceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -98,19 +102,25 @@ public class AttendanceController {
         }
     }
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     /**
-     * Get all attendance records — every agent, unscoped. Management-only.
+     * Get all attendance records — every agent, unscoped, paginated (this
+     * table grows without bound over time; nothing in this codebase calls
+     * it without page/size so widening the response shape is safe here).
+     * Management-only.
      */
     @GetMapping
-    public ResponseEntity<ApiResponse<List<AttendanceDTO>>> getAllAttendance() {
+    public ResponseEntity<ApiResponse<PageResponse<AttendanceDTO>>> getAllAttendance(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
-        List<Attendance> attendances = attendanceService.getAllAttendance();
-        List<AttendanceDTO> dtos = attendances.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(ApiResponse.success("Attendance records retrieved", dtos));
+        int boundedSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), boundedSize);
+        Page<Attendance> attendances = attendanceService.getAllAttendance(pageable);
+        return ResponseEntity.ok(ApiResponse.success("Attendance records retrieved", PageResponse.of(attendances.map(this::convertToDTO))));
     }
 
     /**

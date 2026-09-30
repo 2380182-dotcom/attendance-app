@@ -18,11 +18,11 @@ public class GeoFenceLog implements TenantAware {
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "agent_id")
     private Agent agent;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "mart_id")
     private Mart mart;
 

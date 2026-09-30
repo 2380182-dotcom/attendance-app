@@ -8,6 +8,8 @@ import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.entity.Mart;
 import com.dawnbread.attendance.repository.AttendanceRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -292,11 +294,9 @@ public class AttendanceService {
         return faceVerificationService.getVerificationStatus(agentId);
     }
 
-    /**
-     * Get all attendance records
-     */
-    public List<Attendance> getAllAttendance() {
-        return attendanceRepository.findAll();
+    /** Every attendance record, every agent, unscoped — paginated since this table grows without bound. */
+    public Page<Attendance> getAllAttendance(Pageable pageable) {
+        return attendanceRepository.findAll(pageable);
     }
 
     /**
