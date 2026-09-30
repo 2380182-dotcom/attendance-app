@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -23,6 +24,9 @@ import java.util.List;
 
 @Service
 public class ExcelExportService {
+
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private AttendanceRepository attendanceRepository;
@@ -110,8 +114,10 @@ public class ExcelExportService {
                 cell.setCellStyle(headerStyle);
             }
 
-            LocalDateTime start = startDate != null ? startDate.atStartOfDay() : LocalDate.now().minusMonths(1).atStartOfDay();
-            LocalDateTime end = endDate != null ? endDate.atTime(23, 59, 59) : LocalDate.now().atTime(23, 59, 59);
+            LocalDate rangeStart = startDate != null ? startDate : LocalDate.now(clock).minusMonths(1);
+            LocalDate rangeEnd = endDate != null ? endDate : LocalDate.now(clock);
+            LocalDateTime start = com.dawnbread.attendance.util.KarachiTime.startOfDayUtc(rangeStart);
+            LocalDateTime end = com.dawnbread.attendance.util.KarachiTime.endOfDayUtc(rangeEnd);
             
             List<Attendance> attendances = attendanceRepository.findByAgentIdAndCheckInTimeBetween(agentId, start, end);
 
@@ -146,9 +152,9 @@ public class ExcelExportService {
             cell.setCellStyle(headerStyle);
         }
 
-        LocalDate targetDate = date != null ? date : LocalDate.now();
-        LocalDateTime start = targetDate.atStartOfDay();
-        LocalDateTime end = targetDate.atTime(23, 59, 59);
+        LocalDate targetDate = date != null ? date : LocalDate.now(clock);
+        LocalDateTime start = com.dawnbread.attendance.util.KarachiTime.startOfDayUtc(targetDate);
+        LocalDateTime end = com.dawnbread.attendance.util.KarachiTime.endOfDayUtc(targetDate);
         List<Attendance> attendances;
         if (agentId != null) {
             attendances = attendanceRepository.findByAgentIdAndCheckInTimeBetween(agentId, start, end);
@@ -184,8 +190,8 @@ public class ExcelExportService {
             cell.setCellStyle(headerStyle);
         }
 
-        int targetYear = year != null ? year : LocalDate.now().getYear();
-        int targetMonth = month != null ? month : LocalDate.now().getMonthValue();
+        int targetYear = year != null ? year : LocalDate.now(clock).getYear();
+        int targetMonth = month != null ? month : LocalDate.now(clock).getMonthValue();
         
         List<Attendance> attendances;
         if (agentId != null) {
@@ -224,9 +230,9 @@ public class ExcelExportService {
             cell.setCellStyle(headerStyle);
         }
 
-        LocalDate targetDate = date != null ? date : LocalDate.now();
-        LocalDateTime start = targetDate.atStartOfDay();
-        LocalDateTime end = targetDate.atTime(23, 59, 59);
+        LocalDate targetDate = date != null ? date : LocalDate.now(clock);
+        LocalDateTime start = com.dawnbread.attendance.util.KarachiTime.startOfDayUtc(targetDate);
+        LocalDateTime end = com.dawnbread.attendance.util.KarachiTime.endOfDayUtc(targetDate);
         List<Attendance> attendances = attendanceRepository.findByDateRangeAndStatus(start, end, "LATE");
         if (agentId != null) {
             attendances = attendances.stream()
@@ -261,9 +267,9 @@ public class ExcelExportService {
             cell.setCellStyle(headerStyle);
         }
 
-        LocalDate targetDate = date != null ? date : LocalDate.now();
-        LocalDateTime start = targetDate.atStartOfDay();
-        LocalDateTime end = targetDate.atTime(23, 59, 59);
+        LocalDate targetDate = date != null ? date : LocalDate.now(clock);
+        LocalDateTime start = com.dawnbread.attendance.util.KarachiTime.startOfDayUtc(targetDate);
+        LocalDateTime end = com.dawnbread.attendance.util.KarachiTime.endOfDayUtc(targetDate);
         List<Attendance> attendances = attendanceRepository.findByCheckInTimeBetween(start, end);
         if (agentId != null) {
             attendances = attendances.stream()

@@ -36,6 +36,9 @@ public class SalesController {
     private static final String[] MANAGEMENT_ROLES = { "ADMIN", "HR", "SALES" };
 
     @Autowired
+    private java.time.Clock clock;
+
+    @Autowired
     private SalesService salesService;
 
     @Autowired
@@ -228,7 +231,7 @@ public class SalesController {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
-        LocalDate target = date != null ? date : LocalDate.now();
+        LocalDate target = date != null ? date : LocalDate.now(clock);
         ReportDTO report = salesService.generateDailyReport(target, role);
         return ResponseEntity.ok(ApiResponse.success("Daily sales report generated", report));
     }
@@ -240,7 +243,7 @@ public class SalesController {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
-        LocalDate target = date != null ? date : LocalDate.now();
+        LocalDate target = date != null ? date : LocalDate.now(clock);
         ReportDTO report = salesService.generateWeeklyReport(target, role);
         return ResponseEntity.ok(ApiResponse.success("Weekly sales report generated", report));
     }
@@ -252,7 +255,7 @@ public class SalesController {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
-        LocalDate target = date != null ? date : LocalDate.now();
+        LocalDate target = date != null ? date : LocalDate.now(clock);
         ReportDTO report = salesService.generateMonthlyReport(target, role);
         return ResponseEntity.ok(ApiResponse.success("Monthly sales report generated", report));
     }
@@ -379,7 +382,7 @@ public class SalesController {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
-        LocalDate target = date != null ? date : LocalDate.now();
+        LocalDate target = date != null ? date : LocalDate.now(clock);
         ReportDTO report = salesService.generateDailyReport(target);
         return ResponseEntity.ok(ApiResponse.success("Product performance report loaded", report.getProductPerformance()));
     }

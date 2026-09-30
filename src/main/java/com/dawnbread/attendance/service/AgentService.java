@@ -10,6 +10,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dawnbread.attendance.util.KarachiTime;
+
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +21,9 @@ import java.util.Optional;
 @Service
 @Transactional
 public class AgentService {
+
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private AgentRepository agentRepository;
@@ -263,12 +270,13 @@ public class AgentService {
     }
 
     public List<Agent> getActiveAgents() {
-        return agentRepository.findActiveAgents(LocalDateTime.now().minusDays(7));
+        return agentRepository.findActiveAgents(LocalDateTime.now(clock).minusDays(7));
     }
 
     public List<Agent> getAgentsCheckedInToday() {
-        LocalDateTime start = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime end = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        LocalDate today = LocalDate.now(clock);
+        LocalDateTime start = KarachiTime.startOfDayUtc(today);
+        LocalDateTime end = KarachiTime.endOfDayUtc(today);
         return agentRepository.findAgentsWithCheckInToday(start, end);
     }
 

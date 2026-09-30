@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -20,6 +21,14 @@ import java.util.Map;
 @Service
 @Transactional(readOnly = true)
 public class ShiftValidationService {
+
+    // This gates a live business decision — is the agent's check-in inside
+    // their shift window right now — so it must use Pakistan time, not the
+    // server's UTC clock (Render). Around Pakistan's own day boundary
+    // (7pm-midnight UTC = midnight-5am Pakistan), the wrong zone could
+    // evaluate an agent against the PREVIOUS day's working-day schedule.
+    @Autowired
+    private Clock clock;
 
     private static final Map<DayOfWeek, String> DAY_MAP = new HashMap<>();
 
@@ -38,8 +47,8 @@ public class ShiftValidationService {
 
     public boolean validateShift(Long agentId) {
         Agent agent = getAgent(agentId);
-        LocalDate today = LocalDate.now();
-        LocalTime now = LocalTime.now();
+        LocalDate today = LocalDate.now(clock);
+        LocalTime now = LocalTime.now(clock);
         return isWorkingDay(agent, today) && isWithinShift(agent, now);
     }
 

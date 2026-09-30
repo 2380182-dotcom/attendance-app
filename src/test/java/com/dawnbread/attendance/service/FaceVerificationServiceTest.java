@@ -14,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,6 +46,8 @@ class FaceVerificationServiceTest {
     void setUp() {
         ReflectionTestUtils.setField(faceVerificationService, "confidenceThreshold", 0.85f);
         ReflectionTestUtils.setField(faceVerificationService, "maxAttempts", 3);
+        // Pure Mockito unit test, no Spring context — TimeConfig's Clock bean was never injected.
+        ReflectionTestUtils.setField(faceVerificationService, "clock", Clock.system(ZoneId.of("Asia/Karachi")));
 
         testAgent = new Agent();
         testAgent.setId(1L);

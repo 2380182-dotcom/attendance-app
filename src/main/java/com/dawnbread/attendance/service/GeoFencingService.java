@@ -13,6 +13,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dawnbread.attendance.util.KarachiTime;
+
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -21,6 +25,11 @@ import java.util.Optional;
 @Service
 @Transactional
 public class GeoFencingService {
+
+    // Gates a live business decision — the geofence auto-checkin's "already
+    // checked in today?" check — so it must use Pakistan time.
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private GeoFenceLogRepository geoFenceLogRepository;
@@ -97,8 +106,9 @@ public class GeoFencingService {
             // Genuine ENTER transition.
             logGeoFenceEvent(agent, insideMart, "ENTERED", latitude, longitude);
 
-            LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
-            LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+            LocalDate today = LocalDate.now(clock);
+            LocalDateTime startOfDay = KarachiTime.startOfDayUtc(today);
+            LocalDateTime endOfDay = KarachiTime.endOfDayUtc(today);
             boolean alreadyCheckedInToday = !attendanceRepository
                     .findByAgentIdAndCheckInTimeBetween(agentId, startOfDay, endOfDay).isEmpty();
 

@@ -14,6 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dawnbread.attendance.util.KarachiTime;
+
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -23,6 +27,9 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 public class AdminService {
+
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private MartRepository martRepository;
@@ -142,8 +149,9 @@ public class AdminService {
     }
 
     public AdminStatsDTO getAdminDashboardStats() {
-        LocalDateTime start = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime end = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        LocalDate today = LocalDate.now(clock);
+        LocalDateTime start = KarachiTime.startOfDayUtc(today);
+        LocalDateTime end = KarachiTime.endOfDayUtc(today);
 
         // Active field agents only — matches HR dashboard's "Total Agents" definition.
         // (agentRepository.count() would include ADMIN/HR/SALES accounts and deactivated
@@ -230,7 +238,7 @@ public class AdminService {
     }
 
     public ShiftScheduleDTO getAgentSchedule(Long id) {
-        return shiftValidationService.getShiftSchedule(id, java.time.LocalDate.now());
+        return shiftValidationService.getShiftSchedule(id, LocalDate.now(clock));
     }
 
     public List<Agent> listAgents(String role, String department, Boolean active) {

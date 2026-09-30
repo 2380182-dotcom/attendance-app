@@ -8,6 +8,7 @@ import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.entity.Mart;
 import com.dawnbread.attendance.repository.AttendanceRepository;
+import com.dawnbread.attendance.util.KarachiTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,10 +16,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -30,11 +30,13 @@ public class AttendanceService {
     // Users are in Pakistan; the container this runs on is UTC (confirmed
     // via a real check-in: 06:14 stored for an actual 11:14am PKT action).
     // Every checkInTime/checkOutTime/etc. is and remains stored as a naive
-    // UTC-equivalent LocalDateTime — that does NOT change here. This zone
-    // is used only to compute "what does Pakistan's calendar day boundary
-    // correspond to in UTC," so a day-boundary comparison against that
-    // stored data lines up with Pakistan's actual calendar, not UTC's.
-    private static final ZoneId KARACHI_ZONE = ZoneId.of("Asia/Karachi");
+    // UTC-equivalent LocalDateTime — that does NOT change here. KarachiTime
+    // (backed by the injected Clock, so tests can prove exact boundary
+    // behavior) is used only to compute "what does Pakistan's calendar day
+    // boundary correspond to in UTC," so a day-boundary comparison against
+    // that stored data lines up with Pakistan's actual calendar, not UTC's.
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private AttendanceRepository attendanceRepository;
@@ -264,8 +266,8 @@ public class AttendanceService {
         // the zone before comparing against the UTC-stored checkInTime is
         // what makes an early-morning (~midnight-5am PKT) check-in land in
         // the right day's report instead of the previous UTC day's.
-        LocalDateTime start = date.atStartOfDay(KARACHI_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
-        LocalDateTime end = date.atTime(23, 59, 59).atZone(KARACHI_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+        LocalDateTime start = KarachiTime.startOfDayUtc(date);
+        LocalDateTime end = KarachiTime.endOfDayUtc(date);
         List<Attendance> records = attendanceRepository.findByCheckInTimeBetween(start, end);
         List<AttendanceWithShiftDTO> report = new ArrayList<>();
 
@@ -324,8 +326,9 @@ public class AttendanceService {
      * Get today's attendance for an agent
      */
     public List<Attendance> getTodayAttendanceForAgent(Long agentId) {
-        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        LocalDate today = LocalDate.now(clock);
+        LocalDateTime startOfDay = KarachiTime.startOfDayUtc(today);
+        LocalDateTime endOfDay = KarachiTime.endOfDayUtc(today);
         return attendanceRepository.findByAgentIdAndCheckInTimeBetween(agentId, startOfDay, endOfDay);
     }
 
@@ -361,8 +364,9 @@ public class AttendanceService {
      * Get today's attendance report
      */
     public List<Object[]> getTodayAttendanceReport() {
-        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        LocalDate today = LocalDate.now(clock);
+        LocalDateTime startOfDay = KarachiTime.startOfDayUtc(today);
+        LocalDateTime endOfDay = KarachiTime.endOfDayUtc(today);
         return attendanceRepository.getTodayAttendanceReport(startOfDay, endOfDay);
     }
 
@@ -384,8 +388,8 @@ public class AttendanceService {
      * Get daily attendance report
      */
     public List<Attendance> getDailyAttendanceReport(LocalDate date) {
-        LocalDateTime startOfDay = date.atStartOfDay();
-        LocalDateTime endOfDay = date.atTime(23, 59, 59);
+        LocalDateTime startOfDay = KarachiTime.startOfDayUtc(date);
+        LocalDateTime endOfDay = KarachiTime.endOfDayUtc(date);
         return attendanceRepository.findByCheckInTimeBetween(startOfDay, endOfDay);
     }
 

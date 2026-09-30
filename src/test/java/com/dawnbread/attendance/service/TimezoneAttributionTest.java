@@ -56,6 +56,9 @@ class TimezoneAttributionTest {
 
     @Autowired private ShopVisitScanService shopVisitScanService;
     @Autowired private SalesService salesService;
+    @Autowired private ShiftValidationService shiftValidationService;
+    @Autowired private DashboardService dashboardService;
+    @Autowired private FaceVerificationService faceVerificationService;
     @Autowired private AgentRepository agentRepository;
     @Autowired private ProductRepository productRepository;
     @Autowired private AreaRepository areaRepository;
@@ -195,6 +198,51 @@ class TimezoneAttributionTest {
                 "A sale at 2:30am Karachi time (9:30pm UTC the previous day) must be filed under Karachi's calendar day");
         org.junit.jupiter.api.Assertions.assertNotEquals(WRONG_UTC_DAY, saved.getSaleDate(),
                 "Must NOT be filed under the server's UTC calendar day, which is one day behind at this instant");
+    }
+
+    /**
+     * Broader timezone audit (beyond Task 3's own scan/sale fix): a live
+     * business-logic gate — is this agent's check-in inside their shift
+     * window right now — was also using the server's UTC clock. Default
+     * working days are Mon-Sat, which doesn't discriminate at this
+     * instant (both the UTC day, Thursday, and the Karachi day, Friday,
+     * are working days) — so this agent is set to work ONLY Friday,
+     * making the two possible answers diverge.
+     */
+    @Test
+    void shiftValidationUsesKarachiDayNotUtcDayForWorkingDayGate() {
+        Agent agent = seedAgent("TZ_SHIFT_VALIDATION", "AGENT");
+        agent.setWorkingDays(java.util.List.of("FRI")); // Karachi day at TWO_AM_KARACHI_INSTANT is Friday; UTC day is Thursday
+        agent.setShiftStartTime(java.time.LocalTime.of(0, 0));
+        agent.setShiftEndTime(java.time.LocalTime.of(23, 59));
+        agentRepository.save(agent);
+
+        boolean canWork = shiftValidationService.validateShift(agent.getId());
+
+        assertEquals(true, canWork,
+                "At this instant Karachi's calendar day is Friday (the agent's only working day) — "
+                        + "using the server's UTC day (still Thursday) would have wrongly blocked this agent");
+    }
+
+    /**
+     * Broader timezone audit: FaceVerificationService's daily verification
+     * counter reset compared agent.faceLastVerificationDate against UTC
+     * "today" in several places that were missed when this file's
+     * schedule-time comparisons were first fixed in an earlier session.
+     */
+    @Test
+    void faceVerificationDailyCounterResetUsesKarachiDayNotUtcDay() {
+        Agent agent = seedAgent("TZ_FACE_RESET", "SALESMAN_LMT");
+        agent.setFaceVerificationCountToday(3);
+        agent.setFaceLastVerificationDate(WRONG_UTC_DAY); // as if last reset happened on the UTC day, not Karachi's
+        agentRepository.save(agent);
+
+        faceVerificationService.resetDailyVerificationCount(agent.getId());
+
+        Agent reloaded = agentRepository.findById(agent.getId()).orElseThrow();
+        assertEquals(EXPECTED_KARACHI_DAY, reloaded.getFaceLastVerificationDate(),
+                "The reset must stamp Karachi's calendar day, not the server's UTC one");
+        assertEquals(0, reloaded.getFaceVerificationCountToday());
     }
 
     /**

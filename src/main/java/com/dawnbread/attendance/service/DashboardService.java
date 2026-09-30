@@ -10,10 +10,12 @@ import com.dawnbread.attendance.entity.SaleItem;
 import com.dawnbread.attendance.repository.AgentRepository;
 import com.dawnbread.attendance.repository.AttendanceRepository;
 import com.dawnbread.attendance.repository.SalesRecordRepository;
+import com.dawnbread.attendance.util.KarachiTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +27,14 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly = true)
 public class DashboardService {
+
+    // Task 3 audit finding: SalesRecord.saleDate is now correctly written
+    // in Karachi time (SalesService), but this "today" was still UTC —
+    // between midnight-5am Pakistan time the live dashboard would have
+    // shown yesterday's (now correctly-attributed) sales as missing from
+    // "today's" numbers.
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private AgentRepository agentRepository;
@@ -41,7 +51,7 @@ public class DashboardService {
      * Compile real-time Sales Department Dashboard details
      */
     public SalesDashboardDTO getRealtimeSalesDashboard() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         List<SalesRecord> todaySales = salesRecordRepository.findBySaleDate(today);
 
         // 1. Calculations for header cards
@@ -56,8 +66,8 @@ public class DashboardService {
                 .filter(a -> "AGENT".equals(a.getRole()))
                 .collect(Collectors.toList());
 
-        LocalDateTime start = today.atStartOfDay();
-        LocalDateTime end = today.atTime(23, 59, 59);
+        LocalDateTime start = KarachiTime.startOfDayUtc(today);
+        LocalDateTime end = KarachiTime.endOfDayUtc(today);
 
         List<Long> agentIds = allAgents.stream().map(Agent::getId).collect(Collectors.toList());
         Map<Long, List<SalesRecord>> salesByAgentId = todaySales.stream()
@@ -153,9 +163,9 @@ public class DashboardService {
      * Compile HR Dashboard details with attendance compliance & sales correlations
      */
     public HRDashboardDTO getHRDashboardWithSales() {
-        LocalDate today = LocalDate.now();
-        LocalDateTime start = today.atStartOfDay();
-        LocalDateTime end = today.atTime(23, 59, 59);
+        LocalDate today = LocalDate.now(clock);
+        LocalDateTime start = KarachiTime.startOfDayUtc(today);
+        LocalDateTime end = KarachiTime.endOfDayUtc(today);
 
         List<Agent> allAgents = agentRepository.findAll().stream()
                 .filter(Agent::getIsActive)

@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -37,6 +38,13 @@ import java.util.stream.Collectors;
 @Transactional
 public class LmtStockService {
 
+    // stockDate is a plain LocalDate (no zone), same shape as
+    // SalesRecord.saleDate — the fix has to be at the write site. Task 3
+    // audit finding: an LMT entering morning stock between midnight-5am
+    // Pakistan time would have had it filed under the previous UTC day.
+    @Autowired
+    private Clock clock;
+
     @Autowired
     private LmtDailyStockRepository lmtDailyStockRepository;
 
@@ -53,7 +61,7 @@ public class LmtStockService {
     private AgentService agentService;
 
     public Optional<LmtDailyStockDTO> getToday(Long agentId) {
-        return lmtDailyStockRepository.findByAgentIdAndStockDate(agentId, LocalDate.now())
+        return lmtDailyStockRepository.findByAgentIdAndStockDate(agentId, LocalDate.now(clock))
                 .map(this::convertToDTO);
     }
 
@@ -114,7 +122,7 @@ public class LmtStockService {
         Agent agent = agentService.getAgentById(request.getAgentId())
                 .orElseThrow(() -> new IllegalArgumentException("Agent not found with ID: " + request.getAgentId()));
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         if (lmtDailyStockRepository.findByAgentIdAndStockDate(agent.getId(), today).isPresent()) {
             throw new IllegalArgumentException("Stock has already been entered for today.");
         }
@@ -154,7 +162,7 @@ public class LmtStockService {
      * partially-filled reconciliation still completes.
      */
     public LmtDailyStockDTO reconcile(LmtReconcileRequest request) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         LmtDailyStock stock = lmtDailyStockRepository.findByAgentIdAndStockDate(request.getAgentId(), today)
                 .orElseThrow(() -> new IllegalArgumentException("No stock has been entered for today — enter morning stock first."));
 

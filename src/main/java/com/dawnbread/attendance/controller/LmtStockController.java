@@ -27,6 +27,9 @@ import java.util.List;
 public class LmtStockController {
 
     @Autowired
+    private java.time.Clock clock;
+
+    @Autowired
     private LmtStockService lmtStockService;
 
     @Autowired
@@ -136,7 +139,7 @@ public class LmtStockController {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
-        LocalDate end = endDate != null ? endDate : LocalDate.now();
+        LocalDate end = endDate != null ? endDate : LocalDate.now(clock);
         LocalDate start = startDate != null ? startDate : end;
         List<LmtDailyStockDTO> report = lmtStockService.getReconciliationReport(start, end, agentId);
         return ResponseEntity.ok(ApiResponse.success("Reconciliation report retrieved", report));

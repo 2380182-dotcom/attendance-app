@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -19,6 +20,12 @@ import java.util.List;
 public class NotificationService {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
+
+    // Cosmetic but real: the timestamp embedded in a geofence activity
+    // notification's own text was showing server (UTC) time to the admin
+    // reading it, not Pakistan time.
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private NotificationRepository notificationRepository;
@@ -118,7 +125,7 @@ public class NotificationService {
         String verb = "ENTERED".equalsIgnoreCase(action) ? "entered" : "exited";
         String preposition = "ENTERED".equalsIgnoreCase(action) ? "at" : "from";
         String msg = "📍 " + agentName + " " + verb + " " + martName + " " + preposition + " "
-                + LocalDateTime.now().format(formatter);
+                + LocalDateTime.now(clock).format(formatter);
 
         Notification salesNotif = new Notification();
         salesNotif.setAgent(agent);

@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -21,6 +22,17 @@ import java.util.List;
 public class SchedulerConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(SchedulerConfig.class);
+
+    // Task 3 audit finding: none of these three cron expressions had a
+    // `zone`, so Spring ran them on the server's actual (UTC, Render) clock
+    // — "midnight" was really firing at 5am Pakistan time, "11:59 PM" at
+    // ~5am Pakistan time the next day, "10 PM" at ~3am Pakistan time the
+    // next day. Added zone = "Asia/Karachi" to each so they run when their
+    // own names say they do. This changes real, visible timing (auto-
+    // checkout, absentee notifications) — flagged prominently in the
+    // audit report, not just fixed silently.
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private AttendanceRepository attendanceRepository;
@@ -34,7 +46,7 @@ public class SchedulerConfig {
     @Autowired
     private FaceVerificationService faceVerificationService;
 
-    @Scheduled(cron = "0 0 0 * * *")
+    @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Karachi")
     public void resetDailyFaceVerificationCounts() {
         logger.info("Resetting daily face verification counts at midnight");
         faceVerificationService.resetAllDailyVerificationCounts();
@@ -50,7 +62,7 @@ public class SchedulerConfig {
      * checkout status) and never marked face-verified, so HR can tell the
      * difference between a real End-Duty close-out and a forgotten one.
      */
-    @Scheduled(cron = "0 59 23 * * *") // Runs at 11:59 PM daily
+    @Scheduled(cron = "0 59 23 * * *", zone = "Asia/Karachi") // Runs at 11:59 PM Pakistan time daily
     public void autoCheckoutAllAgents() {
         logger.info("Running daily auto-checkout scheduler at 11:59 PM");
         List<Attendance> openAttendances = attendanceRepository.findOpenAttendance();
@@ -77,11 +89,12 @@ public class SchedulerConfig {
     /**
      * Mark agents who had no check-ins today as ABSENT at 10 PM daily
      */
-    @Scheduled(cron = "0 0 22 * * *") // Runs at 10:00 PM daily
+    @Scheduled(cron = "0 0 22 * * *", zone = "Asia/Karachi") // Runs at 10:00 PM Pakistan time daily
     public void markAbsentAgents() {
         logger.info("Running daily absenteeism status verification scheduler at 10:00 PM");
-        LocalDateTime start = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime end = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        java.time.LocalDate today = java.time.LocalDate.now(clock);
+        LocalDateTime start = com.dawnbread.attendance.util.KarachiTime.startOfDayUtc(today);
+        LocalDateTime end = com.dawnbread.attendance.util.KarachiTime.endOfDayUtc(today);
         List<Agent> agents = agentService.getAllAgents();
 
         for (Agent agent : agents) {

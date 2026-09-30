@@ -9,17 +9,17 @@ import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.FaceVerificationLog;
 import com.dawnbread.attendance.repository.AgentRepository;
 import com.dawnbread.attendance.repository.FaceVerificationLogRepository;
+import com.dawnbread.attendance.util.KarachiTime;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,11 +32,18 @@ public class FaceVerificationService {
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
 
-    // Same rationale as AttendanceService.KARACHI_ZONE: the schedule strings
+    // Same rationale as AttendanceService — the schedule strings
     // ("09:00"/"17:00") are Pakistan-local by intent, and "today" for
     // matching against stored (UTC-equivalent) FaceVerificationLog rows
     // must be Pakistan's calendar day, not the container's UTC one.
-    private static final ZoneId KARACHI_ZONE = ZoneId.of("Asia/Karachi");
+    // Injected (TimeConfig) rather than a bare ZoneId so a test can prove
+    // the exact day-boundary behavior with a fixed instant — also closes
+    // the gap the Task 3 audit found: ensureDailyCounterReset,
+    // resetAllDailyVerificationCounts, and resetDailyVerificationCount
+    // were still using unzoned LocalDate.now() despite this file already
+    // having a partial Karachi fix elsewhere.
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private FaceVerificationLogRepository faceVerificationLogRepository;
@@ -117,7 +124,7 @@ public class FaceVerificationService {
             agent.setFaceVerifiedAt(verificationTime);
             agent.setFaceVerificationCountToday(
                     (agent.getFaceVerificationCountToday() != null ? agent.getFaceVerificationCountToday() : 0) + 1);
-            agent.setFaceLastVerificationDate(LocalDate.now());
+            agent.setFaceLastVerificationDate(LocalDate.now(clock));
             agentRepository.save(agent);
         } else {
             notificationService.sendFaceVerificationFailureAlert(agent, req.getCheckpointType(), score);
@@ -136,7 +143,7 @@ public class FaceVerificationService {
                 .orElseThrow(() -> new RuntimeException("Agent not found with id: " + agentId));
 
         VerificationRequiredDTO dto = new VerificationRequiredDTO();
-        dto.setDate(LocalDate.now(KARACHI_ZONE));
+        dto.setDate(LocalDate.now(clock));
         dto.setSchedule(getVerificationSchedule(agentId));
 
         if (!Boolean.TRUE.equals(agent.getFaceVerificationEnabled())
@@ -148,7 +155,7 @@ public class FaceVerificationService {
 
         ensureDailyCounterReset(agent);
         List<String> times = resolveVerificationTimes(agent);
-        LocalTime now = LocalTime.now(KARACHI_ZONE);
+        LocalTime now = LocalTime.now(clock);
         List<FaceVerificationLog> todayLogs = getTodaySuccessfulLogs(agentId);
 
         for (String timeStr : times) {
@@ -180,7 +187,7 @@ public class FaceVerificationService {
         ensureDailyCounterReset(agent);
         List<String> times = resolveVerificationTimes(agent);
         List<FaceVerificationLog> todayLogs = getTodaySuccessfulLogs(agentId);
-        LocalTime now = LocalTime.now(KARACHI_ZONE);
+        LocalTime now = LocalTime.now(clock);
 
         List<FaceVerificationStatusDTO.VerificationSlot> slots = new ArrayList<>();
         String nextRequired = null;
@@ -209,7 +216,7 @@ public class FaceVerificationService {
 
         FaceVerificationStatusDTO dto = new FaceVerificationStatusDTO();
         dto.setAgentId(agentId);
-        dto.setDate(LocalDate.now(KARACHI_ZONE));
+        dto.setDate(LocalDate.now(clock));
         dto.setRegistered(hasFaceEmbedding(agent) || Boolean.TRUE.equals(agent.getFaceRegistered()));
         dto.setVerificationRequired(required.isRequired());
         dto.setNextRequiredTime(nextRequired != null ? nextRequired : required.getNextRequiredTime());
@@ -221,12 +228,12 @@ public class FaceVerificationService {
         Agent agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new RuntimeException("Agent not found with id: " + agentId));
         agent.setFaceVerificationCountToday(0);
-        agent.setFaceLastVerificationDate(LocalDate.now());
+        agent.setFaceLastVerificationDate(LocalDate.now(clock));
         agentRepository.save(agent);
     }
 
     public void resetAllDailyVerificationCounts() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         for (Agent agent : agentRepository.findAll()) {
             if (agent.getFaceLastVerificationDate() == null || !agent.getFaceLastVerificationDate().equals(today)) {
                 agent.setFaceVerificationCountToday(0);
@@ -348,7 +355,7 @@ public class FaceVerificationService {
     }
 
     private void ensureDailyCounterReset(Agent agent) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         if (agent.getFaceLastVerificationDate() == null || !agent.getFaceLastVerificationDate().equals(today)) {
             agent.setFaceVerificationCountToday(0);
             agent.setFaceLastVerificationDate(today);
@@ -360,9 +367,9 @@ public class FaceVerificationService {
         // Same treatment as AttendanceService.getDailyReportWithShift(): compute
         // Pakistan's actual "today" boundary, then convert to the UTC-equivalent
         // naive value the stored verificationTime rows are comparable against.
-        LocalDate karachiToday = LocalDate.now(KARACHI_ZONE);
-        LocalDateTime start = karachiToday.atStartOfDay(KARACHI_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
-        LocalDateTime end = karachiToday.atTime(23, 59, 59).atZone(KARACHI_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+        LocalDate karachiToday = LocalDate.now(clock);
+        LocalDateTime start = KarachiTime.startOfDayUtc(karachiToday);
+        LocalDateTime end = KarachiTime.endOfDayUtc(karachiToday);
         return faceVerificationLogRepository.findByAgentIdAndVerificationTimeBetween(agentId, start, end)
                 .stream()
                 .filter(l -> Boolean.TRUE.equals(l.getSuccess()))

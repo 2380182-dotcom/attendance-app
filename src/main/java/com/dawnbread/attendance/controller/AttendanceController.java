@@ -43,6 +43,9 @@ public class AttendanceController {
     private static final String[] MANAGEMENT_ROLES = { "ADMIN", "HR", "SALES" };
 
     @Autowired
+    private java.time.Clock clock;
+
+    @Autowired
     private AttendanceService attendanceService;
 
     @Autowired
@@ -406,7 +409,7 @@ public class AttendanceController {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
             return managementOnly();
         }
-        LocalDate target = date != null ? date : LocalDate.now();
+        LocalDate target = date != null ? date : LocalDate.now(clock);
         List<AttendanceWithShiftDTO> report = attendanceService.getDailyReportWithShift(target);
         return ResponseEntity.ok(ApiResponse.success("Daily attendance report with shift compliance", report));
     }

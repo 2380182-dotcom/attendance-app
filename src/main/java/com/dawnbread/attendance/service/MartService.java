@@ -7,6 +7,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dawnbread.attendance.util.KarachiTime;
+
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +18,9 @@ import java.util.Optional;
 @Service
 @Transactional
 public class MartService {
+
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private MartRepository martRepository;
@@ -144,8 +151,9 @@ public class MartService {
     }
 
     public List<Mart> getActiveMarts() {
-        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime endOfDay = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        LocalDate today = LocalDate.now(clock);
+        LocalDateTime startOfDay = KarachiTime.startOfDayUtc(today);
+        LocalDateTime endOfDay = KarachiTime.endOfDayUtc(today);
         return martRepository.findMartsWithActiveAgents(startOfDay, endOfDay);
     }
 
