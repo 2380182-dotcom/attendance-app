@@ -114,7 +114,12 @@ const handleResponse = (response) => {
 
 const handleApiError = (error) => {
   const message = error.response?.data?.message || error.message || 'API request failed';
-  throw new Error(message);
+  const wrapped = new Error(message);
+  // Preserved so a screen can react to a specific status (e.g. 409 on a
+  // requestId conflict) with its own friendly message instead of the raw
+  // backend text, without every caller needing to parse error.response itself.
+  wrapped.status = error.response?.status;
+  throw wrapped;
 };
 
 export const apiService = {

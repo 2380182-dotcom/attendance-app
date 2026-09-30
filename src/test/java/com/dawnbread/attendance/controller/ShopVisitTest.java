@@ -294,6 +294,83 @@ class ShopVisitTest {
                 "Error should explain the distance, not just reject silently");
     }
 
+    /**
+     * Task 2 follow-up: confirms GPS distance recording and the geofence
+     * hard-gate both still apply to the new single combined voucher — a
+     * mixed SALE+RETURN submission, not just a SALE-only one — for BOTH
+     * roles. The distance/geofence code runs once per submitShopVisit call,
+     * before the per-item loop that builds SALE/RETURN lines, so the two
+     * concerns are independent in the implementation; this proves it, not
+     * just argues it.
+     */
+    @Test
+    void mixedSaleAndReturnInOneVisitStillRecordsGpsDistanceAndGeofenceGateForLmt() {
+        Agent salesman = seedAgent("SV_MIXED_GEOFENCE_LMT", "SALESMAN_LMT");
+        Product saleProduct = seedProduct();
+        Product returnProduct = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-MIXED-GEOFENCE-LMT", 0.0, 0.0, 100.0, true);
+        seedCompanyCheckIn(salesman);
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
+
+        Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0.0, 0.0, List.of(
+                item(saleProduct.getId(), 5, "SALE"),
+                item(returnProduct.getId(), 2, "RETURN")
+        ));
+        ResponseEntity<String> response = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+                .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
+                .findFirst().orElseThrow();
+        assertNotNull(saved.getDistanceFromShopMeters(), "Distance must be recorded on the merged record even with both SALE and RETURN lines");
+        assertTrue(saved.getDistanceFromShopMeters() < 150.0);
+
+        long saleLines = saleItemRepository.findAll().stream()
+                .filter(i -> i.getSalesRecord().getId().equals(saved.getId()) && i.getTransactionType() == TransactionType.SALE)
+                .count();
+        long returnLines = saleItemRepository.findAll().stream()
+                .filter(i -> i.getSalesRecord().getId().equals(saved.getId()) && i.getTransactionType() == TransactionType.RETURN)
+                .count();
+        assertEquals(1, saleLines, "The one merged voucher must hold the SALE line");
+        assertEquals(1, returnLines, "The one merged voucher must hold the RETURN line");
+
+        // Far away — the gate must still block a mixed submission exactly as it blocks a SALE-only one.
+        Product farSaleProduct = seedProduct();
+        Product farReturnProduct = seedProduct();
+        Map<String, Object> farBody = shopVisitBody(salesman.getId(), shop.getShopCode(), 0.0, 1.0, List.of(
+                item(farSaleProduct.getId(), 1, "SALE"),
+                item(farReturnProduct.getId(), 1, "RETURN")
+        ));
+        ResponseEntity<String> farResponse = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(farBody, token), String.class);
+        assertEquals(HttpStatus.BAD_REQUEST, farResponse.getStatusCode(), "The geofence gate must still block a mixed sale+return submission from too far away");
+    }
+
+    @Test
+    void mixedSaleAndReturnInOneVisitStillRecordsGpsDistanceForLocalSalesman() {
+        Agent salesman = seedAgent("SV_MIXED_GEOFENCE_LOCAL", "SALESMAN_LOCAL");
+        Product saleProduct = seedProduct();
+        Product returnProduct = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-MIXED-GEOFENCE-LOCAL", 0.0, 0.0, 100.0, true);
+        // No company check-in — SALESMAN_LOCAL has no duty concept, per submitShopVisit's own gate.
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LOCAL");
+
+        Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0.0, 0.0, List.of(
+                item(saleProduct.getId(), 3, "SALE"),
+                item(returnProduct.getId(), 1, "RETURN")
+        ));
+        ResponseEntity<String> response = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+                .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
+                .findFirst().orElseThrow();
+        assertNotNull(saved.getDistanceFromShopMeters(), "A Local salesman's shop always has a mandatory geofence, so distance must be recorded on the merged record");
+        assertTrue(saved.getDistanceFromShopMeters() < 150.0);
+    }
+
     @Test
     void shopWithGeoFencingDisabledSkipsTheHardGateEntirely() {
         Agent salesman = seedAgent("SV_SALESMAN_6", "SALESMAN_LMT");

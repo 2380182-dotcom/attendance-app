@@ -96,4 +96,9 @@ export const STRINGS = {
   },
   soldItems: { en: 'Sold Items', ur: 'فروخت شدہ اشیاء' },
   returnedItems: { en: 'Returned Items', ur: 'واپس شدہ اشیاء' },
+  alreadySavedTitle: { en: 'Already Saved?', ur: 'پہلے سے محفوظ؟' },
+  alreadySavedBody: {
+    en: 'This visit may already be saved. Please go back and start again.',
+    ur: 'یہ وزٹ پہلے سے محفوظ ہو چکا ہو سکتا ہے۔ براہ کرم واپس جا کر دوبارہ شروع کریں۔',
+  },
 };

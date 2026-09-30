@@ -294,7 +294,15 @@ export default function RecordVisitScreen({ route, navigation }) {
       setVoucher(saved);
     } catch (e) {
       console.error(e);
-      Alert.alert('Submission Failed', e.message || 'Error occurred while recording this sale.');
+      if (e.status === 409) {
+        // The backend's real message here mentions "requestId" — not something
+        // a salesman should ever see. This is the rare case where a previous
+        // attempt's response never reached the phone but the save may have
+        // actually gone through with different items than this retry.
+        Alert.alert('Already Saved?', 'This visit may already be saved. Please go back and start again.');
+      } else {
+        Alert.alert('Submission Failed', e.message || 'Error occurred while recording this sale.');
+      }
     } finally {
       setSubmitting(false);
     }

@@ -160,8 +160,16 @@ export default function LocalEntryScreen({ route, navigation }) {
       setVoucher(saved);
     } catch (e) {
       console.error(e);
-      // The server's message is plain English ("Too far from ...", "Duplicate entry ...").
-      Alert.alert(`${STRINGS.saveFailed.en} · ${STRINGS.saveFailed.ur}`, e.message || 'Error occurred while saving.');
+      if (e.status === 409) {
+        // The backend's real message here mentions "requestId" — not something
+        // a salesman should ever see. This is the rare case where a previous
+        // attempt's response never reached the phone but the save may have
+        // actually gone through with different items than this retry.
+        Alert.alert(`${STRINGS.alreadySavedTitle.en} · ${STRINGS.alreadySavedTitle.ur}`, `${STRINGS.alreadySavedBody.en}\n${STRINGS.alreadySavedBody.ur}`);
+      } else {
+        // The server's message is plain English ("Too far from ...", "Duplicate entry ...").
+        Alert.alert(`${STRINGS.saveFailed.en} · ${STRINGS.saveFailed.ur}`, e.message || 'Error occurred while saving.');
+      }
     } finally {
       setSaving(false);
     }

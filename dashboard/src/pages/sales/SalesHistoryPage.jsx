@@ -17,7 +17,7 @@ import { salesApi } from '../../services/salesApi';
 import { agentApi } from '../../services/attendanceApi';
 import { formatSaleTimeToKarachi } from '../../utils/dateUtils';
 import { sortRows, useSort } from '../../utils/sorting';
-import { aggregateProductMix, flattenSalesToLineItems } from '../../utils/salesAggregation';
+import { aggregateProductMix, computeRecordTotals, flattenSalesToLineItems } from '../../utils/salesAggregation';
 import { toCsv, downloadCsv } from '../../utils/csvExport';
 import SortableHeader from '../../components/SortableHeader';
 import LmtShopBreakdown from './LmtShopBreakdown';
@@ -302,11 +302,14 @@ function SalesHistoryPanel({ role }) {
       { key: 'saleTime', label: 'Time' },
       { key: 'location', label: 'Location' },
       { key: 'productName', label: 'Product' },
+      { key: 'transactionType', label: 'Type' },
       { key: 'quantity', label: 'Quantity' },
       { key: 'unitPrice', label: 'Unit Price' },
       { key: 'discountPercent', label: 'Discount %' },
       { key: 'lineTotal', label: 'Line Total' },
-      { key: 'saleTotalAmount', label: 'Sale Total' },
+      { key: 'saleTotalAmount', label: 'Sale Total (voucher)' },
+      { key: 'returnTotalAmount', label: 'Return Total (voucher)' },
+      { key: 'netTotalAmount', label: 'Net Total (voucher)' },
     ]);
     const agentLabel = activeAgents.data?.find((a) => a.id === selectedAgent)?.name || selectedAgent;
     downloadCsv(`sales-${agentLabel}-${rangeStart.format('YYYY-MM-DD')}-to-${rangeEnd.format('YYYY-MM-DD')}.csv`, csv);
@@ -475,30 +478,39 @@ function SalesHistoryPanel({ role }) {
                         <TableCell>Time</TableCell>
                         {isShopSeller && <TableCell>Shop</TableCell>}
                         <TableCell>Location</TableCell>
-                        <SortableHeader label="Amount" sortKey="totalAmount" sort={salesSort} onSort={onSalesSort} align="right" />
+                        <SortableHeader label="Sale Total" sortKey="totalAmount" sort={salesSort} onSort={onSalesSort} align="right" />
+                        <TableCell align="right">Return Total</TableCell>
+                        <TableCell align="right">Net Total</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {sortedAgentSales.length === 0 && (
-                        <TableRow><TableCell colSpan={isShopSeller ? 6 : 5} align="center">No sales in this date range.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={isShopSeller ? 8 : 7} align="center">No sales in this date range.</TableCell></TableRow>
                       )}
-                      {sortedAgentSales.map((record) => (
-                        <ExpandableRow
-                          key={record.id}
-                          colSpan={isShopSeller ? 6 : 5}
-                          items={record.items}
-                          showType={isShopSeller}
-                          collapsedCells={
-                            <>
-                              <TableCell>{record.saleDate}</TableCell>
-                              <TableCell>{formatSaleTimeToKarachi(record.saleDate, record.saleTime) || '—'}</TableCell>
-                              {isShopSeller && <TableCell>{record.customerShopName ? `${record.customerShopName} (${record.customerShopCode})` : '—'}</TableCell>}
-                              <TableCell>{record.location || '—'}</TableCell>
-                              <TableCell align="right">PKR {(record.totalAmount ?? 0).toLocaleString()}</TableCell>
-                            </>
-                          }
-                        />
-                      ))}
+                      {sortedAgentSales.map((record) => {
+                        const { saleTotal, returnTotal, netTotal } = computeRecordTotals(record);
+                        return (
+                          <ExpandableRow
+                            key={record.id}
+                            colSpan={isShopSeller ? 8 : 7}
+                            items={record.items}
+                            showType={isShopSeller}
+                            collapsedCells={
+                              <>
+                                <TableCell>{record.saleDate}</TableCell>
+                                <TableCell>{formatSaleTimeToKarachi(record.saleDate, record.saleTime) || '—'}</TableCell>
+                                {isShopSeller && <TableCell>{record.customerShopName ? `${record.customerShopName} (${record.customerShopCode})` : '—'}</TableCell>}
+                                <TableCell>{record.location || '—'}</TableCell>
+                                <TableCell align="right">PKR {saleTotal.toLocaleString()}</TableCell>
+                                <TableCell align="right">PKR {returnTotal.toLocaleString()}</TableCell>
+                                <TableCell align="right" sx={netTotal < 0 ? { color: 'error.main', fontWeight: 'bold' } : { fontWeight: 'bold' }}>
+                                  PKR {netTotal.toLocaleString()}
+                                </TableCell>
+                              </>
+                            }
+                          />
+                        );
+                      })}
                     </TableBody>
                   </Table></TableContainer>
                 </Paper>

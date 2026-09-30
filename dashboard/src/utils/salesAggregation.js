@@ -1,3 +1,18 @@
+/**
+ * One voucher per visit (Task 2): a SalesRecord's `totalAmount` is SALE-only
+ * (see SalesService.submitShopVisit) — RETURN lines never subtract from it.
+ * This derives the return total from the record's own items and the net
+ * (sale − return) the admin panel now shows per voucher, the same split the
+ * mobile confirm screen/voucher already show the salesman.
+ */
+export function computeRecordTotals(record) {
+  const saleTotal = record?.totalAmount ?? 0;
+  const returnTotal = (record?.items || [])
+    .filter((item) => item.transactionType === 'RETURN')
+    .reduce((sum, item) => sum + (item.totalPrice ?? 0), 0);
+  return { saleTotal, returnTotal, netTotal: saleTotal - returnTotal };
+}
+
 /** Aggregates a flat list of SaleItemDTO-shaped items into per-product totals, sorted by revenue desc. */
 export function aggregateProductMix(items) {
   const byProduct = new Map();
@@ -26,6 +41,7 @@ export function flattenSalesToLineItems(records, { getAgentName, getEmployeeId }
     const agentName = getAgentName ? getAgentName(record) : record.agentName;
     const employeeId = getEmployeeId ? getEmployeeId(record) : record.employeeId;
     const items = record.items && record.items.length > 0 ? record.items : [null];
+    const { saleTotal, returnTotal, netTotal } = computeRecordTotals(record);
     for (const item of items) {
       rows.push({
         agentName: agentName ?? '',
@@ -34,11 +50,14 @@ export function flattenSalesToLineItems(records, { getAgentName, getEmployeeId }
         saleTime: record.saleTime ?? '',
         location: record.location ?? '',
         productName: item?.productName ?? '',
+        transactionType: item?.transactionType ?? 'SALE',
         quantity: item?.quantity ?? '',
         unitPrice: item?.unitPrice ?? '',
         discountPercent: item?.discountPercent ?? '',
         lineTotal: item?.totalPrice ?? '',
-        saleTotalAmount: record.totalAmount ?? '',
+        saleTotalAmount: saleTotal,
+        returnTotalAmount: returnTotal,
+        netTotalAmount: netTotal,
       });
     }
   }
