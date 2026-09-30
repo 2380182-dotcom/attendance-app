@@ -72,6 +72,11 @@ export const customerShopApi = {
     const response = await api.patch(`/lmt/customer-shops/${id}/reactivate`);
     return unwrap(response);
   },
+  /** Task 3: assign/reassign (agentId) or unassign (agentId: null) a shop to an LMT salesman. Separate from update() — its "null means leave as-is" convention can't express an explicit unassign. */
+  async assign(id, agentId) {
+    const response = await api.put(`/lmt/customer-shops/${id}/assign`, { agentId });
+    return unwrap(response);
+  },
   async getProductDiscounts(shopId) {
     const response = await api.get(`/lmt/customer-shops/${shopId}/product-discounts`);
     return unwrap(response);
@@ -107,10 +112,17 @@ export const lmtStockApi = {
 };
 
 export const shopVisitApi = {
-  /** Every QR scan attempt (pass or fail) in a date range, across all salesmen or one. Management-only (ADMIN/HR/SALES). */
-  async getReport(startDate, endDate, agentId) {
-    const params = { startDate, endDate };
+  /**
+   * Task 3 — server-side paginated + filtered "QR / Shop Visits" report.
+   * Admin-only now (was ADMIN/HR/SALES). Returns a PageResponse shape:
+   * { content, page, size, totalElements, totalPages, hasNext }.
+   */
+  async getReport(startDate, endDate, { agentId, role, shopSearch, failedOnly, page = 0, size = 25 } = {}) {
+    const params = { startDate, endDate, page, size };
     if (agentId) params.agentId = agentId;
+    if (role) params.role = role;
+    if (shopSearch) params.shopSearch = shopSearch;
+    if (failedOnly) params.failedOnly = true;
     const response = await api.get('/lmt/shop-visits', { params });
     return unwrap(response);
   },
@@ -119,6 +131,29 @@ export const shopVisitApi = {
     const params = { agentId };
     if (date) params.date = date;
     const response = await api.get('/lmt/shop-visits/summary', { params });
+    return unwrap(response);
+  },
+  /** Task 3 "Not Visited" tab, paginated. role is required: 'SALESMAN_LMT' (assigned outlets not scanned) or 'SALESMAN_LOCAL' (every active unscanned shop). */
+  async getNotVisited(date, role, { agentId, shopSearch, page = 0, size = 25 } = {}) {
+    const params = { date, role, page, size };
+    if (agentId) params.agentId = agentId;
+    if (shopSearch) params.shopSearch = shopSearch;
+    const response = await api.get('/lmt/shop-visits/not-visited', { params });
+    return unwrap(response);
+  },
+  /** Task 3 summary counts (Total Shops / Visited / Not Visited / Voucher-Without-Scan) for one date + role. */
+  async getSummaryCounts(date, role, agentId) {
+    const params = { date, role };
+    if (agentId) params.agentId = agentId;
+    const response = await api.get('/lmt/shop-visits/summary-counts', { params });
+    return unwrap(response);
+  },
+  /** Task 3 "voucher without scan": a SalesRecord exists for this agent/shop/day but no successful QR scan does. */
+  async getVouchersWithoutScan(startDate, endDate, { agentId, role, page = 0, size = 25 } = {}) {
+    const params = { startDate, endDate, page, size };
+    if (agentId) params.agentId = agentId;
+    if (role) params.role = role;
+    const response = await api.get('/lmt/shop-visits/vouchers-without-scan', { params });
     return unwrap(response);
   },
 };

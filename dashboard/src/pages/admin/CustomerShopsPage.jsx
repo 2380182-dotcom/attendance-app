@@ -17,6 +17,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import { QRCodeCanvas } from 'qrcode.react';
 import { customerShopApi, areaApi } from '../../services/lmtApi';
 import { productApi } from '../../services/productApi';
+import { agentApi } from '../../services/attendanceApi';
 import { sortRows, useSort } from '../../utils/sorting';
 import { usePagination } from '../../utils/pagination';
 import SortableHeader from '../../components/SortableHeader';
@@ -24,8 +25,9 @@ import SortableHeader from '../../components/SortableHeader';
 const emptyForm = {
   shopCode: '', shopName: '', branch: '', address: '', phone: '', mobile: '', email: '',
   strn: '', ntn: '', areaId: '', latitude: '', longitude: '', radius: '', geoFencingEnabled: true,
-  discountPercent: '', qrRequired: false,
+  discountPercent: '', qrRequired: false, assignedAgentId: '',
 };
+const UNASSIGNED = '';
 
 /** Renders the shop's QR (encodes its shop code, nothing else) plus a Download PNG button. No new data — the code already exists. */
 function ShopQrCode({ shopCode }) {
@@ -69,6 +71,9 @@ export default function CustomerShopsPage() {
   const areas = useQuery({ queryKey: ['lmt-areas'], queryFn: areaApi.getAll });
   const activeAreas = useMemo(() => (areas.data || []).filter((a) => a.isActive), [areas.data]);
   const products = useQuery({ queryKey: ['products-pricing'], queryFn: productApi.getPricing });
+  const agents = useQuery({ queryKey: ['agents', 'all'], queryFn: () => agentApi.getAll() });
+  const lmtSalesmen = useMemo(() => (agents.data || []).filter((a) => a.role === 'SALESMAN_LMT'), [agents.data]);
+  const [originalAssignedAgentId, setOriginalAssignedAgentId] = useState('');
 
   const [search, setSearch] = useState('');
   const [sort, onSort] = useSort('shopCode', 'asc');
@@ -186,6 +191,10 @@ export default function CustomerShopsPage() {
     onSuccess: invalidate,
     onError: (e) => setActionError(e.response?.data?.message || 'Failed to reactivate shop.'),
   });
+  const assignMutation = useMutation({
+    mutationFn: ({ id, agentId }) => customerShopApi.assign(id, agentId),
+    onSuccess: invalidate,
+  });
 
   const filtered = useMemo(() => {
     const rows = shops.data || [];
@@ -202,6 +211,7 @@ export default function CustomerShopsPage() {
   const openCreateDialog = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setOriginalAssignedAgentId(UNASSIGNED);
     setFormError('');
     setLocationError('');
     setOverrideError('');
@@ -220,8 +230,9 @@ export default function CustomerShopsPage() {
       phone: shop.phone || '', mobile: shop.mobile || '', email: shop.email || '', strn: shop.strn || '', ntn: shop.ntn || '',
       areaId: shop.area?.id || '', latitude: shop.latitude ?? '', longitude: shop.longitude ?? '', radius: shop.radius ?? '',
       geoFencingEnabled: shop.geoFencingEnabled !== false, discountPercent: shop.discountPercent ?? '',
-      qrRequired: shop.qrRequired === true,
+      qrRequired: shop.qrRequired === true, assignedAgentId: shop.assignedAgentId || UNASSIGNED,
     });
+    setOriginalAssignedAgentId(shop.assignedAgentId || UNASSIGNED);
     setFormError('');
     setLocationError('');
     setOverrideError('');
@@ -307,6 +318,19 @@ export default function CustomerShopsPage() {
       }
       queryClient.invalidateQueries({ queryKey: ['lmt-shop-product-prices', savedShop.id] });
     }
+
+    // Separate call from the main save — update()'s "null means leave
+    // as-is" convention can't express an explicit unassign, so this only
+    // fires when the assignment actually changed.
+    if (form.assignedAgentId !== originalAssignedAgentId) {
+      try {
+        await assignMutation.mutateAsync({ id: savedShop.id, agentId: form.assignedAgentId || null });
+      } catch (e) {
+        setEditingId(savedShop.id);
+        setFormError(`Shop saved, but its assignment was not: ${e.response?.data?.message || 'please try Save again.'}`);
+        return;
+      }
+    }
     closeDialog();
   };
 
@@ -353,6 +377,7 @@ export default function CustomerShopsPage() {
               <SortableHeader label="Shop Code" sortKey="shopCode" sort={sort} onSort={onSort} />
               <SortableHeader label="Shop Name" sortKey="shopName" sort={sort} onSort={onSort} />
               <TableCell>Area</TableCell>
+              <TableCell>Assigned LMT</TableCell>
               <TableCell>Geofence</TableCell>
               <TableCell>QR</TableCell>
               <TableCell>Discount</TableCell>
@@ -362,13 +387,14 @@ export default function CustomerShopsPage() {
           </TableHead>
           <TableBody>
             {paged.length === 0 && (
-              <TableRow><TableCell colSpan={8} align="center">No customer shops match this filter.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} align="center">No customer shops match this filter.</TableCell></TableRow>
             )}
             {paged.map((shop) => (
               <TableRow key={shop.id} hover>
                 <TableCell>{shop.shopCode}</TableCell>
                 <TableCell>{shop.shopName}</TableCell>
                 <TableCell>{shop.area?.name || '—'}</TableCell>
+                <TableCell>{shop.assignedAgentName || <Typography variant="body2" color="text.secondary">Unassigned</Typography>}</TableCell>
                 <TableCell>
                   {shop.geoFencingEnabled && shop.latitude != null && shop.longitude != null && shop.radius != null
                     ? `${shop.radius}m`
@@ -541,6 +567,28 @@ export default function CustomerShopsPage() {
                 </Typography>
               </Grid>
             )}
+          </Grid>
+
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>LMT Assignment</Typography>
+          <Grid container spacing={2} sx={{ mb: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="shop-assigned-agent-label">Assigned LMT Salesman</InputLabel>
+                <Select
+                  labelId="shop-assigned-agent-label"
+                  label="Assigned LMT Salesman"
+                  value={form.assignedAgentId}
+                  onChange={(e) => setForm({ ...form, assignedAgentId: e.target.value })}
+                >
+                  <MenuItem value={UNASSIGNED}><em>Unassigned</em></MenuItem>
+                  {lmtSalesmen.map((a) => <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>)}
+                </Select>
+              </FormControl>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                Determines this shop's "Not Visited" attribution on the QR Scanned Shops report — Local shops are never assigned.
+              </Typography>
+            </Grid>
           </Grid>
 
           <Divider sx={{ mb: 2 }} />

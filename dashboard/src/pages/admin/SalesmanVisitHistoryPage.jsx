@@ -25,11 +25,12 @@ const STATUS_COLOR = { SUCCESS: 'success', INVALID_CODE: 'error', SHOP_INACTIVE:
 const STATUS_LABEL = { SUCCESS: 'Verified', INVALID_CODE: 'Invalid Code', SHOP_INACTIVE: 'Shop Inactive', OUTSIDE_GEOFENCE: 'Outside Geofence' };
 
 /**
- * QR shop-visit flow (Q4): "Ali Ahmed, Today's Visits: 8, ..." from the
- * spec's example screen — one salesman's scan history for one day, plus
- * the four summary counts, using GET /lmt/shop-visits/summary directly
- * (already returns exactly this shape). Same route-param/back-button
- * pattern as AgentProfilePage (HR's equivalent drill-down).
+ * QR shop-visit flow: "Ali Ahmed, Today's Visits: 8, ..." from the spec's
+ * example screen — one salesman's scan history for one day, plus the four
+ * summary counts, using GET /lmt/shop-visits/summary directly (already
+ * returns exactly this shape). Same route-param/back-button pattern as
+ * AgentProfilePage (HR's equivalent drill-down). Moved under /admin
+ * alongside QrShopVisitsPage (Task 3) — admin-only now, was Admin+HR+Sales.
  */
 export default function SalesmanVisitHistoryPage() {
   const { agentId } = useParams();

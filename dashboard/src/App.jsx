@@ -16,12 +16,12 @@ import SalesOverviewPage from './pages/sales/SalesOverviewPage';
 import SalesHistoryPage from './pages/sales/SalesHistoryPage';
 import ProductPricingPage from './pages/sales/ProductPricingPage';
 import LmtReconciliationPage from './pages/sales/LmtReconciliationPage';
-import QrShopVisitsPage from './pages/sales/QrShopVisitsPage';
-import SalesmanVisitHistoryPage from './pages/sales/SalesmanVisitHistoryPage';
 import HierarchyPeoplePage from './pages/admin/HierarchyPeoplePage';
 import AreasPage from './pages/admin/AreasPage';
 import CustomerShopsPage from './pages/admin/CustomerShopsPage';
 import LmtSettingsPage from './pages/admin/LmtSettingsPage';
+import QrShopVisitsPage from './pages/admin/QrShopVisitsPage';
+import SalesmanVisitHistoryPage from './pages/admin/SalesmanVisitHistoryPage';
 
 export default function App() {
   return (
@@ -56,8 +56,6 @@ export default function App() {
           <Route index element={<SalesOverviewPage />} />
           <Route path="history" element={<SalesHistoryPage />} />
           <Route path="reconciliation" element={<LmtReconciliationPage />} />
-          <Route path="qr-visits" element={<QrShopVisitsPage />} />
-          <Route path="qr-visits/:agentId" element={<SalesmanVisitHistoryPage />} />
           <Route path="pricing" element={<ProductPricingPage />} />
         </Route>
 
@@ -73,6 +71,8 @@ export default function App() {
           <Route path="areas" element={<AreasPage />} />
           <Route path="customer-shops" element={<CustomerShopsPage />} />
           <Route path="lmt-settings" element={<LmtSettingsPage />} />
+          <Route path="qr-visits" element={<QrShopVisitsPage />} />
+          <Route path="qr-visits/:agentId" element={<SalesmanVisitHistoryPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />
