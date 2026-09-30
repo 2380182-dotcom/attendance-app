@@ -1,6 +1,8 @@
 package com.dawnbread.attendance.repository;
 
 import com.dawnbread.attendance.entity.Attendance;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,24 +14,54 @@ import java.util.Optional;
 
 @Repository
 public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
-    
+
     // ===== CUSTOM FINDER METHODS =====
-    
-    List<Attendance> findByAgentId(Long agentId);
-    List<Attendance> findByMartId(Long martId);
-    List<Attendance> findByStatus(String status);
-    List<Attendance> findByCheckInTimeBetween(LocalDateTime startDateTime, LocalDateTime endDateTime);
+
+    // agent/mart are LAZY (see Attendance entity) and every DTO conversion
+    // downstream reads both, so every list-returning method here fetch-joins
+    // them — a to-one join, never a collection, so it's safe to combine with
+    // Pageable (only a collection fetch-join forces Hibernate's in-memory
+    // pagination, HHH90003004).
+    @Query("SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart WHERE a.agent.id = :agentId")
+    List<Attendance> findByAgentId(@Param("agentId") Long agentId);
+
+    @Query("SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart WHERE a.mart.id = :martId")
+    List<Attendance> findByMartId(@Param("martId") Long martId);
+
+    @Query("SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart WHERE a.status = :status")
+    List<Attendance> findByStatus(@Param("status") String status);
+
+    @Query("SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart " +
+            "WHERE a.checkInTime BETWEEN :startDateTime AND :endDateTime")
+    List<Attendance> findByCheckInTimeBetween(@Param("startDateTime") LocalDateTime startDateTime,
+                                               @Param("endDateTime") LocalDateTime endDateTime);
+
     List<Attendance> findByCheckOutTimeBetween(LocalDateTime startDateTime, LocalDateTime endDateTime);
-    List<Attendance> findByAgentIdAndCheckInTimeBetween(Long agentId, LocalDateTime startDateTime, LocalDateTime endDateTime);
-    List<Attendance> findByAgentIdInAndCheckInTimeBetween(List<Long> agentIds, LocalDateTime startDateTime, LocalDateTime endDateTime);
+
+    @Query("SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart " +
+            "WHERE a.agent.id = :agentId AND a.checkInTime BETWEEN :startDateTime AND :endDateTime")
+    List<Attendance> findByAgentIdAndCheckInTimeBetween(@Param("agentId") Long agentId,
+                                                         @Param("startDateTime") LocalDateTime startDateTime,
+                                                         @Param("endDateTime") LocalDateTime endDateTime);
+
+    @Query("SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart " +
+            "WHERE a.agent.id IN :agentIds AND a.checkInTime BETWEEN :startDateTime AND :endDateTime")
+    List<Attendance> findByAgentIdInAndCheckInTimeBetween(@Param("agentIds") List<Long> agentIds,
+                                                           @Param("startDateTime") LocalDateTime startDateTime,
+                                                           @Param("endDateTime") LocalDateTime endDateTime);
+
     List<Attendance> findByMartIdAndCheckInTimeBetween(Long martId, LocalDateTime startDateTime, LocalDateTime endDateTime);
     List<Attendance> findByAgentIdAndStatus(Long agentId, String status);
-    
-    @Query("SELECT a FROM Attendance a WHERE a.checkOutTime IS NULL")
+
+    @Query("SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart WHERE a.checkOutTime IS NULL")
     List<Attendance> findOpenAttendance();
-    
+
     @Query("SELECT a FROM Attendance a WHERE a.agent.id = :agentId AND a.checkOutTime IS NULL")
     Optional<Attendance> findOpenAttendanceByAgentId(@Param("agentId") Long agentId);
+
+    @Query(value = "SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart",
+            countQuery = "SELECT COUNT(a) FROM Attendance a")
+    Page<Attendance> findAllWithAgentAndMart(Pageable pageable);
     
     // ===== JPQL QUERIES =====
     
@@ -51,13 +83,14 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     @Query("SELECT a FROM Attendance a WHERE DATE(a.checkInTime) = DATE(:date)")
     List<Attendance> getDailyAttendanceReport(@Param("date") LocalDateTime date);
     
-    @Query("SELECT a FROM Attendance a WHERE a.agent.id = :agentId " +
+    @Query("SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart WHERE a.agent.id = :agentId " +
            "AND YEAR(a.checkInTime) = :year AND MONTH(a.checkInTime) = :month")
     List<Attendance> getMonthlyAttendanceReportForAgent(@Param("agentId") Long agentId,
                                                          @Param("year") int year,
                                                          @Param("month") int month);
-    
-    @Query("SELECT a FROM Attendance a WHERE a.checkInTime BETWEEN :startDate AND :endDate AND a.status = :status")
+
+    @Query("SELECT a FROM Attendance a LEFT JOIN FETCH a.agent LEFT JOIN FETCH a.mart " +
+            "WHERE a.checkInTime BETWEEN :startDate AND :endDate AND a.status = :status")
     List<Attendance> findByDateRangeAndStatus(@Param("startDate") LocalDateTime startDate,
                                                @Param("endDate") LocalDateTime endDate,
                                                @Param("status") String status);

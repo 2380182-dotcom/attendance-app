@@ -296,7 +296,7 @@ public class AttendanceService {
 
     /** Every attendance record, every agent, unscoped — paginated since this table grows without bound. */
     public Page<Attendance> getAllAttendance(Pageable pageable) {
-        return attendanceRepository.findAll(pageable);
+        return attendanceRepository.findAllWithAgentAndMart(pageable);
     }
 
     /**
