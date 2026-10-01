@@ -46,20 +46,27 @@ public interface ShopVisitScanRepository extends JpaRepository<ShopVisitScan, Lo
      * to filter by role; a to-one fetch join on customerShop, never a
      * collection, so this is safe to combine with Pageable (only a
      * collection fetch-join forces Hibernate's in-memory pagination).
-     * Every filter parameter is optional (null = don't filter on it).
+     * Every filter parameter is optional. :role and :shopSearch are Strings
+     * — "" means no filter, never null (see PostgresCompatibilityTest: a
+     * null String bound inside LOWER(CONCAT(...)) or compared via "=" makes
+     * Postgres infer the parameter as bytea and throw "function lower
+     * (bytea) does not exist" — a real production outage, invisible on H2,
+     * which accepts the untyped null fine). :agentId stays "IS NULL OR ..."
+     * — a typed Long parameter doesn't hit this inference problem
+     * (confirmed on real Postgres by the same test).
      */
     @Query(value = "SELECT s FROM ShopVisitScan s LEFT JOIN FETCH s.customerShop sh JOIN Agent a ON a.id = s.agentId " +
             "WHERE s.scanDate BETWEEN :startDate AND :endDate " +
             "AND (:agentId IS NULL OR s.agentId = :agentId) " +
-            "AND (:role IS NULL OR a.role = :role) " +
-            "AND (:shopSearch IS NULL OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%'))) " +
+            "AND (:role = '' OR a.role = :role) " +
+            "AND (:shopSearch = '' OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%'))) " +
             "AND (:failedOnly = false OR s.visitStatus <> com.dawnbread.attendance.entity.ShopVisitStatus.SUCCESS) " +
             "ORDER BY s.scanDate DESC, s.scanTime DESC",
             countQuery = "SELECT COUNT(s) FROM ShopVisitScan s LEFT JOIN s.customerShop sh JOIN Agent a ON a.id = s.agentId " +
             "WHERE s.scanDate BETWEEN :startDate AND :endDate " +
             "AND (:agentId IS NULL OR s.agentId = :agentId) " +
-            "AND (:role IS NULL OR a.role = :role) " +
-            "AND (:shopSearch IS NULL OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%'))) " +
+            "AND (:role = '' OR a.role = :role) " +
+            "AND (:shopSearch = '' OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%'))) " +
             "AND (:failedOnly = false OR s.visitStatus <> com.dawnbread.attendance.entity.ShopVisitStatus.SUCCESS)")
     Page<ShopVisitScan> findFiltered(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate,
                                       @Param("agentId") Long agentId, @Param("role") String role,

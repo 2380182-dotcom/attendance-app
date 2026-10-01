@@ -201,7 +201,12 @@ public class SalesService {
     }
 
     public List<SalesDTO> searchSales(String agentName, LocalDate date, String storeName) {
-        List<SalesRecord> records = salesRecordRepository.searchSales(agentName, date, storeName);
+        // Postgres-safe: the repository compares these via "= '' OR ..."
+        // inside LOWER(CONCAT(...)), never "IS NULL OR ..." — never pass a
+        // null string through to that query (see searchSales's own doc).
+        String safeAgentName = agentName == null ? "" : agentName;
+        String safeStoreName = storeName == null ? "" : storeName;
+        List<SalesRecord> records = salesRecordRepository.searchSales(safeAgentName, date, safeStoreName);
         return records.stream().map(this::convertToDTO).collect(Collectors.toList());
     }
 

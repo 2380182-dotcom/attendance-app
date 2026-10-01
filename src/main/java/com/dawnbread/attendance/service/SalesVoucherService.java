@@ -41,7 +41,9 @@ public class SalesVoucherService {
     private SalesRecordRepository salesRecordRepository;
 
     public Page<VoucherShopSummaryDTO> getShopSummaries(String role, String shopSearch, Pageable pageable) {
-        String normalizedSearch = (shopSearch == null || shopSearch.isBlank()) ? null : shopSearch.trim();
+        // "" means no filter — never null (see findShopVoucherSummaries's doc: a
+        // null string bound inside LOWER(CONCAT(...)) crashes on Postgres).
+        String normalizedSearch = (shopSearch == null || shopSearch.isBlank()) ? "" : shopSearch.trim();
         return salesRecordRepository.findShopVoucherSummaries(role, normalizedSearch, pageable);
     }
 

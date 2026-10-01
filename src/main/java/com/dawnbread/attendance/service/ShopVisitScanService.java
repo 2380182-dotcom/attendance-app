@@ -203,9 +203,12 @@ public class ShopVisitScanService {
     public Page<ShopVisitScanRecordDTO> getPagedReport(LocalDate startDate, LocalDate endDate, Long agentId,
                                                          String role, String shopSearch, boolean failedOnly,
                                                          Pageable pageable) {
+        // "" means no filter for these two String params — never null (see
+        // findFiltered's doc: a null String bound inside LOWER(CONCAT(...))
+        // or compared via "=" crashes on real Postgres).
         Page<ShopVisitScan> page = shopVisitScanRepository.findFiltered(
-                startDate, endDate, agentId, role,
-                (shopSearch == null || shopSearch.isBlank()) ? null : shopSearch.trim(),
+                startDate, endDate, agentId, role == null ? "" : role,
+                (shopSearch == null || shopSearch.isBlank()) ? "" : shopSearch.trim(),
                 failedOnly, pageable);
 
         Set<String> voucheredKeys = new HashSet<>();

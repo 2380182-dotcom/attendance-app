@@ -119,6 +119,26 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
+        <!-- Testcontainers: real Postgres 15 for tests H2 can't be trusted
+             for (see PostgresCompatibilityTest) — H2 silently accepts SQL
+             that Postgres rejects (untyped null parameters inside
+             LOWER()/CONCAT(), confirmed by a real production outage). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

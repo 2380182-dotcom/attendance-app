@@ -43,10 +43,19 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
                                                        @Param("start") LocalDate start,
                                                        @Param("end") LocalDate end);
 
+    // Postgres-safe pattern (see PostgresCompatibilityTest): a String param
+    // compared only via "= '' OR LOWER(...)", never "IS NULL OR" — an
+    // untyped null bound inside LOWER(CONCAT(...)) makes Postgres infer the
+    // parameter as bytea ("function lower(bytea) does not exist"), a real
+    // production outage H2 never catches since it accepts the untyped null
+    // fine. Callers pass "" for "no filter", never null (see SalesService
+    // .searchSales). LocalDate :date is fine as "IS NULL OR" — a typed
+    // date parameter doesn't hit this inference problem (confirmed on
+    // real Postgres by the same test).
     @Query("SELECT DISTINCT sr FROM SalesRecord sr LEFT JOIN FETCH sr.items JOIN FETCH sr.agent a WHERE " +
-            "(:agentName IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', :agentName, '%'))) AND " +
+            "(:agentName = '' OR LOWER(a.name) LIKE LOWER(CONCAT('%', :agentName, '%'))) AND " +
             "(:date IS NULL OR sr.saleDate = :date) AND " +
-            "(:storeName IS NULL OR LOWER(sr.storeName) LIKE LOWER(CONCAT('%', :storeName, '%')) OR LOWER(sr.location) LIKE LOWER(CONCAT('%', :storeName, '%'))) " +
+            "(:storeName = '' OR LOWER(sr.storeName) LIKE LOWER(CONCAT('%', :storeName, '%')) OR LOWER(sr.location) LIKE LOWER(CONCAT('%', :storeName, '%'))) " +
             "ORDER BY sr.saleDate DESC, sr.saleTime DESC")
     List<SalesRecord> searchSales(@Param("agentName") String agentName,
                                   @Param("date") LocalDate date,
@@ -102,7 +111,9 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
      * time (agentRoleAtSale) with a fallback to the live agent.role join
      * for every record that predates this field, so an agent's later role
      * change never retroactively moves an already-existing voucher.
-     * :shopSearch is optional (null = no filter).
+     * :shopSearch is optional — "" means no filter (never null; see
+     * searchSales's doc for why "= '' OR ..." replaces "IS NULL OR ..."
+     * here — a real production outage on Postgres 15, invisible on H2).
      */
     @Query(value = "SELECT new com.dawnbread.attendance.dto.VoucherShopSummaryDTO(" +
             "sh.id, sh.shopCode, sh.shopName, sh.branch, COUNT(DISTINCT sr.id), " +
@@ -112,12 +123,12 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
             "MAX(sr.saleDate)) " +
             "FROM SalesRecord sr JOIN sr.items si JOIN sr.customerShop sh " +
             "WHERE COALESCE(sr.agentRoleAtSale, sr.agent.role) = :role " +
-            "AND (:shopSearch IS NULL OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%'))) " +
+            "AND (:shopSearch = '' OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%'))) " +
             "GROUP BY sh.id, sh.shopCode, sh.shopName, sh.branch " +
             "ORDER BY MAX(sr.saleDate) DESC",
             countQuery = "SELECT COUNT(DISTINCT sh.id) FROM SalesRecord sr JOIN sr.customerShop sh " +
             "WHERE COALESCE(sr.agentRoleAtSale, sr.agent.role) = :role " +
-            "AND (:shopSearch IS NULL OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%')))")
+            "AND (:shopSearch = '' OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%')))")
     Page<VoucherShopSummaryDTO> findShopVoucherSummaries(@Param("role") String role,
                                                           @Param("shopSearch") String shopSearch,
                                                           Pageable pageable);
