@@ -246,39 +246,63 @@ public class ShopVisitScanService {
     }
 
     private static final String ROLE_LMT = "SALESMAN_LMT";
+    private static final String ROLE_LOCAL = "SALESMAN_LOCAL";
 
     /**
-     * Task 3 "Not Visited" — LMT means the salesman's ASSIGNED outlets
-     * weren't scanned (per your decision to build real assignment rather
-     * than approximate it); Local means every active shop with no
-     * successful scan at all, since Local has no assignment concept —
-     * labeled via NotVisitedShopDTO.assignedAgentId staying null.
+     * Task 3/4 "Not Visited" — corrected to treat Local and LMT identically:
+     * both mean the salesman's ASSIGNED outlets weren't scanned. Assignment
+     * (CustomerShop.assignedAgent) is the ONE mechanism for both sections —
+     * there was never a separate pre-existing one (confirmed by a full
+     * codebase/git-history audit) — so this simply reads it, filtered by
+     * the assigned agent's role. An active shop with NO salesman assigned
+     * is deliberately excluded here (it belongs in the separate
+     * "Unassigned — not scanned" list below, not silently folded into
+     * either section's Not Visited count).
      */
     private List<NotVisitedShopDTO> computeNotVisited(LocalDate date, String role, Long agentId) {
         List<NotVisitedShopDTO> result = new ArrayList<>();
-        if (ROLE_LMT.equals(role)) {
-            List<CustomerShop> assignedShops = agentId != null
-                    ? customerShopRepository.findByIsActiveTrueAndAssignedAgentId(agentId)
-                    : customerShopRepository.findByIsActiveTrueAndAssignedAgentIsNotNull();
-            Map<Long, Set<Long>> scannedByAgent = new HashMap<>();
-            for (CustomerShop shop : assignedShops) {
-                Long shopAgentId = shop.getAssignedAgent().getId();
-                Set<Long> scanned = scannedByAgent.computeIfAbsent(shopAgentId,
-                        id -> shopVisitScanRepository.findSuccessfullyScannedShopIdsForAgentAndDate(id, date));
-                if (!scanned.contains(shop.getId())) {
-                    result.add(toNotVisitedDTO(shop, "LMT"));
-                }
-            }
-        } else {
-            List<CustomerShop> activeShops = customerShopRepository.findByIsActiveTrueWithArea();
-            Set<Long> scannedShopIds = shopVisitScanRepository.findSuccessfullyScannedShopIdsForDate(date);
-            for (CustomerShop shop : activeShops) {
-                if (!scannedShopIds.contains(shop.getId())) {
-                    result.add(toNotVisitedDTO(shop, "LOCAL"));
-                }
+        String label = ROLE_LOCAL.equals(role) ? "LOCAL" : "LMT";
+        List<CustomerShop> assignedShops = agentId != null
+                ? customerShopRepository.findByIsActiveTrueAndAssignedAgentId(agentId)
+                : customerShopRepository.findByIsActiveTrueAndAssignedAgentRole(role);
+        Map<Long, Set<Long>> scannedByAgent = new HashMap<>();
+        for (CustomerShop shop : assignedShops) {
+            Long shopAgentId = shop.getAssignedAgent().getId();
+            Set<Long> scanned = scannedByAgent.computeIfAbsent(shopAgentId,
+                    id -> shopVisitScanRepository.findSuccessfullyScannedShopIdsForAgentAndDate(id, date));
+            if (!scanned.contains(shop.getId())) {
+                result.add(toNotVisitedDTO(shop, label));
             }
         }
         return result;
+    }
+
+    /**
+     * Task 4 correction: active shops with NO salesman assigned at all,
+     * that also weren't scanned on this date — a separate list from
+     * computeNotVisited so an unassigned shop is never simply invisible to
+     * either report. Not scoped to a role or agent — an unassigned shop
+     * has no section of its own, so it's the same list under both tabs.
+     */
+    private List<NotVisitedShopDTO> computeUnassignedNotScanned(LocalDate date) {
+        List<CustomerShop> unassignedShops = customerShopRepository.findByIsActiveTrueAndAssignedAgentIsNull();
+        Set<Long> scannedShopIds = shopVisitScanRepository.findSuccessfullyScannedShopIdsForDate(date);
+        return unassignedShops.stream()
+                .filter(shop -> !scannedShopIds.contains(shop.getId()))
+                .map(shop -> toNotVisitedDTO(shop, "UNASSIGNED"))
+                .collect(Collectors.toList());
+    }
+
+    public Page<NotVisitedShopDTO> getUnassignedNotScanned(LocalDate date, String shopSearch, Pageable pageable) {
+        List<NotVisitedShopDTO> all = computeUnassignedNotScanned(date);
+        if (shopSearch != null && !shopSearch.isBlank()) {
+            String q = shopSearch.trim().toLowerCase();
+            all = all.stream()
+                    .filter(d -> (d.getShopName() != null && d.getShopName().toLowerCase().contains(q))
+                            || (d.getShopCode() != null && d.getShopCode().toLowerCase().contains(q)))
+                    .collect(Collectors.toList());
+        }
+        return paginate(all, pageable);
     }
 
     public Page<NotVisitedShopDTO> getNotVisited(LocalDate date, String role, Long agentId, String shopSearch, Pageable pageable) {
@@ -293,16 +317,17 @@ public class ShopVisitScanService {
         return paginate(all, pageable);
     }
 
-    /** Task 3 summary counts (Total Shops / Visited / Not Visited / Voucher-Without-Scan) for one date + role. */
+    /**
+     * Task 3/4 summary counts (Total Shops / Visited / Not Visited /
+     * Voucher-Without-Scan) for one date + role. Total/Visited/Not Visited
+     * are scoped to shops ASSIGNED to this role now (Local and LMT treated
+     * identically) — an unassigned shop is never counted here; see
+     * getUnassignedNotScanned for that separate bucket.
+     */
     public QrVisitSummaryDTO getSummaryCounts(LocalDate date, String role, Long agentId) {
-        int totalShops;
-        if (ROLE_LMT.equals(role)) {
-            totalShops = agentId != null
-                    ? customerShopRepository.findByIsActiveTrueAndAssignedAgentId(agentId).size()
-                    : customerShopRepository.findByIsActiveTrueAndAssignedAgentIsNotNull().size();
-        } else {
-            totalShops = customerShopRepository.findByIsActiveTrueWithArea().size();
-        }
+        int totalShops = agentId != null
+                ? customerShopRepository.findByIsActiveTrueAndAssignedAgentId(agentId).size()
+                : customerShopRepository.findByIsActiveTrueAndAssignedAgentRole(role).size();
         int notVisited = computeNotVisited(date, role, agentId).size();
         int visited = totalShops - notVisited;
         int voucherWithoutScan = computeVouchersWithoutScan(date, date, agentId, role).size();

@@ -1,9 +1,11 @@
 package com.dawnbread.attendance.service;
 
+import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Area;
 import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.entity.LmtSettings;
 import com.dawnbread.attendance.entity.Tenant;
+import com.dawnbread.attendance.repository.AgentRepository;
 import com.dawnbread.attendance.repository.AreaRepository;
 import com.dawnbread.attendance.repository.CustomerShopRepository;
 import com.dawnbread.attendance.repository.LmtSettingsRepository;
@@ -19,6 +21,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -47,6 +52,9 @@ class CustomerShopServiceTest {
 
     @Autowired
     private CustomerShopService customerShopService;
+
+    @Autowired
+    private AgentRepository agentRepository;
 
     @BeforeEach
     void setTenantContext() {
@@ -108,6 +116,72 @@ class CustomerShopServiceTest {
         shop.setIsActive(true);
         shop.setCreatedAt(LocalDateTime.now());
         return customerShopRepository.save(shop);
+    }
+
+    private Agent seedAgent(String agentId, String role) {
+        Agent agent = new Agent();
+        agent.setTenantId(tenantId());
+        agent.setAgentId(agentId);
+        agent.setName("Seed " + agentId);
+        agent.setEmail(agentId.toLowerCase() + "@example.com");
+        agent.setRole(role);
+        agent.setCreatedAt(LocalDateTime.now());
+        return agentRepository.save(agent);
+    }
+
+    // ===== Task 4 correction: assignment is the ONE mechanism for both Local and LMT =====
+
+    @Test
+    void aShopCanBeAssignedToALocalSalesman() {
+        CustomerShop shop = seedShop(BASE_LAT, BASE_LON, 100, true);
+        Agent local = seedAgent("ASSIGN_LOCAL_" + System.nanoTime(), "SALESMAN_LOCAL");
+
+        CustomerShop updated = customerShopService.assignToAgent(shop.getId(), local.getId());
+
+        assertEquals(local.getId(), updated.getAssignedAgent().getId());
+    }
+
+    @Test
+    void aShopCanBeAssignedToAnLmtSalesman() {
+        CustomerShop shop = seedShop(BASE_LAT, BASE_LON, 100, true);
+        Agent lmt = seedAgent("ASSIGN_LMT_" + System.nanoTime(), "SALESMAN_LMT");
+
+        CustomerShop updated = customerShopService.assignToAgent(shop.getId(), lmt.getId());
+
+        assertEquals(lmt.getId(), updated.getAssignedAgent().getId());
+    }
+
+    @Test
+    void assigningToANonSalesmanRoleIsRejected() {
+        CustomerShop shop = seedShop(BASE_LAT, BASE_LON, 100, true);
+        Agent admin = seedAgent("ASSIGN_ADMIN_" + System.nanoTime(), "ADMIN");
+
+        assertThrows(RuntimeException.class, () -> customerShopService.assignToAgent(shop.getId(), admin.getId()));
+    }
+
+    @Test
+    void passingNullAgentIdUnassignsTheShop() {
+        CustomerShop shop = seedShop(BASE_LAT, BASE_LON, 100, true);
+        Agent local = seedAgent("ASSIGN_UNASSIGN_" + System.nanoTime(), "SALESMAN_LOCAL");
+        customerShopService.assignToAgent(shop.getId(), local.getId());
+
+        CustomerShop updated = customerShopService.assignToAgent(shop.getId(), null);
+
+        assertNull(updated.getAssignedAgent());
+    }
+
+    @Test
+    void shopRegistrationCanAssignALocalSalesmanDirectly() {
+        Agent local = seedAgent("CREATE_ASSIGN_LOCAL_" + System.nanoTime(), "SALESMAN_LOCAL");
+        com.dawnbread.attendance.dto.CustomerShopCreateDTO dto = new com.dawnbread.attendance.dto.CustomerShopCreateDTO();
+        dto.setShopCode("CREATE_ASSIGN_" + System.nanoTime());
+        dto.setShopName("Create-Assign Test Shop");
+        dto.setAreaId(seedArea().getId());
+        dto.setAssignedAgentId(local.getId());
+
+        CustomerShop created = customerShopService.create(dto);
+
+        assertEquals(local.getId(), created.getAssignedAgent().getId());
     }
 
     @Test

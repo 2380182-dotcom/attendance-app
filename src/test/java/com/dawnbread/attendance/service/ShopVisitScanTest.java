@@ -628,12 +628,18 @@ class ShopVisitScanTest {
         seedScan(lmtA, shopA, today, ShopVisitStatus.SUCCESS); // A's shop IS scanned
         // B's shop is never scanned
 
+        // agentId=null scans EVERY LMT-assigned shop in the shared full-suite
+        // database, so (like the old Local-global test) exact counts aren't
+        // safe here — other test classes assign LMT shops too. Containment
+        // assertions instead, same established pattern.
         var page = shopVisitScanService.getNotVisited(today, "SALESMAN_LMT", null, null,
-                org.springframework.data.domain.PageRequest.of(0, 50));
+                org.springframework.data.domain.PageRequest.of(0, 1000));
 
-        assertEquals(1, page.getTotalElements());
-        assertEquals(shopB.getId(), page.getContent().get(0).getShopId());
-        assertEquals(lmtB.getId(), page.getContent().get(0).getAssignedAgentId());
+        assertTrue(page.getContent().stream().anyMatch(d -> d.getShopId().equals(shopB.getId())
+                        && lmtB.getId().equals(d.getAssignedAgentId())),
+                "B's unscanned assigned shop must appear, attributed to B");
+        assertTrue(page.getContent().stream().noneMatch(d -> d.getShopId().equals(shopA.getId())),
+                "A's scanned shop must NOT appear");
     }
 
     @Test
@@ -647,26 +653,45 @@ class ShopVisitScanTest {
         assertEquals(0, page.getTotalElements());
     }
 
+    /**
+     * Task 4 correction: Local now works exactly like LMT — a shop's
+     * assignment (CustomerShop.assignedAgent) is the one mechanism for
+     * both sections, so "Not Visited" always means "this salesman's
+     * assigned-but-unscanned shops," never "every active shop."
+     */
     @Test
-    void localNotVisitedShowsEveryActiveUnscannedShopRegardlessOfAssignment() {
+    void localNotVisitedShowsOnlyThisSalesmansAssignedButUnscannedShops() {
         Agent local = seedLocal("NV_LOCAL_1");
-        CustomerShop scanned = seedShop(true, false);
-        CustomerShop unscanned = seedShop(true, false);
+        Agent otherLocal = seedLocal("NV_LOCAL_2");
+        CustomerShop assignedScanned = seedShop(true, false);
+        CustomerShop assignedUnscanned = seedShop(true, false);
+        CustomerShop notAssignedToThisAgent = seedShop(true, false);
+        assignShop(assignedScanned, local);
+        assignShop(assignedUnscanned, local);
+        assignShop(notAssignedToThisAgent, otherLocal);
         LocalDate today = LocalDate.now();
-        seedScan(local, scanned, today, ShopVisitStatus.SUCCESS);
+        seedScan(local, assignedScanned, today, ShopVisitStatus.SUCCESS);
 
-        // Not asserting an exact total: the full suite shares one DB across
-        // test classes, so other tests' own active shops for "today" are
-        // also legitimately present here. Assert containment instead.
-        var page = shopVisitScanService.getNotVisited(today, "SALESMAN_LOCAL", null, null,
-                org.springframework.data.domain.PageRequest.of(0, 1000));
+        var page = shopVisitScanService.getNotVisited(today, "SALESMAN_LOCAL", local.getId(), null,
+                org.springframework.data.domain.PageRequest.of(0, 50));
 
-        assertTrue(page.getContent().stream().anyMatch(d -> d.getShopId().equals(unscanned.getId())),
-                "The unscanned shop must appear in Not Visited");
-        assertTrue(page.getContent().stream().noneMatch(d -> d.getShopId().equals(scanned.getId())),
-                "The scanned shop must NOT appear in Not Visited");
-        var unscannedRow = page.getContent().stream().filter(d -> d.getShopId().equals(unscanned.getId())).findFirst().orElseThrow();
-        assertNull(unscannedRow.getAssignedAgentId(), "Local rows are never assigned to anyone, even if the shop happens to have an LMT assignment");
+        assertEquals(1, page.getTotalElements(), "Only the assigned-but-unscanned shop should appear — not the scanned one, not another salesman's shop");
+        assertEquals(assignedUnscanned.getId(), page.getContent().get(0).getShopId());
+        assertEquals(local.getId(), page.getContent().get(0).getAssignedAgentId());
+    }
+
+    /** An LMT-assigned shop must never leak into the Local report just because assignment is now one shared mechanism. */
+    @Test
+    void anLmtAssignedShopNeverAppearsInLocalNotVisited() {
+        Agent local = seedLocal("NV_LOCAL_XROLE");
+        Agent lmt = seedLmt("NV_LMT_XROLE");
+        CustomerShop lmtShop = seedShop(true, false);
+        assignShop(lmtShop, lmt);
+
+        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LOCAL", local.getId(), null,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(0, page.getTotalElements(), "An LMT salesman's assigned shop must not show up under Local, even scoped to a different agent");
     }
 
     @Test
@@ -675,13 +700,43 @@ class ShopVisitScanTest {
         CustomerShop shop = seedShop(true, false);
         shop.setShopName("Findable Bakery");
         customerShopRepository.save(shop);
-        seedShop(true, false); // a second, unrelated unscanned shop
+        assignShop(shop, local);
+        CustomerShop unrelated = seedShop(true, false); // a second assigned-but-unscanned shop that shouldn't match the search
+        assignShop(unrelated, local);
 
-        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LOCAL", null, "findable",
+        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LOCAL", local.getId(), "findable",
                 org.springframework.data.domain.PageRequest.of(0, 50));
 
         assertEquals(1, page.getTotalElements());
         assertEquals(shop.getId(), page.getContent().get(0).getShopId());
+    }
+
+    /** Task 4: an active, wholly unassigned shop must show up in the separate "Unassigned" bucket, for both sections, never silently disappear. */
+    @Test
+    void unassignedActiveShopAppearsInUnassignedNotScannedForBothSections() {
+        CustomerShop unassigned = seedShop(true, false); // never assigned to anyone
+
+        var page = shopVisitScanService.getUnassignedNotScanned(LocalDate.now(), null,
+                org.springframework.data.domain.PageRequest.of(0, 1000));
+
+        assertTrue(page.getContent().stream().anyMatch(d -> d.getShopId().equals(unassigned.getId())),
+                "An unassigned active shop must appear in the Unassigned — Not Scanned list");
+        var row = page.getContent().stream().filter(d -> d.getShopId().equals(unassigned.getId())).findFirst().orElseThrow();
+        assertNull(row.getAssignedAgentId(), "An unassigned row must carry no agent id");
+    }
+
+    /** An assigned shop (Local or LMT) must never also appear in the Unassigned bucket — it's one or the other, never both. */
+    @Test
+    void anAssignedShopNeverAppearsInUnassignedNotScanned() {
+        Agent local = seedLocal("NV_UNASSIGNED_XCHECK");
+        CustomerShop assigned = seedShop(true, false);
+        assignShop(assigned, local);
+
+        var page = shopVisitScanService.getUnassignedNotScanned(LocalDate.now(), null,
+                org.springframework.data.domain.PageRequest.of(0, 1000));
+
+        assertTrue(page.getContent().stream().noneMatch(d -> d.getShopId().equals(assigned.getId())),
+                "A shop that IS assigned must never appear in the Unassigned list");
     }
 
     @Test

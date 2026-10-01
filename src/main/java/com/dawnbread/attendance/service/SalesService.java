@@ -546,6 +546,9 @@ public class SalesService {
         record.setTotalUnits(itemsToSave.stream().mapToInt(SaleItem::getQuantity).sum());
         record.setStatus("PENDING");
         record.setRequestId(requestId != null && !requestId.isBlank() ? requestId : null);
+        // Task 4: snapshot the role NOW so this voucher's Local/LMT section
+        // membership can never change later even if this agent's role does.
+        record.setAgentRoleAtSale(agent.getRole());
 
         for (SaleItem item : itemsToSave) {
             record.addItem(item);

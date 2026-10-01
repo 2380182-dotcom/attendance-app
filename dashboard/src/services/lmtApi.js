@@ -141,6 +141,13 @@ export const shopVisitApi = {
     const response = await api.get('/lmt/shop-visits/not-visited', { params });
     return unwrap(response);
   },
+  /** Task 4 correction: active shops with no salesman assigned at all, not scanned on this date — not role-scoped, same list under both Local and LMT tabs. */
+  async getUnassignedNotScanned(date, { shopSearch, page = 0, size = 25 } = {}) {
+    const params = { date, page, size };
+    if (shopSearch) params.shopSearch = shopSearch;
+    const response = await api.get('/lmt/shop-visits/unassigned-not-scanned', { params });
+    return unwrap(response);
+  },
   /** Task 3 summary counts (Total Shops / Visited / Not Visited / Voucher-Without-Scan) for one date + role. */
   async getSummaryCounts(date, role, agentId) {
     const params = { date, role };
@@ -155,6 +162,32 @@ export const shopVisitApi = {
     if (role) params.role = role;
     const response = await api.get('/lmt/shop-visits/vouchers-without-scan', { params });
     return unwrap(response);
+  },
+};
+
+export const salesVoucherApi = {
+  /** Task 4 — section is 'local' or 'lmt'. Shop-list page: every total is a database aggregate. */
+  async getShops(section, { shopSearch, page = 0, size = 25 } = {}) {
+    const params = { page, size };
+    if (shopSearch) params.shopSearch = shopSearch;
+    const response = await api.get(`/sales/vouchers/${section}/shops`, { params });
+    return unwrap(response);
+  },
+  /** A shop's paginated voucher list within a section. */
+  async getVouchersForShop(section, shopId, { page = 0, size = 25 } = {}) {
+    const params = { page, size };
+    const response = await api.get(`/sales/vouchers/${section}/shops/${shopId}`, { params });
+    return unwrap(response);
+  },
+  /** Single voucher detail, independent of section (the id alone is enough; tenant-checked server-side). */
+  async getVoucherDetail(voucherId) {
+    const response = await api.get(`/sales/vouchers/${voucherId}`);
+    return unwrap(response);
+  },
+  /** Downloads the server-generated PDF as a Blob for the caller to save/open. */
+  async getVoucherPdfBlob(voucherId) {
+    const response = await api.get(`/sales/vouchers/${voucherId}/pdf`, { responseType: 'blob' });
+    return response.data;
   },
 };
 

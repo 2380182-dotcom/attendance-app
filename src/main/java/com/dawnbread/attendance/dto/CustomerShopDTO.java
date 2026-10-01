@@ -26,9 +26,11 @@ public class CustomerShopDTO {
     private Double discountPercent;
     /** QR shop-visit flow: does this shop require a successful QR scan before a sale/return can be recorded here? */
     private Boolean qrRequired;
-    /** Task 3: the LMT salesman this shop is assigned to, if any — null means unassigned. */
+    /** The Local or LMT salesman this shop is assigned to, if any — null means unassigned. Assignment happens at shop registration/edit; it drives the "Not Visited" report only, never what a salesman can see or visit. */
     private Long assignedAgentId;
     private String assignedAgentName;
+    /** "SALESMAN_LOCAL" or "SALESMAN_LMT" — lets the UI label which section the assigned salesman belongs to. */
+    private String assignedAgentRole;
 
     public CustomerShopDTO() {}
 
@@ -97,4 +99,7 @@ public class CustomerShopDTO {
 
     public String getAssignedAgentName() { return assignedAgentName; }
     public void setAssignedAgentName(String assignedAgentName) { this.assignedAgentName = assignedAgentName; }
+
+    public String getAssignedAgentRole() { return assignedAgentRole; }
+    public void setAssignedAgentRole(String assignedAgentRole) { this.assignedAgentRole = assignedAgentRole; }
 }

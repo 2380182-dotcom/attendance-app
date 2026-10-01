@@ -134,8 +134,7 @@ public class CustomerShopService {
             shop.setQrRequired(dto.getQrRequired());
         }
         if (dto.getAssignedAgentId() != null) {
-            shop.setAssignedAgent(agentRepository.findById(dto.getAssignedAgentId())
-                    .orElseThrow(() -> new RuntimeException("Agent not found with id: " + dto.getAssignedAgentId())));
+            shop.setAssignedAgent(resolveAssignableAgent(dto.getAssignedAgentId()));
         }
         shop.setCreatedAt(LocalDateTime.now());
         shop.setIsActive(true);
@@ -243,25 +242,34 @@ public class CustomerShopService {
     }
 
     /**
-     * Task 3: assign or reassign a shop to an LMT salesman, or unassign it
-     * (agentId == null). A dedicated endpoint rather than folding this into
-     * update() — that method's convention is "null means leave as-is" for
-     * every field, which can never express "explicitly clear this."
+     * Task 3/4 correction: assign or reassign a shop to a salesman — Local
+     * or LMT, the ONE assignment mechanism for both sections (there was
+     * never a separate pre-existing one; confirmed by a full codebase/git
+     * history audit) — or unassign it (agentId == null). A dedicated
+     * endpoint rather than folding this into update() — that method's
+     * convention is "null means leave as-is" for every field, which can
+     * never express "explicitly clear this."
+     *
+     * Deliberately does NOT change what a salesman can see or visit —
+     * mobile's nearby-shops list stays GPS-only, exactly as before this
+     * field existed. Assignment is only ever read by the "Not Visited"
+     * report (ShopVisitScanService).
      */
     public CustomerShop assignToAgent(Long shopId, Long agentId) {
         CustomerShop shop = customerShopRepository.findById(shopId)
                 .orElseThrow(() -> new RuntimeException("Customer shop not found with id: " + shopId));
-        if (agentId == null) {
-            shop.setAssignedAgent(null);
-        } else {
-            Agent agent = agentRepository.findById(agentId)
-                    .orElseThrow(() -> new RuntimeException("Agent not found with id: " + agentId));
-            if (!"SALESMAN_LMT".equals(agent.getRole())) {
-                throw new RuntimeException("Only an LMT salesman can be assigned a shop.");
-            }
-            shop.setAssignedAgent(agent);
-        }
+        shop.setAssignedAgent(agentId == null ? null : resolveAssignableAgent(agentId));
         return customerShopRepository.save(shop);
+    }
+
+    /** Shared by create() and assignToAgent() so shop registration and the dedicated assign endpoint enforce the exact same rule. */
+    private Agent resolveAssignableAgent(Long agentId) {
+        Agent agent = agentRepository.findById(agentId)
+                .orElseThrow(() -> new RuntimeException("Agent not found with id: " + agentId));
+        if (!"SALESMAN_LOCAL".equals(agent.getRole()) && !"SALESMAN_LMT".equals(agent.getRole())) {
+            throw new RuntimeException("Only a Local or LMT salesman can be assigned a shop.");
+        }
+        return agent;
     }
 
     /** All per-product (SKU) discount overrides for one shop — the admin shop-edit form's list, also read by mobile for the P6 discounted-total preview. */

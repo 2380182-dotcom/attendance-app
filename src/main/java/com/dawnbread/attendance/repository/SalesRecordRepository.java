@@ -1,6 +1,10 @@
 package com.dawnbread.attendance.repository;
 
+import com.dawnbread.attendance.dto.VoucherListItemDTO;
+import com.dawnbread.attendance.dto.VoucherShopSummaryDTO;
 import com.dawnbread.attendance.entity.SalesRecord;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -89,4 +93,69 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
             "WHERE sr.saleDate BETWEEN :start AND :end AND sr.customerShop IS NOT NULL " +
             "ORDER BY sr.saleDate DESC, sr.saleTime DESC")
     List<SalesRecord> findBySaleDateBetweenWithShopNotNull(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /**
+     * Task 4 — Local/LMT Sales Voucher shop-list page. Every total here is
+     * a database SUM/COUNT over SaleItem, grouped by shop (never Java-side
+     * summing over loaded vouchers/items — the server has a 512MB RAM
+     * limit). Section membership uses the role SNAPSHOTTED at submission
+     * time (agentRoleAtSale) with a fallback to the live agent.role join
+     * for every record that predates this field, so an agent's later role
+     * change never retroactively moves an already-existing voucher.
+     * :shopSearch is optional (null = no filter).
+     */
+    @Query(value = "SELECT new com.dawnbread.attendance.dto.VoucherShopSummaryDTO(" +
+            "sh.id, sh.shopCode, sh.shopName, sh.branch, COUNT(DISTINCT sr.id), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.SALE THEN si.totalPrice ELSE 0.0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN THEN si.totalPrice ELSE 0.0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.SALE THEN si.quantity ELSE 0 END), " +
+            "MAX(sr.saleDate)) " +
+            "FROM SalesRecord sr JOIN sr.items si JOIN sr.customerShop sh " +
+            "WHERE COALESCE(sr.agentRoleAtSale, sr.agent.role) = :role " +
+            "AND (:shopSearch IS NULL OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%'))) " +
+            "GROUP BY sh.id, sh.shopCode, sh.shopName, sh.branch " +
+            "ORDER BY MAX(sr.saleDate) DESC",
+            countQuery = "SELECT COUNT(DISTINCT sh.id) FROM SalesRecord sr JOIN sr.customerShop sh " +
+            "WHERE COALESCE(sr.agentRoleAtSale, sr.agent.role) = :role " +
+            "AND (:shopSearch IS NULL OR LOWER(sh.shopName) LIKE LOWER(CONCAT('%', :shopSearch, '%')) OR LOWER(sh.shopCode) LIKE LOWER(CONCAT('%', :shopSearch, '%')))")
+    Page<VoucherShopSummaryDTO> findShopVoucherSummaries(@Param("role") String role,
+                                                          @Param("shopSearch") String shopSearch,
+                                                          Pageable pageable);
+
+    /**
+     * Task 4 — one shop's paginated voucher list. Deliberately never
+     * JOIN FETCHes sr.items (that would force Hibernate's in-memory
+     * pagination, HHH90003004) — per-voucher totals come from the same
+     * SaleItem GROUP BY aggregate technique as the shop-list query above.
+     * This is a DTO projection with GROUP BY, so pagination happens as a
+     * real LIMIT/OFFSET in the database.
+     */
+    @Query(value = "SELECT new com.dawnbread.attendance.dto.VoucherListItemDTO(" +
+            "sr.id, sr.saleDate, sr.saleTime, sr.agent.name, " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.SALE THEN si.totalPrice ELSE 0.0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN THEN si.totalPrice ELSE 0.0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.SALE THEN si.quantity ELSE 0 END), " +
+            "sr.distanceFromShopMeters, sr.status) " +
+            "FROM SalesRecord sr JOIN sr.items si " +
+            "WHERE sr.customerShop.id = :shopId AND COALESCE(sr.agentRoleAtSale, sr.agent.role) = :role " +
+            "GROUP BY sr.id, sr.saleDate, sr.saleTime, sr.agent.name, sr.distanceFromShopMeters, sr.status " +
+            "ORDER BY sr.saleDate DESC, sr.saleTime DESC",
+            countQuery = "SELECT COUNT(DISTINCT sr.id) FROM SalesRecord sr " +
+            "WHERE sr.customerShop.id = :shopId AND COALESCE(sr.agentRoleAtSale, sr.agent.role) = :role")
+    Page<VoucherListItemDTO> findVoucherListForShop(@Param("shopId") Long shopId, @Param("role") String role, Pageable pageable);
+
+    /**
+     * Task 4 — the single-voucher detail page and PDF. Fetch-joins items
+     * (and their product) since this loads exactly one record by id, never
+     * paginated — safe under the same to-one-vs-collection distinction
+     * that makes the paginated queries above avoid it. Cross-tenant ids
+     * transparently come back empty (SecurityInterceptor enables the
+     * Hibernate tenantFilter for every request before this runs) — the
+     * caller maps that to 404, never 403.
+     */
+    @Query("SELECT DISTINCT sr FROM SalesRecord sr " +
+            "LEFT JOIN FETCH sr.items si LEFT JOIN FETCH si.product " +
+            "LEFT JOIN FETCH sr.customerShop LEFT JOIN FETCH sr.agent " +
+            "WHERE sr.id = :id")
+    Optional<SalesRecord> findDetailById(@Param("id") Long id);
 }

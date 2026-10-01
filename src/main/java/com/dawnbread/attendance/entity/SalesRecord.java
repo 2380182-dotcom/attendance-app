@@ -89,6 +89,16 @@ public class SalesRecord implements TenantAware {
     @Column(name = "request_id", length = 64)
     private String requestId;
 
+    // Task 4 (Local/LMT Sales Voucher sections): snapshot of agent.role at
+    // submission time, set by SalesService.submitShopVisit for every new
+    // shop-visit voucher. V30 also backfilled every pre-existing row from
+    // its agent's role at migration time, so old vouchers are frozen into
+    // their section too. Readers still fall back to a live agent.role join
+    // (see SalesVoucherService/SalesRecordRepository's COALESCE) purely as
+    // a safety net — e.g. a row whose agent_id no longer resolves.
+    @Column(name = "agent_role_at_sale", length = 20)
+    private String agentRoleAtSale;
+
     @OneToMany(mappedBy = "salesRecord", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SaleItem> items = new ArrayList<>();
 
@@ -158,6 +168,9 @@ public class SalesRecord implements TenantAware {
 
     public String getRequestId() { return requestId; }
     public void setRequestId(String requestId) { this.requestId = requestId; }
+
+    public String getAgentRoleAtSale() { return agentRoleAtSale; }
+    public void setAgentRoleAtSale(String agentRoleAtSale) { this.agentRoleAtSale = agentRoleAtSale; }
 
     public List<SaleItem> getItems() { return items; }
     public void setItems(List<SaleItem> items) { this.items = items; }

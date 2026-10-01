@@ -16,12 +16,15 @@ import SalesOverviewPage from './pages/sales/SalesOverviewPage';
 import SalesHistoryPage from './pages/sales/SalesHistoryPage';
 import ProductPricingPage from './pages/sales/ProductPricingPage';
 import LmtReconciliationPage from './pages/sales/LmtReconciliationPage';
+import SalesVoucherShopsPage from './pages/sales/SalesVoucherShopsPage';
+import SalesVoucherListPage from './pages/sales/SalesVoucherListPage';
+import SalesVoucherDetailPage from './pages/sales/SalesVoucherDetailPage';
+import QrShopVisitsPage from './pages/sales/QrShopVisitsPage';
+import SalesmanVisitHistoryPage from './pages/sales/SalesmanVisitHistoryPage';
 import HierarchyPeoplePage from './pages/admin/HierarchyPeoplePage';
 import AreasPage from './pages/admin/AreasPage';
 import CustomerShopsPage from './pages/admin/CustomerShopsPage';
 import LmtSettingsPage from './pages/admin/LmtSettingsPage';
-import QrShopVisitsPage from './pages/admin/QrShopVisitsPage';
-import SalesmanVisitHistoryPage from './pages/admin/SalesmanVisitHistoryPage';
 
 export default function App() {
   return (
@@ -57,6 +60,16 @@ export default function App() {
           <Route path="history" element={<SalesHistoryPage />} />
           <Route path="reconciliation" element={<LmtReconciliationPage />} />
           <Route path="pricing" element={<ProductPricingPage />} />
+          {/* Task 4 correction: ADMIN and SALES both — the outer /sales
+              ProtectedRoute above already enforces exactly that, and the
+              backend (ShopVisitScanController/SalesVoucherController)
+              enforces it independently too, so no extra nested gate is
+              needed here. Salesmen and HR are blocked by the outer gate. */}
+          <Route path="vouchers/:section/shops" element={<SalesVoucherShopsPage />} />
+          <Route path="vouchers/:section/shops/:shopId" element={<SalesVoucherListPage />} />
+          <Route path="vouchers/:voucherId" element={<SalesVoucherDetailPage />} />
+          <Route path="qr-visits" element={<QrShopVisitsPage />} />
+          <Route path="qr-visits/:agentId" element={<SalesmanVisitHistoryPage />} />
         </Route>
 
         <Route
@@ -71,8 +84,6 @@ export default function App() {
           <Route path="areas" element={<AreasPage />} />
           <Route path="customer-shops" element={<CustomerShopsPage />} />
           <Route path="lmt-settings" element={<LmtSettingsPage />} />
-          <Route path="qr-visits" element={<QrShopVisitsPage />} />
-          <Route path="qr-visits/:agentId" element={<SalesmanVisitHistoryPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />

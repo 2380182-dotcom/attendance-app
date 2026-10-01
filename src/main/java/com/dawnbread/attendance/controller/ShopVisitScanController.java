@@ -43,7 +43,7 @@ public class ShopVisitScanController {
     // Shops moved to its own Admin-sidebar item (was Sales-accessible
     // before). Only used by the reporting endpoints below; POST /scan
     // above has its own separate self-or-admin gate, unaffected.
-    private static final String[] MANAGEMENT_ROLES = { "ADMIN" };
+    private static final String[] MANAGEMENT_ROLES = { "ADMIN", "SALES" };
 
     private <T> ResponseEntity<ApiResponse<T>> managementOnly() {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -127,11 +127,11 @@ public class ShopVisitScanController {
     }
 
     /**
-     * Task 3 "Not Visited" tab, server-side paginated. role is required
-     * (LMT or LOCAL — they mean genuinely different things here: LMT is
-     * assigned outlets not scanned, Local is every active shop not scanned
-     * by anyone). agentId only makes sense for LMT (scopes to one
-     * salesman's assigned outlets); ignored for LOCAL.
+     * Task 3/4 "Not Visited" tab, server-side paginated. role is required
+     * (LMT or LOCAL) — corrected to work identically for both now:
+     * assignment (CustomerShop.assignedAgent) is the ONE mechanism for both
+     * sections, so this always means "this role's assigned outlets not
+     * scanned." agentId scopes to one salesman's assigned outlets.
      */
     @GetMapping("/not-visited")
     public ResponseEntity<ApiResponse<com.dawnbread.attendance.dto.PageResponse<com.dawnbread.attendance.dto.NotVisitedShopDTO>>> getNotVisited(
@@ -147,6 +147,27 @@ public class ShopVisitScanController {
         LocalDate target = date != null ? date : LocalDate.now(clock);
         var result = shopVisitScanService.getNotVisited(target, role, agentId, shopSearch, pageable(page, size));
         return ResponseEntity.ok(ApiResponse.success("Not-visited shops retrieved successfully", com.dawnbread.attendance.dto.PageResponse.of(result)));
+    }
+
+    /**
+     * Task 4 correction: active shops with no salesman assigned at all,
+     * not scanned on this date — a separate list so an unassigned shop is
+     * never silently missing from either section's report. Not role-scoped
+     * (an unassigned shop has no section), so the same list is shown under
+     * both the Local and LMT tabs.
+     */
+    @GetMapping("/unassigned-not-scanned")
+    public ResponseEntity<ApiResponse<com.dawnbread.attendance.dto.PageResponse<com.dawnbread.attendance.dto.NotVisitedShopDTO>>> getUnassignedNotScanned(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String shopSearch,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
+        if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
+            return managementOnly();
+        }
+        LocalDate target = date != null ? date : LocalDate.now(clock);
+        var result = shopVisitScanService.getUnassignedNotScanned(target, shopSearch, pageable(page, size));
+        return ResponseEntity.ok(ApiResponse.success("Unassigned shops retrieved successfully", com.dawnbread.attendance.dto.PageResponse.of(result)));
     }
 
     /** Task 3 summary counts (Total Shops / Visited / Not Visited / Voucher-Without-Scan) for one date + role. */

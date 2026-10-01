@@ -72,7 +72,12 @@ export default function CustomerShopsPage() {
   const activeAreas = useMemo(() => (areas.data || []).filter((a) => a.isActive), [areas.data]);
   const products = useQuery({ queryKey: ['products-pricing'], queryFn: productApi.getPricing });
   const agents = useQuery({ queryKey: ['agents', 'all'], queryFn: () => agentApi.getAll() });
-  const lmtSalesmen = useMemo(() => (agents.data || []).filter((a) => a.role === 'SALESMAN_LMT'), [agents.data]);
+  // Task 4 correction: assignment is the ONE mechanism for both sections —
+  // Local and LMT salesmen are both assignable, clearly labeled by type.
+  const assignableSalesmen = useMemo(
+    () => (agents.data || []).filter((a) => a.role === 'SALESMAN_LOCAL' || a.role === 'SALESMAN_LMT'),
+    [agents.data]
+  );
   const [originalAssignedAgentId, setOriginalAssignedAgentId] = useState('');
 
   const [search, setSearch] = useState('');
@@ -377,7 +382,7 @@ export default function CustomerShopsPage() {
               <SortableHeader label="Shop Code" sortKey="shopCode" sort={sort} onSort={onSort} />
               <SortableHeader label="Shop Name" sortKey="shopName" sort={sort} onSort={onSort} />
               <TableCell>Area</TableCell>
-              <TableCell>Assigned LMT</TableCell>
+              <TableCell>Assigned Salesman</TableCell>
               <TableCell>Geofence</TableCell>
               <TableCell>QR</TableCell>
               <TableCell>Discount</TableCell>
@@ -394,7 +399,11 @@ export default function CustomerShopsPage() {
                 <TableCell>{shop.shopCode}</TableCell>
                 <TableCell>{shop.shopName}</TableCell>
                 <TableCell>{shop.area?.name || '—'}</TableCell>
-                <TableCell>{shop.assignedAgentName || <Typography variant="body2" color="text.secondary">Unassigned</Typography>}</TableCell>
+                <TableCell>
+                  {shop.assignedAgentName
+                    ? `${shop.assignedAgentName} (${shop.assignedAgentRole === 'SALESMAN_LOCAL' ? 'Local' : 'LMT'})`
+                    : <Typography variant="body2" color="text.secondary">Unassigned</Typography>}
+                </TableCell>
                 <TableCell>
                   {shop.geoFencingEnabled && shop.latitude != null && shop.longitude != null && shop.radius != null
                     ? `${shop.radius}m`
@@ -570,23 +579,28 @@ export default function CustomerShopsPage() {
           </Grid>
 
           <Divider sx={{ mb: 2 }} />
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>LMT Assignment</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Salesman Assignment</Typography>
           <Grid container spacing={2} sx={{ mb: 1 }}>
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth size="small">
-                <InputLabel id="shop-assigned-agent-label">Assigned LMT Salesman</InputLabel>
+                <InputLabel id="shop-assigned-agent-label">Assigned Salesman</InputLabel>
                 <Select
                   labelId="shop-assigned-agent-label"
-                  label="Assigned LMT Salesman"
+                  label="Assigned Salesman"
                   value={form.assignedAgentId}
                   onChange={(e) => setForm({ ...form, assignedAgentId: e.target.value })}
                 >
                   <MenuItem value={UNASSIGNED}><em>Unassigned</em></MenuItem>
-                  {lmtSalesmen.map((a) => <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>)}
+                  {assignableSalesmen.map((a) => (
+                    <MenuItem key={a.id} value={a.id}>
+                      {a.name} ({a.role === 'SALESMAN_LOCAL' ? 'Local' : 'LMT'})
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Determines this shop's "Not Visited" attribution on the QR Scanned Shops report — Local shops are never assigned.
+                Optional. Determines this shop's "Not Visited" attribution on the QR Scanned Shops report only —
+                it never limits which shops a salesman can see or visit (that stays GPS-based, as always).
               </Typography>
             </Grid>
           </Grid>

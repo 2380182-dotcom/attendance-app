@@ -20,15 +20,19 @@ public interface CustomerShopRepository extends JpaRepository<CustomerShop, Long
     List<CustomerShop> findByIsActiveTrue();
     boolean existsByShopCode(String shopCode);
 
-    /** Task 3 LMT "Not Visited": this salesman's assigned, active outlets. */
+    /** Task 3/4 "Not Visited": this salesman's assigned, active outlets (Local or LMT — assignment is role-agnostic, the caller already knows the agent's role). */
     @Query("SELECT s FROM CustomerShop s LEFT JOIN FETCH s.area WHERE s.isActive = true AND s.assignedAgent.id = :agentId")
     List<CustomerShop> findByIsActiveTrueAndAssignedAgentId(@Param("agentId") Long agentId);
 
-    /** Every active shop assigned to ANY LMT salesman — for the LMT "Not Visited" tab across all salesmen. */
-    @Query("SELECT s FROM CustomerShop s LEFT JOIN FETCH s.area WHERE s.isActive = true AND s.assignedAgent IS NOT NULL")
-    List<CustomerShop> findByIsActiveTrueAndAssignedAgentIsNotNull();
+    /**
+     * Every active shop assigned to ANY salesman of this role — the
+     * "Not Visited" tab across all salesmen in one section. Filters by the
+     * ASSIGNED AGENT's role, not the shop (a shop has no type of its own).
+     */
+    @Query("SELECT s FROM CustomerShop s LEFT JOIN FETCH s.area WHERE s.isActive = true AND s.assignedAgent.role = :role")
+    List<CustomerShop> findByIsActiveTrueAndAssignedAgentRole(@Param("role") String role);
 
-    /** Task 3 Local "Not Visited": every active shop, unassigned concept doesn't apply. Area fetch-joined for the report's display fields. */
-    @Query("SELECT s FROM CustomerShop s LEFT JOIN FETCH s.area WHERE s.isActive = true")
-    List<CustomerShop> findByIsActiveTrueWithArea();
+    /** Task 4 correction: active shops with NO salesman assigned at all — shown as a separate "Unassigned" list so no shop is hidden from either report. */
+    @Query("SELECT s FROM CustomerShop s LEFT JOIN FETCH s.area WHERE s.isActive = true AND s.assignedAgent IS NULL")
+    List<CustomerShop> findByIsActiveTrueAndAssignedAgentIsNull();
 }

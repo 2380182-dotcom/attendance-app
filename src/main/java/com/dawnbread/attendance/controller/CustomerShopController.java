@@ -308,6 +308,7 @@ public class CustomerShopController {
         if (shop.getAssignedAgent() != null) {
             dto.setAssignedAgentId(shop.getAssignedAgent().getId());
             dto.setAssignedAgentName(shop.getAssignedAgent().getName());
+            dto.setAssignedAgentRole(shop.getAssignedAgent().getRole());
         }
         return dto;
     }

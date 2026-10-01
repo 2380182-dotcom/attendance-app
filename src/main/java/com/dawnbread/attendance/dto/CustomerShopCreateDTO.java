@@ -20,7 +20,7 @@ public class CustomerShopCreateDTO {
     private Double discountPercent;
     /** QR shop-visit flow — optional, null on update means "leave as-is"; defaults to false on create. */
     private Boolean qrRequired;
-    /** Task 3: the LMT salesman this shop is assigned to — optional, null means unassigned. */
+    /** The Local or LMT salesman this shop is assigned to at registration — optional, null means unassigned. Used only by the "Not Visited" report, never to limit what a salesman can see or visit. */
     private Long assignedAgentId;
 
     public CustomerShopCreateDTO() {}

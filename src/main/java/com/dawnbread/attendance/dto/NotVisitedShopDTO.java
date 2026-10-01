@@ -1,8 +1,10 @@
 package com.dawnbread.attendance.dto;
 
 /**
- * Task 3 "Not Visited" tab, one row per shop (LMT: one row per
- * salesman-shop assignment; Local: one row per active shop, unassigned).
+ * Task 3/4 "Not Visited" tab, one row per salesman-shop assignment — Local
+ * and LMT work identically now (assignment is the one mechanism for both).
+ * Also reused, with assignedAgentId always null, for the separate
+ * "Unassigned — not scanned" list (role = "UNASSIGNED").
  */
 public class NotVisitedShopDTO {
     private Long shopId;
@@ -10,10 +12,10 @@ public class NotVisitedShopDTO {
     private String shopName;
     private String areaName;
     private String city;
-    /** LMT only — null for Local rows, which are never assigned to anyone. */
+    /** Null only for a row on the "Unassigned — not scanned" list. */
     private Long assignedAgentId;
     private String assignedAgentName;
-    /** "LMT" or "LOCAL" — which report this row belongs to. */
+    /** "LMT", "LOCAL", or "UNASSIGNED" — which report/bucket this row belongs to. */
     private String role;
 
     public NotVisitedShopDTO() {}
