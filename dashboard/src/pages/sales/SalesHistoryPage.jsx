@@ -58,7 +58,11 @@ function LineItemsTable({ items, showType }) {
             <TableCell>{item.productName}</TableCell>
             {showType && (
               <TableCell>
-                <Chip size="small" label={item.transactionType || 'SALE'} color={item.transactionType === 'RETURN' ? 'warning' : 'default'} />
+                <Chip
+                  size="small"
+                  label={item.transactionType === 'RETURN_BEFORE_EXPIRY' ? 'Return Before Expiry' : (item.transactionType || 'SALE')}
+                  color={item.transactionType === 'RETURN' ? 'warning' : item.transactionType === 'RETURN_BEFORE_EXPIRY' ? 'info' : 'default'}
+                />
               </TableCell>
             )}
             <TableCell align="right">{item.quantity}</TableCell>

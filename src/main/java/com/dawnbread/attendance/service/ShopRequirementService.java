@@ -2,6 +2,7 @@ package com.dawnbread.attendance.service;
 
 import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.entity.GlobalToggleMode;
+import com.dawnbread.attendance.util.GeoUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -39,5 +40,39 @@ public class ShopRequirementService {
             return false;
         }
         return Boolean.TRUE.equals(shop.getQrRequired());
+    }
+
+    /**
+     * The buffered hard-gate shared by every "I am physically at this shop"
+     * action — SalesService.submitShopVisit (sales/returns) and
+     * ShopFeedbackService (feedback, "salesman updates" feature). Throws
+     * IllegalArgumentException exactly as before extraction; returns the
+     * computed distance (null when the shop has no geofence configured and
+     * the gate was skipped) for the caller to persist.
+     *
+     * A local salesman has no check-in to prove where they are, so the
+     * shop's location IS the proof: a shop with no geofence configured
+     * can't be verified, and must not be recordable from anywhere. LMT
+     * keeps its existing behavior: an unconfigured shop skips the gate.
+     */
+    public Double checkGeofenceOrThrow(CustomerShop shop, boolean isLocalSalesman, double latitude, double longitude) {
+        boolean shopHasGeofence = isGeofenceRequired(shop)
+                && shop.getLatitude() != null && shop.getLongitude() != null && shop.getRadius() != null;
+        if (isLocalSalesman && !shopHasGeofence) {
+            throw new IllegalArgumentException("'" + shop.getShopName()
+                    + "' has no location set up yet, so a visit here can't be verified. Ask the admin to set the shop's location.");
+        }
+        if (!shopHasGeofence) {
+            return null;
+        }
+        double distance = GeoUtils.distanceMeters(latitude, longitude, shop.getLatitude(), shop.getLongitude());
+        double buffer = lmtSettingsService.getOrCreate().getGeofenceBufferMeters();
+        double allowedRadius = shop.getRadius() + buffer;
+        if (distance > allowedRadius) {
+            throw new IllegalArgumentException(String.format(
+                    "Too far from %s to record this visit: %.0fm away, allowed up to %.0fm (shop radius %.0fm + %.0fm buffer).",
+                    shop.getShopName(), distance, allowedRadius, shop.getRadius(), buffer));
+        }
+        return distance;
     }
 }

@@ -66,10 +66,16 @@ export function flattenSalesToLineItems(records, { getAgentName, getEmployeeId }
 
 /**
  * Groups LMT shop-visit records (SalesDTO-shaped, each with a customerShop*
- * and an `items` array of SALE/RETURN/UNSOLD lines) into one row per shop,
- * each carrying a per-product breakdown. Discount PKR is what the shop
- * saved on SALE lines: (unitPrice x qty) - totalPrice. UNSOLD lines are
- * day-level, not per-shop, so they're skipped here.
+ * and an `items` array of SALE/RETURN/UNSOLD/RETURN_BEFORE_EXPIRY lines)
+ * into one row per shop, each carrying a per-product breakdown. Discount
+ * PKR is what the shop saved on SALE lines: (unitPrice x qty) - totalPrice.
+ * UNSOLD lines are day-level, not per-shop, so they're skipped here.
+ *
+ * "Salesman updates" fix: the sold/revenue branch now explicitly checks
+ * `type === 'SALE'` — it used to be "everything that isn't RETURN or
+ * UNSOLD", which silently counted RETURN_BEFORE_EXPIRY as a sale with
+ * revenue once that type existed. RBE now gets its own bucket (units only,
+ * never revenue, never counted as sold).
  */
 export function aggregateByShop(records) {
   const shops = new Map();
@@ -84,6 +90,7 @@ export function aggregateByShop(records) {
         visits: 0,
         unitsSold: 0,
         unitsReturned: 0,
+        unitsReturnBeforeExpiry: 0,
         discountAmount: 0,
         revenue: 0,
         productMap: new Map(),
@@ -97,14 +104,21 @@ export function aggregateByShop(records) {
       const key = item.productId ?? item.productName;
       let product = shop.productMap.get(key);
       if (!product) {
-        product = { productId: item.productId, productName: item.productName, sold: 0, returned: 0, discountPercent: 0, discountAmount: 0, revenue: 0 };
+        product = {
+          productId: item.productId, productName: item.productName,
+          sold: 0, returned: 0, returnBeforeExpiry: 0,
+          discountPercent: 0, discountAmount: 0, revenue: 0,
+        };
         shop.productMap.set(key, product);
       }
       const qty = item.quantity ?? 0;
       if (type === 'RETURN') {
         product.returned += qty;
         shop.unitsReturned += qty;
-      } else {
+      } else if (type === 'RETURN_BEFORE_EXPIRY') {
+        product.returnBeforeExpiry += qty;
+        shop.unitsReturnBeforeExpiry += qty;
+      } else if (type === 'SALE') {
         const lineTotal = item.totalPrice ?? 0;
         const discount = Math.max(0, (item.unitPrice ?? 0) * qty - lineTotal);
         product.sold += qty;

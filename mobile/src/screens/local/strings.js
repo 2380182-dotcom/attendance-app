@@ -14,6 +14,12 @@ export const STRINGS = {
   close: { en: 'Close', ur: 'بند کریں' },
   nearbyShops: { en: 'Nearby Shops', ur: 'قریبی دکانیں' },
   pickShop: { en: 'Tap the shop you are at', ur: 'جس دکان پر ہیں اس پر ٹیپ کریں' },
+  // New banner wording for LocalNearbyShopsScreen specifically — kept as
+  // its own keys (not a rename of recordVisit/pickShop above) since those
+  // two are also used as header titles elsewhere, where this new wording
+  // would not fit.
+  selectShopTitle: { en: 'Select Shop', ur: 'دکان کا انتخاب کریں' },
+  selectShopSubtitle: { en: 'Select the required shop', ur: 'مطلوبہ دکان کا انتخاب کریں' },
   findingShops: { en: 'Finding nearby shops...', ur: 'قریبی دکانیں تلاش ہو رہی ہیں...' },
   noShops: { en: 'No shop nearby', ur: 'قریب کوئی دکان نہیں' },
   noShopsHelp: {
@@ -38,9 +44,9 @@ export const STRINGS = {
     en: `Server is waking up (try ${attempt} of ${total})... this can take up to a minute.`,
     ur: `سرور شروع ہو رہا ہے (کوشش ${attempt} از ${total})... اس میں ایک منٹ تک لگ سکتا ہے۔`,
   }),
-  searchBread: { en: 'Search bread...', ur: 'روٹی تلاش کریں' },
+  searchBread: { en: 'Search item...', ur: 'آئٹم تلاش کریں' },
   loadingProducts: { en: 'Loading breads...', ur: 'روٹیاں لوڈ ہو رہی ہیں...' },
-  totalBreads: { en: 'Total breads', ur: 'کل روٹیاں' },
+  totalBreads: { en: 'Total quantity', ur: 'کل مقدار' },
   totalRs: { en: 'Total Rs', ur: 'کل رقم' },
   returnValue: { en: 'Return value Rs', ur: 'واپسی کی مالیت روپے' },
   save: { en: 'Save', ur: 'محفوظ کریں' },
@@ -96,9 +102,26 @@ export const STRINGS = {
   },
   soldItems: { en: 'Sold Items', ur: 'فروخت شدہ اشیاء' },
   returnedItems: { en: 'Returned Items', ur: 'واپس شدہ اشیاء' },
+
+  // "Salesman updates" feature: Return Before Expiry.
+  askExpiryReturn: { en: 'Is there any return before expiry?', ur: 'کیا میعاد سے پہلے کوئی واپسی ہے؟' },
+  returnBeforeExpiry: { en: 'Return Before Expiry', ur: 'میعاد ختم ہونے سے پہلے واپسی' },
+  replacedHint: { en: 'Replaced — does not change the total', ur: 'تبدیل شدہ — کل رقم پر اثر نہیں' },
+  expiryItems: { en: 'Return Before Expiry Items', ur: 'میعاد سے پہلے واپس شدہ اشیاء' },
   alreadySavedTitle: { en: 'Already Saved?', ur: 'پہلے سے محفوظ؟' },
   alreadySavedBody: {
     en: 'This visit may already be saved. Please go back and start again.',
     ur: 'یہ وزٹ پہلے سے محفوظ ہو چکا ہو سکتا ہے۔ براہ کرم واپس جا کر دوبارہ شروع کریں۔',
   },
+
+  // "Salesman updates" feature: Shop Feedback (reached a shop, no sale).
+  addFeedback: { en: 'Add Feedback', ur: 'رائے درج کریں' },
+  feedbackReasonShopClosed: { en: 'Shop closed', ur: 'دکان بند ہے' },
+  feedbackReasonStockFull: { en: 'Stock is full', ur: 'اسٹاک پورا ہے' },
+  feedbackReasonOwnerNotAvailable: { en: 'Owner not available', ur: 'مالک موجود نہیں' },
+  feedbackReasonOther: { en: 'Other', ur: 'دیگر' },
+  writeYourFeedback: { en: 'Write your feedback', ur: 'اپنی رائے لکھیں' },
+  saveFeedback: { en: 'Save Feedback', ur: 'رائے محفوظ کریں' },
+  feedbackNoteRequired: { en: 'A note is required for "Other"', ur: '"دیگر" کے لیے نوٹ ضروری ہے' },
+  feedbackSavedTitle: { en: 'Feedback Saved', ur: 'رائے محفوظ ہو گئی' },
 };

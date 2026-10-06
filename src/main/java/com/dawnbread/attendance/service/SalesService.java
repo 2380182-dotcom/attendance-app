@@ -5,7 +5,6 @@ import com.dawnbread.attendance.entity.*;
 import com.dawnbread.attendance.exception.ShopVisitConflictException;
 import com.dawnbread.attendance.exception.ShopVisitRequestIdRaceException;
 import com.dawnbread.attendance.repository.*;
-import com.dawnbread.attendance.util.GeoUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -397,33 +396,11 @@ public class SalesService {
 
         // Buffered hard-gate: only applies when the shop actually has a
         // geofence configured. Distance is always recorded when it can be
-        // computed, whether or not the gate ends up blocking.
-        Double distance = null;
-        // QR shop-visit flow (Q1): isGeofenceRequired resolves the exact
-        // same value as the raw field read it replaces whenever the
-        // tenant's global mode is PER_SHOP (the default for every existing
-        // tenant) — so this line is behavior-preserving until an admin
-        // deliberately sets FORCE_ON/FORCE_OFF.
-        boolean shopHasGeofence = shopRequirementService.isGeofenceRequired(shop)
-                && shop.getLatitude() != null && shop.getLongitude() != null && shop.getRadius() != null;
-        // A local salesman has no check-in to prove where they are, so the
-        // shop's location IS the proof: a shop with no geofence configured
-        // can't be verified, and must not be recordable from anywhere.
-        // (LMT keeps its existing behavior: an unconfigured shop skips the gate.)
-        if (isLocalSalesman && !shopHasGeofence) {
-            throw new IllegalArgumentException("'" + shop.getShopName()
-                    + "' has no location set up yet, so a visit here can't be verified. Ask the admin to set the shop's location.");
-        }
-        if (shopHasGeofence) {
-            distance = GeoUtils.distanceMeters(request.getLatitude(), request.getLongitude(), shop.getLatitude(), shop.getLongitude());
-            double buffer = lmtSettingsService.getOrCreate().getGeofenceBufferMeters();
-            double allowedRadius = shop.getRadius() + buffer;
-            if (distance > allowedRadius) {
-                throw new IllegalArgumentException(String.format(
-                        "Too far from %s to record this visit: %.0fm away, allowed up to %.0fm (shop radius %.0fm + %.0fm buffer).",
-                        shop.getShopName(), distance, allowedRadius, shop.getRadius(), buffer));
-            }
-        }
+        // computed, whether or not the gate ends up blocking. Extracted to
+        // ShopRequirementService.checkGeofenceOrThrow so ShopFeedbackService
+        // ("salesman updates" feature) enforces the exact same rule.
+        Double distance = shopRequirementService.checkGeofenceOrThrow(
+                shop, isLocalSalesman, request.getLatitude(), request.getLongitude());
 
         LocalDate today = LocalDate.now(clock);
 
@@ -464,7 +441,7 @@ public class SalesService {
             try {
                 type = TransactionType.valueOf(itemReq.getTransactionType().trim().toUpperCase());
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("transactionType must be SALE, RETURN, or UNSOLD — got: " + itemReq.getTransactionType());
+                throw new IllegalArgumentException("transactionType must be SALE, RETURN, UNSOLD, or RETURN_BEFORE_EXPIRY — got: " + itemReq.getTransactionType());
             }
 
             String key = itemReq.getProductId() + ":" + shop.getId() + ":" + type;
@@ -548,7 +525,16 @@ public class SalesService {
         record.setSaleTime(LocalTime.now(clock));
         record.setLocation(shop.getShopName());
         record.setCreatedAt(LocalDateTime.now());
-        record.setTotalUnits(itemsToSave.stream().mapToInt(SaleItem::getQuantity).sum());
+        // "Salesman updates" fix: SALE-line units only — this previously
+        // summed every transaction type, silently inflating this field with
+        // RETURN/UNSOLD/RETURN_BEFORE_EXPIRY units. Those now show in their
+        // own columns everywhere they're displayed, computed live from
+        // items (never from this stored field), so old vouchers (whose
+        // total_units still carries the pre-fix combined value) and new
+        // vouchers both display correctly.
+        record.setTotalUnits(itemsToSave.stream()
+                .filter(i -> i.getTransactionType() == TransactionType.SALE)
+                .mapToInt(SaleItem::getQuantity).sum());
         record.setStatus("PENDING");
         record.setRequestId(requestId != null && !requestId.isBlank() ? requestId : null);
         // Task 4: snapshot the role NOW so this voucher's Local/LMT section

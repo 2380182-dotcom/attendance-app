@@ -18,8 +18,12 @@ import { agentApi } from '../../services/attendanceApi';
 const ALL = 'ALL';
 const ROLE_LMT = 'SALESMAN_LMT';
 const ROLE_LOCAL = 'SALESMAN_LOCAL';
-const STATUS_COLOR = { SUCCESS: 'success', INVALID_CODE: 'error', SHOP_INACTIVE: 'error', OUTSIDE_GEOFENCE: 'warning' };
-const STATUS_LABEL = { SUCCESS: 'Verified', INVALID_CODE: 'Invalid Code', SHOP_INACTIVE: 'Shop Inactive', OUTSIDE_GEOFENCE: 'Outside Geofence' };
+const STATUS_COLOR = { SUCCESS: 'success', INVALID_CODE: 'error', SHOP_INACTIVE: 'error', OUTSIDE_GEOFENCE: 'warning', FEEDBACK: 'info' };
+const STATUS_LABEL = { SUCCESS: 'Verified', INVALID_CODE: 'Invalid Code', SHOP_INACTIVE: 'Shop Inactive', OUTSIDE_GEOFENCE: 'Outside Geofence', FEEDBACK: 'Feedback' };
+// "Salesman updates" feature: the feedback reason enum -> a readable label.
+const FEEDBACK_REASON_LABEL = {
+  SHOP_CLOSED: 'Shop closed', STOCK_FULL: 'Stock is full', OWNER_NOT_AVAILABLE: 'Owner not available', OTHER: 'Other',
+};
 
 function StatCard({ label, value, color }) {
   return (
@@ -55,6 +59,8 @@ export default function QrShopVisitsPage() {
   const [singleDate, setSingleDate] = useState(dayjs());
   const [search, setSearch] = useState('');
   const [failedOnly, setFailedOnly] = useState(false);
+  // "Salesman updates" feature: a filter to show feedback rows only.
+  const [feedbackOnly, setFeedbackOnly] = useState(false);
   const [visitedPage, setVisitedPage] = useState(0);
   const [visitedPageSize, setVisitedPageSize] = useState(25);
   const [notVisitedPage, setNotVisitedPage] = useState(0);
@@ -89,9 +95,9 @@ export default function QrShopVisitsPage() {
   });
 
   const visited = useQuery({
-    queryKey: ['qr-visited', rangeStartStr, rangeEndStr, agentIdParam, role, search, failedOnly, visitedPage, visitedPageSize],
+    queryKey: ['qr-visited', rangeStartStr, rangeEndStr, agentIdParam, role, search, failedOnly, feedbackOnly, visitedPage, visitedPageSize],
     queryFn: () => shopVisitApi.getReport(rangeStartStr, rangeEndStr, {
-      agentId: agentIdParam, role, shopSearch: search || undefined, failedOnly, page: visitedPage, size: visitedPageSize,
+      agentId: agentIdParam, role, shopSearch: search || undefined, failedOnly, feedbackOnly, page: visitedPage, size: visitedPageSize,
     }),
     enabled: tab === 'visited',
   });
@@ -153,6 +159,9 @@ export default function QrShopVisitsPage() {
               color={summary.data?.voucherWithoutScanCount > 0 ? 'error.main' : undefined}
             />
           </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard label="Feedback (no sale)" value={summary.data?.feedbackCount} />
+          </Grid>
         </Grid>
 
         <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center" flexWrap="wrap" useFlexGap>
@@ -207,6 +216,11 @@ export default function QrShopVisitsPage() {
                 control={<Switch checked={failedOnly} onChange={(e) => { setFailedOnly(e.target.checked); resetTabPages(); }} />}
                 label="Failed only"
               />
+              {/* "Salesman updates" feature: feedback has no pass/fail concept, so this and "Failed only" are mutually exclusive on the backend. */}
+              <FormControlLabel
+                control={<Switch checked={feedbackOnly} onChange={(e) => { setFeedbackOnly(e.target.checked); resetTabPages(); }} />}
+                label="Feedback only"
+              />
             </Stack>
 
             {visited.isLoading || agents.isLoading ? (
@@ -248,6 +262,12 @@ export default function QrShopVisitsPage() {
                         <TableCell>{r.geofenceStatus === 'INSIDE' ? 'Inside' : r.geofenceStatus === 'OUTSIDE' ? 'Outside' : '—'}</TableCell>
                         <TableCell>
                           <Chip size="small" color={STATUS_COLOR[r.visitStatus] || 'default'} label={STATUS_LABEL[r.visitStatus] || r.visitStatus} />
+                          {/* "Salesman updates" feature: show why — the reason, or his own note for "Other". */}
+                          {r.isFeedback && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                              {r.feedbackReason === 'OTHER' ? (r.feedbackNote || '—') : (FEEDBACK_REASON_LABEL[r.feedbackReason] || r.feedbackReason)}
+                            </Typography>
+                          )}
                         </TableCell>
                         <TableCell align="center">
                           {r.voucherCreated

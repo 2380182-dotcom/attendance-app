@@ -88,6 +88,9 @@ class ShopVisitScanTest {
     @Autowired
     private LmtSettingsService lmtSettingsService;
 
+    @Autowired
+    private com.dawnbread.attendance.repository.ShopFeedbackRepository shopFeedbackRepository;
+
     @BeforeEach
     void setTenantContext() {
         TenantContext.setTenantId(tenantId());
@@ -488,7 +491,7 @@ class ShopVisitScanTest {
         seedScan(local, shop, today, ShopVisitStatus.OUTSIDE_GEOFENCE);
 
         List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
-                today, today, null, null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
+                today, today, null, null, null, false, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
 
         assertEquals(2, report.size());
         assertTrue(report.stream().anyMatch(r -> r.getAgentId().equals(lmt.getId()) && "SUCCESS".equals(r.getVisitStatus())));
@@ -505,7 +508,7 @@ class ShopVisitScanTest {
         seedScan(other, shop, today, ShopVisitStatus.SUCCESS);
 
         List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
-                today, today, lmt.getId(), null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
+                today, today, lmt.getId(), null, null, false, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
 
         assertEquals(1, report.size());
         assertEquals(lmt.getId(), report.get(0).getAgentId());
@@ -521,7 +524,7 @@ class ShopVisitScanTest {
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
 
         ShopVisitScanRecordDTO row = shopVisitScanService.getPagedReport(
-                today, today, lmt.getId(), null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent().get(0);
+                today, today, lmt.getId(), null, null, false, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent().get(0);
 
         assertEquals(shop.getId(), row.getShopId());
         assertEquals("ISB-I14-005", row.getShopCode());
@@ -536,7 +539,7 @@ class ShopVisitScanTest {
         seedInvalidScan(lmt, "BOGUS-CODE", today);
 
         List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
-                today, today, lmt.getId(), null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
+                today, today, lmt.getId(), null, null, false, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
 
         assertEquals(1, report.size());
         assertEquals("INVALID_CODE", report.get(0).getVisitStatus());
@@ -552,7 +555,7 @@ class ShopVisitScanTest {
         seedScan(lmt, shop, LocalDate.now().minusDays(10), ShopVisitStatus.SUCCESS);
 
         List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
-                LocalDate.now(), LocalDate.now(), lmt.getId(), null, null, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
+                LocalDate.now(), LocalDate.now(), lmt.getId(), null, null, false, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
 
         assertTrue(report.isEmpty());
     }
@@ -694,6 +697,32 @@ class ShopVisitScanTest {
         assertEquals(0, page.getTotalElements(), "An LMT salesman's assigned shop must not show up under Local, even scoped to a different agent");
     }
 
+    /** "Salesman updates" feature: a shop with feedback counts as visited, so it must NOT appear in Not Visited — same as a successful scan would exclude it. */
+    @Test
+    void aShopWithFeedbackDoesNotAppearInNotVisited() {
+        Agent lmt = seedLmt("NV_FEEDBACK_1");
+        CustomerShop shop = seedShop(true, false);
+        assignShop(shop, lmt);
+
+        com.dawnbread.attendance.entity.ShopFeedback feedback = new com.dawnbread.attendance.entity.ShopFeedback();
+        feedback.setTenantId(tenantId());
+        feedback.setAgentId(lmt.getId());
+        feedback.setCustomerShop(shop);
+        feedback.setReason(com.dawnbread.attendance.entity.ShopFeedbackReason.SHOP_CLOSED);
+        feedback.setGpsLatitude(24.86);
+        feedback.setGpsLongitude(67.0);
+        feedback.setGeofenceStatus(com.dawnbread.attendance.entity.GeofenceStatus.INSIDE);
+        feedback.setVisitDate(LocalDate.now());
+        feedback.setVisitTime(java.time.LocalTime.now());
+        feedback.setCreatedAt(LocalDateTime.now());
+        shopFeedbackRepository.save(feedback);
+
+        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LMT", lmt.getId(), null,
+                org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertEquals(0, page.getTotalElements(), "A shop with feedback must count as visited, not appear in Not Visited");
+    }
+
     @Test
     void notVisitedShopSearchFiltersByNameOrCode() {
         Agent local = seedLocal("NV_SEARCH");
@@ -821,7 +850,7 @@ class ShopVisitScanTest {
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         submitSale(lmt, shop, product, 24.86, 67.0);
 
-        var page = shopVisitScanService.getPagedReport(today, today, lmt.getId(), null, null, false,
+        var page = shopVisitScanService.getPagedReport(today, today, lmt.getId(), null, null, false, false,
                 org.springframework.data.domain.PageRequest.of(0, 50));
 
         assertEquals(1, page.getTotalElements());
@@ -836,7 +865,7 @@ class ShopVisitScanTest {
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         seedScan(lmt, shop, today, ShopVisitStatus.OUTSIDE_GEOFENCE);
 
-        var page = shopVisitScanService.getPagedReport(today, today, lmt.getId(), null, null, true,
+        var page = shopVisitScanService.getPagedReport(today, today, lmt.getId(), null, null, true, false,
                 org.springframework.data.domain.PageRequest.of(0, 50));
 
         assertEquals(1, page.getTotalElements());
@@ -852,7 +881,7 @@ class ShopVisitScanTest {
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         seedScan(local, shop, today, ShopVisitStatus.SUCCESS);
 
-        var page = shopVisitScanService.getPagedReport(today, today, null, "SALESMAN_LMT", null, false,
+        var page = shopVisitScanService.getPagedReport(today, today, null, "SALESMAN_LMT", null, false, false,
                 org.springframework.data.domain.PageRequest.of(0, 50));
 
         assertEquals(1, page.getTotalElements());

@@ -47,6 +47,14 @@ public class SalesRecord implements TenantAware {
     @Column(name = "total_amount", nullable = false)
     private Double totalAmount;
 
+    // SALE-line units only (fixed in "salesman updates" — previously summed
+    // every transaction type, inflating this with RETURN/UNSOLD/RBE units).
+    // Old rows keep their pre-fix (all-types) value; this is a going-forward
+    // correction, not a backfill, per the project's standing "don't silently
+    // rewrite old data" rule. Returned/unsold/RBE unit counts are
+    // deliberately NOT stored here — every reader that needs them computes
+    // them live from items (SaleItem.transactionType), correct for old and
+    // new vouchers alike; see ExcelExportService/SalesAgentCsvService.
     @Column(name = "total_units")
     private Integer totalUnits;
 

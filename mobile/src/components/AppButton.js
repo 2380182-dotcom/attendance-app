@@ -27,6 +27,14 @@ const SIZES = {
  */
 export default function AppButton({
   title,
+  // "Salesman updates" fix: a single flattened "English · Urdu" string
+  // (the old `title` usage) renders the Urdu portion in the default
+  // left-to-right paragraph direction, which scrambles word order for
+  // Urdu text that contains an embedded Latin substring (e.g. "QR") — the
+  // bidi algorithm needs the Urdu span to carry its own RTL direction.
+  // Pass titleEn/titleUr instead of title to get this fixed automatically.
+  titleEn,
+  titleUr,
   onPress,
   variant = 'primary',
   size = 'md',
@@ -78,7 +86,7 @@ export default function AppButton({
       onPressOut={handlePressOut}
       disabled={isDisabled}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel || title}
+      accessibilityLabel={accessibilityLabel || title || `${titleEn} ${titleUr}`}
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       style={[
         animatedStyle,
@@ -104,7 +112,19 @@ export default function AppButton({
             <MaterialIcons name={icon} size={dims.iconSize} color={v.textColor} style={styles.iconLeft} />
           )}
           <Text style={[styles.text, { color: v.textColor, fontSize: dims.fontSize }, textStyle]}>
-            {title}
+            {titleEn != null ? (
+              <>
+                {titleEn}
+                {titleUr != null && (
+                  <>
+                    {' · '}
+                    <Text style={{ writingDirection: 'rtl' }}>{titleUr}</Text>
+                  </>
+                )}
+              </>
+            ) : (
+              title
+            )}
           </Text>
           {icon && iconPosition === 'right' && (
             <MaterialIcons name={icon} size={dims.iconSize} color={v.textColor} style={styles.iconRight} />

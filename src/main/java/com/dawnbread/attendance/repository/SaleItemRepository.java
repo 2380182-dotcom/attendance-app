@@ -41,6 +41,19 @@ public interface SaleItemRepository extends JpaRepository<SaleItem, Long> {
     List<Object[]> sumReturnedQuantityByAgentAndDate(@Param("agentId") Long agentId, @Param("saleDate") LocalDate saleDate);
 
     /**
+     * "Salesman updates" feature: Return-Before-Expiry replacement units,
+     * summed the same way Sold/Returned are — the fresh bread handed over
+     * consumes van stock exactly like a sale (see LmtStockService.reconcile's
+     * rbeQty term), even though it carries no revenue. Same double-counting
+     * safety as the two queries above.
+     */
+    @Query("SELECT si.product.id, SUM(si.quantity) FROM SaleItem si " +
+           "WHERE si.agentId = :agentId AND si.saleDate = :saleDate " +
+           "AND si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN_BEFORE_EXPIRY " +
+           "GROUP BY si.product.id")
+    List<Object[]> sumReturnBeforeExpiryQuantityByAgentAndDate(@Param("agentId") Long agentId, @Param("saleDate") LocalDate saleDate);
+
+    /**
      * Per-shop Returned breakdown for the Sales Department's reconciliation
      * report — never exposed to the LMT's own self-service endpoints.
      * Joins through SalesRecord (SaleItem.customerShopId itself has no FK —
@@ -58,4 +71,16 @@ public interface SaleItemRepository extends JpaRepository<SaleItem, Long> {
     List<Object[]> sumReturnedQuantityByShopForAgentAndDateRange(@Param("agentId") Long agentId,
                                                                   @Param("startDate") LocalDate startDate,
                                                                   @Param("endDate") LocalDate endDate);
+
+    /** Same per-shop breakdown as sumReturnedQuantityByShopForAgentAndDateRange, for Return-Before-Expiry ("salesman updates" feature). */
+    @Query("SELECT sr.customerShop.id, sr.customerShop.shopCode, sr.customerShop.shopName, " +
+           "si.product.id, si.product.name, SUM(si.quantity) " +
+           "FROM SaleItem si JOIN si.salesRecord sr " +
+           "WHERE si.agentId = :agentId AND si.saleDate BETWEEN :startDate AND :endDate " +
+           "AND si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN_BEFORE_EXPIRY " +
+           "AND sr.customerShop IS NOT NULL " +
+           "GROUP BY sr.customerShop.id, sr.customerShop.shopCode, sr.customerShop.shopName, si.product.id, si.product.name")
+    List<Object[]> sumReturnBeforeExpiryQuantityByShopForAgentAndDateRange(@Param("agentId") Long agentId,
+                                                                            @Param("startDate") LocalDate startDate,
+                                                                            @Param("endDate") LocalDate endDate);
 }

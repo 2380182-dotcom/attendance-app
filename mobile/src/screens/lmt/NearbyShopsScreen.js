@@ -71,6 +71,15 @@ export default function NearbyShopsScreen({ navigation }) {
               onPress={() => navigation.navigate('RecordVisit', { shop })}
               style={{ marginTop: 8, marginBottom: 8 }}
             />
+            {/* "Salesman updates" feature: reached the shop, couldn't sell — record feedback instead of a voucher. */}
+            <AppButton
+              titleEn="Add Feedback"
+              titleUr="رائے درج کریں"
+              variant="outline"
+              icon="feedback"
+              onPress={() => navigation.navigate('ShopFeedback', { shop })}
+              style={{ marginBottom: 8 }}
+            />
             <AppButton
               title="Back to Nearby Shops"
               variant="outline"

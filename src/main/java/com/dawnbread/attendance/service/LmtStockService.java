@@ -103,8 +103,25 @@ public class LmtStockService {
             shopReturnsByProduct.computeIfAbsent(productId, k -> new java.util.ArrayList<>()).add(shopReturn);
         }
 
+        // "Salesman updates" feature: same per-shop breakdown for
+        // Return-Before-Expiry as Returned above.
+        Map<Long, List<com.dawnbread.attendance.dto.LmtShopRbeDTO>> shopRbeByProduct = new HashMap<>();
+        for (Object[] row : saleItemRepository.sumReturnBeforeExpiryQuantityByShopForAgentAndDateRange(
+                stock.getAgentId(), stock.getStockDate(), stock.getStockDate())) {
+            com.dawnbread.attendance.dto.LmtShopRbeDTO shopRbe = new com.dawnbread.attendance.dto.LmtShopRbeDTO();
+            shopRbe.setShopId((Long) row[0]);
+            shopRbe.setShopCode((String) row[1]);
+            shopRbe.setShopName((String) row[2]);
+            Long qty = (Long) row[5];
+            shopRbe.setRbeQty(qty != null ? qty.intValue() : 0);
+
+            Long productId = (Long) row[3];
+            shopRbeByProduct.computeIfAbsent(productId, k -> new java.util.ArrayList<>()).add(shopRbe);
+        }
+
         for (LmtDailyStockItemDTO itemDto : dto.getItems()) {
             itemDto.setReturnsByShop(shopReturnsByProduct.getOrDefault(itemDto.getProductId(), new java.util.ArrayList<>()));
+            itemDto.setRbeByShop(shopRbeByProduct.getOrDefault(itemDto.getProductId(), new java.util.ArrayList<>()));
         }
         return dto;
     }
@@ -187,6 +204,17 @@ public class LmtStockService {
             returnedByProduct.put(productId, returned != null ? returned.intValue() : 0);
         }
 
+        // "Salesman updates" feature: Return-Before-Expiry replacement
+        // units, computed the same way Sold/Returned are. The fresh bread
+        // handed over consumes van stock exactly like a sale (see
+        // missingQty's formula below), even though it carries no revenue.
+        Map<Long, Integer> rbeByProduct = new HashMap<>();
+        for (Object[] row : saleItemRepository.sumReturnBeforeExpiryQuantityByAgentAndDate(request.getAgentId(), today)) {
+            Long productId = (Long) row[0];
+            Long rbe = (Long) row[1];
+            rbeByProduct.put(productId, rbe != null ? rbe.intValue() : 0);
+        }
+
         List<LmtDailyStockItem> items = lmtDailyStockItemRepository.findByLmtDailyStockId(stock.getId());
         for (LmtDailyStockItem item : items) {
             Long productId = item.getProduct().getId();
@@ -194,11 +222,13 @@ public class LmtStockService {
             int unsoldQty = itemReq != null ? itemReq.getUnsoldQty() : 0;
             int soldQty = soldByProduct.getOrDefault(productId, 0);
             int returnedQty = returnedByProduct.getOrDefault(productId, 0);
+            int rbeQty = rbeByProduct.getOrDefault(productId, 0);
 
             item.setReturnedQty(returnedQty);
             item.setUnsoldQty(unsoldQty);
             item.setSoldQty(soldQty);
-            item.setMissingQty(item.getOpeningStock() - soldQty - returnedQty - unsoldQty);
+            item.setRbeQty(rbeQty);
+            item.setMissingQty(item.getOpeningStock() - soldQty - returnedQty - unsoldQty - rbeQty);
             lmtDailyStockItemRepository.save(item);
         }
 
@@ -235,6 +265,7 @@ public class LmtStockService {
         dto.setReturnedQty(item.getReturnedQty());
         dto.setUnsoldQty(item.getUnsoldQty());
         dto.setSoldQty(item.getSoldQty());
+        dto.setRbeQty(item.getRbeQty());
         dto.setMissingQty(item.getMissingQty());
         return dto;
     }

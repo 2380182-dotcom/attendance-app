@@ -61,13 +61,16 @@ export default function SalesVoucherShopsPage() {
                   <TableCell align="right">Sale Total</TableCell>
                   <TableCell align="right">Return Total</TableCell>
                   <TableCell align="right">Net Total</TableCell>
-                  <TableCell align="right">Total Units</TableCell>
+                  <TableCell align="right">Sold Units</TableCell>
+                  <TableCell align="right">Returned Units</TableCell>
+                  <TableCell align="right">Unsold Units</TableCell>
+                  <TableCell align="right">Return Before Expiry (replaced)</TableCell>
                   <TableCell>Last Visit</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {data.content.length === 0 && (
-                  <TableRow><TableCell colSpan={9} align="center">No {label} vouchers found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={12} align="center">No {label} vouchers found.</TableCell></TableRow>
                 )}
                 {data.content.map((shop) => (
                   <TableRow
@@ -83,7 +86,11 @@ export default function SalesVoucherShopsPage() {
                     <TableCell align="right">{Number(shop.saleAmount).toFixed(2)}</TableCell>
                     <TableCell align="right">{Number(shop.returnAmount).toFixed(2)}</TableCell>
                     <TableCell align="right">{Number(shop.netAmount).toFixed(2)}</TableCell>
+                    {/* "Salesman updates" fix: totalUnits is SALE-only — returned/unsold/RBE each get their own column now, never folded in. */}
                     <TableCell align="right">{shop.totalUnits}</TableCell>
+                    <TableCell align="right">{shop.returnedUnits}</TableCell>
+                    <TableCell align="right">{shop.unsoldUnits}</TableCell>
+                    <TableCell align="right">{shop.returnBeforeExpiryUnits}</TableCell>
                     <TableCell>{shop.lastVisitDate}</TableCell>
                   </TableRow>
                 ))}

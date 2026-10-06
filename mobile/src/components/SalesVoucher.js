@@ -52,6 +52,7 @@ function buildRows(items) {
         productName: item.productName,
         sold: 0,
         returned: 0,
+        returnBeforeExpiry: 0,
         unitPrice: item.unitPrice ?? 0,
         discountPercent: 0,
         netAmount: 0,
@@ -59,11 +60,17 @@ function buildRows(items) {
       };
       byProduct.set(key, row);
     }
+    // "Salesman updates" fix: this used to be "else = sold", which silently
+    // counted RETURN_BEFORE_EXPIRY as a sale with revenue once that type
+    // existed. Each type now has its own explicit branch.
     if (item.transactionType === 'RETURN') {
       row.returned += item.quantity ?? 0;
       row.returnAmount += item.totalPrice ?? 0;
     } else if (item.transactionType === 'UNSOLD') {
       // Unsold lines don't belong to a shop visit — ignored defensively.
+    } else if (item.transactionType === 'RETURN_BEFORE_EXPIRY') {
+      // Swap, not a sale — tracked separately, never added to netAmount.
+      row.returnBeforeExpiry += item.quantity ?? 0;
     } else {
       row.sold += item.quantity ?? 0;
       row.netAmount += item.totalPrice ?? 0;
@@ -85,6 +92,7 @@ export default function SalesVoucher({ record, salesmanName, employeeId, onDone 
   const rows = useMemo(() => buildRows(record?.items), [record]);
   const totalSold = rows.reduce((sum, r) => sum + r.sold, 0);
   const totalReturned = rows.reduce((sum, r) => sum + r.returned, 0);
+  const totalReturnBeforeExpiry = rows.reduce((sum, r) => sum + r.returnBeforeExpiry, 0);
   const saleAmount = Number(record?.totalAmount) || 0;
   const returnAmount = rows.reduce((sum, r) => sum + r.returnAmount, 0);
   const netAmount = saleAmount - returnAmount;
@@ -144,6 +152,12 @@ export default function SalesVoucher({ record, salesmanName, employeeId, onDone 
             <Text style={styles.summaryLabel}>Total Returned</Text>
             <Text style={styles.summaryValue}>{totalReturned} breads</Text>
           </View>
+          {totalReturnBeforeExpiry > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Return Before Expiry (replaced)</Text>
+              <Text style={styles.summaryValue}>{totalReturnBeforeExpiry} breads — does not change the total</Text>
+            </View>
+          )}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Sale Total (Rs)</Text>
             <Text style={styles.summaryValue}>{formatRs(saleAmount)}</Text>

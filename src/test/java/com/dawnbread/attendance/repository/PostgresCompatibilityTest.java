@@ -77,6 +77,9 @@ class PostgresCompatibilityTest {
     @Autowired
     private ShopVisitScanRepository shopVisitScanRepository;
 
+    @Autowired
+    private ShopFeedbackRepository shopFeedbackRepository;
+
     private Long tenantId;
 
     @BeforeEach
@@ -262,5 +265,34 @@ class PostgresCompatibilityTest {
         Page<ShopVisitScan> page = assertDoesNotThrow(
                 () -> shopVisitScanRepository.findFiltered(today, today, lmt.getId(), "SALESMAN_LMT", "findable", false, PageRequest.of(0, 25)));
         assertEquals(1, page.getTotalElements());
+    }
+
+    // ===== ShopFeedbackRepository.findFiltered ("salesman updates" feature) =====
+
+    @Test
+    void shopFeedbackFindFilteredWithBlankRoleDoesNotThrowOnPostgres() {
+        Agent lmt = seedAgent("PG_FEEDBACK_1", "SALESMAN_LMT");
+        CustomerShop shop = seedShop("PG-SHOP-7", "PG Shop Seven");
+
+        ShopFeedback feedback = new ShopFeedback();
+        feedback.setTenantId(tenantId);
+        feedback.setAgentId(lmt.getId());
+        feedback.setCustomerShop(shop);
+        feedback.setReason(ShopFeedbackReason.SHOP_CLOSED);
+        feedback.setGpsLatitude(0.0);
+        feedback.setGpsLongitude(0.0);
+        feedback.setGeofenceStatus(GeofenceStatus.INSIDE);
+        feedback.setVisitDate(LocalDate.now());
+        feedback.setVisitTime(LocalTime.now());
+        feedback.setCreatedAt(LocalDateTime.now());
+        shopFeedbackRepository.save(feedback);
+
+        LocalDate today = LocalDate.now();
+        // role="" (the Postgres-safe fix) — the exact pattern that crashed
+        // production for ShopVisitScanRepository.findFiltered, now reused
+        // here for the new feedback query.
+        List<ShopFeedback> result = assertDoesNotThrow(
+                () -> shopFeedbackRepository.findFiltered(today, today, null, ""));
+        assertEquals(1, result.size());
     }
 }

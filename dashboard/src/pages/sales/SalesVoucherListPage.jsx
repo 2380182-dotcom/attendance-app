@@ -56,14 +56,17 @@ export default function SalesVoucherListPage() {
                   <TableCell align="right">Sale Amount</TableCell>
                   <TableCell align="right">Return Amount</TableCell>
                   <TableCell align="right">Net Amount</TableCell>
-                  <TableCell align="right">Units</TableCell>
+                  <TableCell align="right">Sold Units</TableCell>
+                  <TableCell align="right">Returned Units</TableCell>
+                  <TableCell align="right">Unsold Units</TableCell>
+                  <TableCell align="right">Return Before Expiry (replaced)</TableCell>
                   <TableCell align="right">Distance (m)</TableCell>
                   <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {data.content.length === 0 && (
-                  <TableRow><TableCell colSpan={9} align="center">No vouchers for this shop.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={12} align="center">No vouchers for this shop.</TableCell></TableRow>
                 )}
                 {data.content.map((v) => (
                   <TableRow
@@ -78,7 +81,11 @@ export default function SalesVoucherListPage() {
                     <TableCell align="right">{Number(v.saleAmount).toFixed(2)}</TableCell>
                     <TableCell align="right">{Number(v.returnAmount).toFixed(2)}</TableCell>
                     <TableCell align="right">{Number(v.netAmount).toFixed(2)}</TableCell>
+                    {/* "Salesman updates" fix: totalUnits is SALE-only — returned/unsold/RBE each get their own column now. */}
                     <TableCell align="right">{v.totalUnits}</TableCell>
+                    <TableCell align="right">{v.returnedUnits}</TableCell>
+                    <TableCell align="right">{v.unsoldUnits}</TableCell>
+                    <TableCell align="right">{v.returnBeforeExpiryUnits}</TableCell>
                     <TableCell align="right">{v.distanceFromShopMeters != null ? Math.round(v.distanceFromShopMeters) : '-'}</TableCell>
                     <TableCell><Chip size="small" label={v.status} /></TableCell>
                   </TableRow>

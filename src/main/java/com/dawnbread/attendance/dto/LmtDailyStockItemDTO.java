@@ -11,6 +11,8 @@ public class LmtDailyStockItemDTO {
     private Integer returnedQty;
     private Integer unsoldQty;
     private Integer soldQty;
+    /** "Salesman updates" feature: fresh bread handed over as a Return-Before-Expiry replacement — subtracted in missingQty exactly like soldQty. */
+    private Integer rbeQty;
     private Integer missingQty;
     /**
      * Per-shop breakdown of this product's Returned total — populated only
@@ -19,6 +21,8 @@ public class LmtDailyStockItemDTO {
      * self-service response (/today, /morning, /reconcile).
      */
     private List<LmtShopReturnDTO> returnsByShop;
+    /** Same as returnsByShop, for Return-Before-Expiry — "salesman updates" feature. */
+    private List<LmtShopRbeDTO> rbeByShop;
 
     public LmtDailyStockItemDTO() {}
 
@@ -43,9 +47,15 @@ public class LmtDailyStockItemDTO {
     public Integer getSoldQty() { return soldQty; }
     public void setSoldQty(Integer soldQty) { this.soldQty = soldQty; }
 
+    public Integer getRbeQty() { return rbeQty; }
+    public void setRbeQty(Integer rbeQty) { this.rbeQty = rbeQty; }
+
     public Integer getMissingQty() { return missingQty; }
     public void setMissingQty(Integer missingQty) { this.missingQty = missingQty; }
 
     public List<LmtShopReturnDTO> getReturnsByShop() { return returnsByShop; }
     public void setReturnsByShop(List<LmtShopReturnDTO> returnsByShop) { this.returnsByShop = returnsByShop; }
+
+    public List<LmtShopRbeDTO> getRbeByShop() { return rbeByShop; }
+    public void setRbeByShop(List<LmtShopRbeDTO> rbeByShop) { this.rbeByShop = rbeByShop; }
 }

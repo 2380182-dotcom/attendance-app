@@ -6,14 +6,17 @@ public class QrVisitSummaryDTO {
     private int visitedShops;
     private int notVisitedShops;
     private int voucherWithoutScanCount;
+    /** "Salesman updates" feature: how many of visitedShops got there via feedback (no sale, no QR scan) rather than a real scan/voucher. */
+    private int feedbackCount;
 
     public QrVisitSummaryDTO() {}
 
-    public QrVisitSummaryDTO(int totalShops, int visitedShops, int notVisitedShops, int voucherWithoutScanCount) {
+    public QrVisitSummaryDTO(int totalShops, int visitedShops, int notVisitedShops, int voucherWithoutScanCount, int feedbackCount) {
         this.totalShops = totalShops;
         this.visitedShops = visitedShops;
         this.notVisitedShops = notVisitedShops;
         this.voucherWithoutScanCount = voucherWithoutScanCount;
+        this.feedbackCount = feedbackCount;
     }
 
     public int getTotalShops() { return totalShops; }
@@ -27,4 +30,7 @@ public class QrVisitSummaryDTO {
 
     public int getVoucherWithoutScanCount() { return voucherWithoutScanCount; }
     public void setVoucherWithoutScanCount(int voucherWithoutScanCount) { this.voucherWithoutScanCount = voucherWithoutScanCount; }
+
+    public int getFeedbackCount() { return feedbackCount; }
+    public void setFeedbackCount(int feedbackCount) { this.feedbackCount = feedbackCount; }
 }

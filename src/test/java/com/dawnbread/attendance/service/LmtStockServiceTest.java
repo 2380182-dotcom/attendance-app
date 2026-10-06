@@ -238,6 +238,43 @@ class LmtStockServiceTest {
         assertEquals("RECONCILED", result.getStatus());
     }
 
+    /**
+     * "Salesman updates" feature: Return-Before-Expiry replacement units
+     * consume van stock exactly like a sale (the fresh bread leaves the
+     * van), so the formula is opening - sold - returned - unsold - rbe.
+     */
+    @Test
+    void returnBeforeExpiryIsSubtractedFromMissingExactlyLikeSold() {
+        Agent lmt = seedLmt("LMT_STOCK_RBE");
+        Product product = seedProduct();
+        LocalDate today = LocalDate.now();
+
+        LmtMorningStockRequest morning = new LmtMorningStockRequest();
+        morning.setAgentId(lmt.getId());
+        LmtStockItemRequest morningItem = new LmtStockItemRequest();
+        morningItem.setProductId(product.getId());
+        morningItem.setOpeningStock(50);
+        morning.setItems(List.of(morningItem));
+        lmtStockService.enterMorningStock(morning);
+
+        seedSale(lmt, product, today, 301L, 10);
+        seedReturn(lmt, product, today, 302L, 5);
+        seedSaleItem(lmt, product, today, 303L, 8, TransactionType.RETURN_BEFORE_EXPIRY);
+
+        LmtReconcileRequest reconcile = new LmtReconcileRequest();
+        reconcile.setAgentId(lmt.getId());
+        LmtReconcileItemRequest reconcileItem = new LmtReconcileItemRequest();
+        reconcileItem.setProductId(product.getId());
+        reconcileItem.setUnsoldQty(7);
+        reconcile.setItems(List.of(reconcileItem));
+
+        LmtDailyStockDTO result = lmtStockService.reconcile(reconcile);
+        LmtDailyStockItemDTO item = itemFor(result, product.getId());
+
+        assertEquals(8, item.getRbeQty(), "rbeQty must be computed from the RETURN_BEFORE_EXPIRY row, same way soldQty/returnedQty are");
+        assertEquals(20, item.getMissingQty(), "Missing = 50 opening - 10 sold - 5 returned - 7 unsold - 8 rbe = 20");
+    }
+
     @Test
     void zeroSalesProductComputesMissingFromOpeningStockAlone() {
         Agent lmt = seedLmt("LMT_STOCK_ZEROSALES");
