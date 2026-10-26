@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -6,25 +6,26 @@ import LoginPage from './pages/LoginPage';
 import HRLayout from './layouts/HRLayout';
 import SalesLayout from './layouts/SalesLayout';
 import AdminLayout from './layouts/AdminLayout';
-import TodayBoardPage from './pages/hr/TodayBoardPage';
-import AgentStatusPage from './pages/hr/AgentStatusPage';
-import AttendanceHistoryPage from './pages/hr/AttendanceHistoryPage';
-import HRAnalyticsPage from './pages/hr/HRAnalyticsPage';
-import AgentDirectoryPage from './pages/hr/AgentDirectoryPage';
-import AgentProfilePage from './pages/hr/AgentProfilePage';
-import SalesOverviewPage from './pages/sales/SalesOverviewPage';
-import SalesHistoryPage from './pages/sales/SalesHistoryPage';
-import ProductPricingPage from './pages/sales/ProductPricingPage';
-import LmtReconciliationPage from './pages/sales/LmtReconciliationPage';
-import SalesVoucherShopsPage from './pages/sales/SalesVoucherShopsPage';
-import SalesVoucherListPage from './pages/sales/SalesVoucherListPage';
-import SalesVoucherDetailPage from './pages/sales/SalesVoucherDetailPage';
-import QrShopVisitsPage from './pages/sales/QrShopVisitsPage';
-import SalesmanVisitHistoryPage from './pages/sales/SalesmanVisitHistoryPage';
-import HierarchyPeoplePage from './pages/admin/HierarchyPeoplePage';
-import AreasPage from './pages/admin/AreasPage';
-import CustomerShopsPage from './pages/admin/CustomerShopsPage';
-import LmtSettingsPage from './pages/admin/LmtSettingsPage';
+const TodayBoardPage = lazy(() => import('./pages/hr/TodayBoardPage'));
+const AgentStatusPage = lazy(() => import('./pages/hr/AgentStatusPage'));
+const AttendanceHistoryPage = lazy(() => import('./pages/hr/AttendanceHistoryPage'));
+const HRAnalyticsPage = lazy(() => import('./pages/hr/HRAnalyticsPage'));
+const AgentDirectoryPage = lazy(() => import('./pages/hr/AgentDirectoryPage'));
+const AgentProfilePage = lazy(() => import('./pages/hr/AgentProfilePage'));
+const SalesOverviewPage = lazy(() => import('./pages/sales/SalesOverviewPage'));
+const SalesHistoryPage = lazy(() => import('./pages/sales/SalesHistoryPage'));
+const ProductPricingPage = lazy(() => import('./pages/sales/ProductPricingPage'));
+const LmtReconciliationPage = lazy(() => import('./pages/sales/LmtReconciliationPage'));
+const SalesVoucherShopsPage = lazy(() => import('./pages/sales/SalesVoucherShopsPage'));
+const SalesVoucherListPage = lazy(() => import('./pages/sales/SalesVoucherListPage'));
+const SalesVoucherDetailPage = lazy(() => import('./pages/sales/SalesVoucherDetailPage'));
+const QrShopVisitsPage = lazy(() => import('./pages/sales/QrShopVisitsPage'));
+const SalesmanVisitHistoryPage = lazy(() => import('./pages/sales/SalesmanVisitHistoryPage'));
+const HierarchyPeoplePage = lazy(() => import('./pages/admin/HierarchyPeoplePage'));
+const SalesCockpitPage = lazy(() => import('./cockpit/sales/SalesCockpitPage'));
+const AreasPage = lazy(() => import('./pages/admin/AreasPage'));
+const CustomerShopsPage = lazy(() => import('./pages/admin/CustomerShopsPage'));
+const LmtSettingsPage = lazy(() => import('./pages/admin/LmtSettingsPage'));
 
 export default function App() {
   return (
@@ -56,7 +57,10 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<SalesOverviewPage />} />
+          {/* Cockpit is the Sales landing page; the old Overview moved to /sales/overview. */}
+          <Route index element={<SalesCockpitPage />} />
+          <Route path="cockpit" element={<Navigate to="/sales" replace />} />
+          <Route path="overview" element={<SalesOverviewPage />} />
           <Route path="history" element={<SalesHistoryPage />} />
           <Route path="reconciliation" element={<LmtReconciliationPage />} />
           <Route path="pricing" element={<ProductPricingPage />} />

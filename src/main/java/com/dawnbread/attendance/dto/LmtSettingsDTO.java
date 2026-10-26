@@ -8,6 +8,8 @@ public class LmtSettingsDTO {
     private String geofenceMode;
     private String qrMode;
     private LocalDateTime updatedAt;
+    /** V33 — cockpit return-alert threshold in percent; null on PUT leaves it unchanged. */
+    private Double returnAlertPercent;
 
     public LmtSettingsDTO() {}
 
@@ -29,4 +31,7 @@ public class LmtSettingsDTO {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Double getReturnAlertPercent() { return returnAlertPercent; }
+    public void setReturnAlertPercent(Double returnAlertPercent) { this.returnAlertPercent = returnAlertPercent; }
 }

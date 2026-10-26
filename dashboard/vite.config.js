@@ -12,4 +12,19 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
+  // Cockpit dashboards: split the big libraries out of the main bundle so the
+  // first load is fast and they cache separately between releases.
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('recharts') || id.includes('d3-') || id.includes('victory-vendor')) return 'charts';
+          if (id.includes('@mui') || id.includes('@emotion')) return 'mui';
+          if (id.includes('@fontsource')) return 'fonts';
+          return 'vendor';
+        },
+      },
+    },
+  },
 })

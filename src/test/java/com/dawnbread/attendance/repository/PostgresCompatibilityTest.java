@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.repository;
 
+import com.dawnbread.attendance.dto.cockpit.CockpitFilter;
 import com.dawnbread.attendance.entity.*;
 import com.dawnbread.attendance.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
@@ -294,5 +295,72 @@ class PostgresCompatibilityTest {
         List<ShopFeedback> result = assertDoesNotThrow(
                 () -> shopFeedbackRepository.findFiltered(today, today, null, ""));
         assertEquals(1, result.size());
+    }
+
+    // ===== Sales cockpit (SalesCockpitQueries) — every query, with and without filters, empty and seeded =====
+
+    @Autowired
+    private SalesCockpitQueries cockpitQueries;
+
+    private void runEveryCockpitQuery(CockpitFilter f) {
+        LocalDate from = f.startDate();
+        LocalDate to = f.endDate();
+        assertDoesNotThrow(() -> cockpitQueries.dailySales(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.salesBySegment(f));
+        assertDoesNotThrow(() -> cockpitQueries.salesByAgent(f));
+        assertDoesNotThrow(() -> cockpitQueries.salesByArea(f));
+        assertDoesNotThrow(() -> cockpitQueries.topProducts(f, 15));
+        assertDoesNotThrow(() -> cockpitQueries.shopsAboveReturnPercent(f, 15.0));
+        assertDoesNotThrow(() -> cockpitQueries.productsAboveReturnPercent(f, 15.0));
+        assertDoesNotThrow(() -> cockpitQueries.vouchers(f, null, false, 0, 25));
+        assertDoesNotThrow(() -> cockpitQueries.vouchers(f, 1L, true, 0, 25));
+        assertDoesNotThrow(() -> cockpitQueries.countVouchers(f, 1L, false));
+        assertDoesNotThrow(() -> cockpitQueries.dailyOffLocationAttempts(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.offLocationAttemptsByAgent(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.dailyLocationNotChecked(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.dailyVouchersWithoutScan(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.vouchersWithoutScanByAgent(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.dailyFeedback(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.dailyLmtMissing(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.lmtMissingByAgent(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.unreconciledByAgent(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.countAssignedShops(f));
+        assertDoesNotThrow(() -> cockpitQueries.countVisitedAssignedShops(f, to));
+        assertDoesNotThrow(() -> cockpitQueries.countShopsNotVisitedSince(f, to.minusDays(3)));
+        assertDoesNotThrow(() -> cockpitQueries.shopsNotVisitedSince(f, to.minusDays(3), 10));
+        assertDoesNotThrow(() -> cockpitQueries.countSalesmen(f));
+        assertDoesNotThrow(() -> cockpitQueries.countActiveSalesmen(f, to));
+        assertDoesNotThrow(() -> cockpitQueries.salesmenWithoutVisit(f, to));
+        assertDoesNotThrow(() -> cockpitQueries.activeAreas());
+        assertDoesNotThrow(() -> cockpitQueries.activeSalesmen());
+    }
+
+    @Test
+    void everyCockpitQueryRunsOnPostgresWithAndWithoutFiltersAndWithNoData() {
+        LocalDate today = LocalDate.now();
+        CockpitFilter none = new CockpitFilter(today.minusDays(29), today, "ALL", null, null);
+        CockpitFilter all = new CockpitFilter(today.minusDays(29), today, "LMT", 1L, 1L);
+        runEveryCockpitQuery(none);   // empty database
+        runEveryCockpitQuery(all);
+
+        Agent lmt = seedAgent("PG_COCKPIT_1", "SALESMAN_LMT");
+        CustomerShop shop = seedShop("PG-SHOP-CK", "PG Cockpit Shop");
+        ShopVisitScan scan = new ShopVisitScan();
+        scan.setTenantId(tenantId);
+        scan.setAgentId(lmt.getId());
+        scan.setCustomerShop(shop);
+        scan.setScannedCode("PG-SHOP-CK");
+        scan.setScanDate(today);
+        scan.setScanTime(LocalTime.now());
+        scan.setGpsLatitude(0.0);
+        scan.setGpsLongitude(0.0);
+        scan.setGeofenceStatus(GeofenceStatus.OUTSIDE);
+        scan.setVisitStatus(ShopVisitStatus.OUTSIDE_GEOFENCE);
+        scan.setCreatedAt(LocalDateTime.now());
+        shopVisitScanRepository.save(scan);
+
+        runEveryCockpitQuery(none);   // seeded
+        runEveryCockpitQuery(new CockpitFilter(today.minusDays(29), today, "LOCAL", shop.getArea().getId(), lmt.getId()));
+        assertEquals(1L, cockpitQueries.dailyOffLocationAttempts(none, today, today).size());
     }
 }

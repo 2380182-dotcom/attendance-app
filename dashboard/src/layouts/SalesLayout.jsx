@@ -8,7 +8,8 @@ import DashboardLayout from './DashboardLayout';
 // enforce the same roles independently, so every item below is shown to
 // whoever gets this far — no per-item role filtering needed.
 const SALES_NAV = [
-  { path: '/sales', label: 'Overview' },
+  { path: '/sales', label: 'Cockpit' },
+  { path: '/sales/overview', label: 'Overview' },
   { path: '/sales/history', label: 'Sales History' },
   { path: '/sales/reconciliation', label: 'LMT Reconciliation' },
   { path: '/sales/pricing', label: 'Product Pricing' },

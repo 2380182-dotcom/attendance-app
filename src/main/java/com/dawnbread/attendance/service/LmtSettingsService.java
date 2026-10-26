@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 public class LmtSettingsService {
 
     private static final double DEFAULT_BUFFER_METERS = 50.0;
+    public static final double DEFAULT_RETURN_ALERT_PERCENT = 15.0;
 
     @Autowired
     private LmtSettingsRepository lmtSettingsRepository;
@@ -61,6 +62,31 @@ public class LmtSettingsService {
             settings.setQrMode(parseMode(qrMode, "qrMode"));
         }
         settings.setUpdatedAt(LocalDateTime.now());
+        return lmtSettingsRepository.save(settings);
+    }
+
+    /**
+     * V33 — read-only lookup for the cockpit (which runs in a read-only
+     * transaction, so it must never trigger getOrCreate()'s insert).
+     * A tenant with no settings row yet gets the default 15%.
+     */
+    @Transactional(readOnly = true)
+    public double getReturnAlertPercent() {
+        return lmtSettingsRepository.findByTenantId(TenantContext.getTenantId())
+                .map(LmtSettings::getReturnAlertPercent)
+                .orElse(DEFAULT_RETURN_ALERT_PERCENT);
+    }
+
+    /** V33 — cockpit return-alert %. Null leaves it unchanged (same convention as the modes above). */
+    public LmtSettings updateReturnAlertPercent(Double returnAlertPercent) {
+        LmtSettings settings = getOrCreate();
+        if (returnAlertPercent != null) {
+            if (returnAlertPercent < 0 || returnAlertPercent > 100) {
+                throw new RuntimeException("returnAlertPercent must be between 0 and 100");
+            }
+            settings.setReturnAlertPercent(returnAlertPercent);
+            settings.setUpdatedAt(LocalDateTime.now());
+        }
         return lmtSettingsRepository.save(settings);
     }
 
