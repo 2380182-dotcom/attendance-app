@@ -337,7 +337,8 @@ class PostgresCompatibilityTest {
 
     @Test
     void everyCockpitQueryRunsOnPostgresWithAndWithoutFiltersAndWithNoData() {
-        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
+        // A fixed past date, so this scan never shows up in other tests that count today's scans.
+        LocalDate today = LocalDate.of(2025, 1, 15);
         CockpitFilter none = new CockpitFilter(today.minusDays(29), today, "ALL", null, null);
         CockpitFilter all = new CockpitFilter(today.minusDays(29), today, "LMT", 1L, 1L);
         runEveryCockpitQuery(none);   // empty database
