@@ -10,8 +10,8 @@ let loadPromise = null;
 // assumption about the model itself.
 const SINGLE_IMAGE_PIXEL_COUNT = 112 * 112 * 3;
 
-// DIAG(2026-07-26): the on-device model diagnostic (modelDiagnostic.js)
-// found this .tflite file's actual declared shapes are input [2,112,112,3]
+// The on-device model diagnostic (modelDiagnostic.js) found this .tflite
+// file's actual declared shapes are input [2,112,112,3]
 // / output [2,192] — NOT the [1,112,112,3] / [1,384] this code originally
 // assumed. Best-read root cause: MobileFaceNet is architecturally a
 // single-image feature extractor, not a pairwise/Siamese network, and the
