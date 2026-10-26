@@ -53,7 +53,9 @@ public class NotificationService {
         }
         Notification saved = notificationRepository.save(notification);
         try {
-            messagingTemplate.convertAndSend("/topic/alerts", saved);
+            // Send the DTO, never the entity (its lazy agent proxy can't be
+            // serialized — the live Sales feed silently got nothing).
+            messagingTemplate.convertAndSend("/topic/alerts", com.dawnbread.attendance.dto.NotificationDTO.from(saved));
         } catch (Exception e) {
             logger.error("Failed to broadcast notification: ", e);
         }

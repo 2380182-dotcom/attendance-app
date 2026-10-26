@@ -144,15 +144,6 @@ public class NotificationController {
     }
 
     private NotificationDTO convertToDTO(Notification n) {
-        return new NotificationDTO(
-                n.getId(),
-                n.getAgent() != null ? n.getAgent().getId() : null,
-                n.getAgentName(),
-                n.getMessage(),
-                n.getType(),
-                n.getDepartment(),
-                n.getIsRead(),
-                n.getCreatedAt()
-        );
+        return NotificationDTO.from(n);
     }
 }
