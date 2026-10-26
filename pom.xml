@@ -128,7 +128,7 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
-        <!-- Testcontainers: real Postgres 15 for tests H2 can't be trusted
+        <!-- Testcontainers: real Postgres 18 (same major version as production) for tests H2 can't be trusted
              for (see PostgresCompatibilityTest) — H2 silently accepts SQL
              that Postgres rejects (untyped null parameters inside
              LOWER()/CONCAT(), confirmed by a real production outage). -->

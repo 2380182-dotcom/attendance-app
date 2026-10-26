@@ -24,11 +24,11 @@ jobs:
       - name: Compile
         run: mvn -B -q compile test-compile
 
-      # Includes the real-Postgres 15 tests (Testcontainers, separate Surefire
+      # Includes the real-Postgres 18 tests (same major version as production) (Testcontainers, separate Surefire
       # execution — see pom.xml). Docker is preinstalled on ubuntu-latest; the
       # API version pin keeps Testcontainers' docker-java client compatible
       # with newer Docker Engines (same setting used for local runs).
-      - name: Run full test suite (incl. real Postgres 15)
+      - name: Run full test suite (incl. real Postgres 18)
         env:
           DOCKER_API_VERSION: "1.44"
         run: mvn -B test -Dapi.version=1.44

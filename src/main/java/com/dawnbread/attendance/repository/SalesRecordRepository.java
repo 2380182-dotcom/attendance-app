@@ -113,7 +113,7 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
      * change never retroactively moves an already-existing voucher.
      * :shopSearch is optional — "" means no filter (never null; see
      * searchSales's doc for why "= '' OR ..." replaces "IS NULL OR ..."
-     * here — a real production outage on Postgres 15, invisible on H2).
+     * here — a real production outage on PostgreSQL, invisible on H2).
      */
     @Query(value = "SELECT new com.dawnbread.attendance.dto.VoucherShopSummaryDTO(" +
             "sh.id, sh.shopCode, sh.shopName, sh.branch, COUNT(DISTINCT sr.id), " +

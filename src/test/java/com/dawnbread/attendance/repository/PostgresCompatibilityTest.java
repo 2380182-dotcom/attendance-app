@@ -32,7 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * actually null — Postgres can't resolve the type of an untyped null bound
  * inside LOWER(CONCAT(...)) and defaults to bytea. H2 (every other test in
  * this suite) accepts the untyped null fine and never caught this. This
- * class runs the exact same queries against a REAL Postgres 15 container —
+ * class runs the exact same queries against a REAL Postgres 18 container
+ * (production runs PostgreSQL 18.6) —
  * the only way to trust this bug class is fixed and stays fixed. Hibernate
  * creates the schema directly here (ddl-auto=create-drop) rather than
  * running Flyway — this test is about JPQL-to-SQL type inference on real
@@ -49,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PostgresCompatibilityTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine");
 
     @DynamicPropertySource
     static void postgresProperties(DynamicPropertyRegistry registry) {
