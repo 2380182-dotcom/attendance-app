@@ -1,8 +1,8 @@
-import React, { useContext, useState } from 'react';
+import React, { Suspense, useContext, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   AppBar, Toolbar, Typography, Box, Button, Drawer, List, ListItemButton, ListItemText,
-  IconButton,
+  IconButton, Skeleton,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -113,7 +113,21 @@ export default function DashboardLayout({ title, navItems }) {
         }}
       >
         <Toolbar />
-        <Outlet />
+        {/* Pages are loaded on demand (App.jsx); the sidebar stays while one loads. */}
+        <Suspense fallback={<PageSkeleton />}>
+          <Outlet />
+        </Suspense>
+      </Box>
+    </Box>
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }} aria-busy="true" aria-label="Loading page">
+      <Skeleton animation="wave" variant="rounded" height={120} sx={{ borderRadius: 3 }} />
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(3,1fr)' } }}>
+        {[0, 1, 2].map((i) => <Skeleton key={i} animation="wave" variant="rounded" height={150} sx={{ borderRadius: 3 }} />)}
       </Box>
     </Box>
   );

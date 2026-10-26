@@ -5,6 +5,7 @@ import com.dawnbread.attendance.entity.GeoFenceLog;
 import com.dawnbread.attendance.entity.Mart;
 import com.dawnbread.attendance.entity.SaleItem;
 import com.dawnbread.attendance.entity.SalesRecord;
+import com.dawnbread.attendance.entity.TransactionType;
 import com.dawnbread.attendance.repository.AttendanceRepository;
 import com.dawnbread.attendance.repository.GeoFenceLogRepository;
 import com.dawnbread.attendance.repository.SalesRecordRepository;
@@ -44,7 +45,8 @@ public class ExcelExportService {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Sales Records");
             Row headerRow = sheet.createRow(0);
-            String[] columns = {"ID", "Agent", "Store", "Date", "Time", "Total Units", "Total Amount (PKR)", "Status"};
+            String[] columns = {"ID", "Agent", "Store", "Date", "Time", "Sold Units", "Returned Units",
+                    "Unsold Units", "Return Before Expiry (replaced)", "Total Amount (PKR)", "Status"};
 
             CellStyle headerStyle = createHeaderStyle(workbook);
             for (int i = 0; i < columns.length; i++) {
@@ -61,17 +63,34 @@ public class ExcelExportService {
                 row.createCell(2).setCellValue(record.getStoreName() != null ? record.getStoreName() : record.getLocation());
                 row.createCell(3).setCellValue(record.getSaleDate().format(DATE_FORMATTER));
                 row.createCell(4).setCellValue(record.getSaleTime().toString());
-                int units = record.getTotalUnits() != null ? record.getTotalUnits() :
-                        record.getItems().stream().mapToInt(SaleItem::getQuantity).sum();
-                row.createCell(5).setCellValue(units);
-                row.createCell(6).setCellValue(record.getTotalAmount());
-                row.createCell(7).setCellValue(record.getStatus() != null ? record.getStatus() : "PENDING");
+                // Computed live from items (never from the stored
+                // total_units field) so this is correct for old vouchers
+                // too — total_units on an old row still carries its pre-fix
+                // combined value, but the underlying SaleItem rows always
+                // had the correct per-line transactionType.
+                row.createCell(5).setCellValue(sumUnitsByType(record, TransactionType.SALE));
+                row.createCell(6).setCellValue(sumUnitsByType(record, TransactionType.RETURN));
+                row.createCell(7).setCellValue(sumUnitsByType(record, TransactionType.UNSOLD));
+                row.createCell(8).setCellValue(sumUnitsByType(record, TransactionType.RETURN_BEFORE_EXPIRY));
+                row.createCell(9).setCellValue(record.getTotalAmount());
+                row.createCell(10).setCellValue(record.getStatus() != null ? record.getStatus() : "PENDING");
             }
 
             autoSizeColumns(sheet, columns.length);
             workbook.write(out);
             return new ByteArrayInputStream(out.toByteArray());
         }
+    }
+
+    /** "Salesman updates" feature: per-type unit sum, always computed live from items — correct for old and new vouchers alike. */
+    private int sumUnitsByType(SalesRecord record, TransactionType type) {
+        if (record.getItems() == null) {
+            return 0;
+        }
+        return record.getItems().stream()
+                .filter(i -> i.getTransactionType() == type)
+                .mapToInt(SaleItem::getQuantity)
+                .sum();
     }
 
     public ByteArrayInputStream exportAllSales() throws IOException {

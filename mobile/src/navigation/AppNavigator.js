@@ -33,6 +33,7 @@ import LocalHomeScreen from '../screens/local/LocalHomeScreen';
 import LocalNearbyShopsScreen from '../screens/local/LocalNearbyShopsScreen';
 import LocalScanShopQrScreen from '../screens/local/ScanShopQrScreen';
 import LocalEntryScreen from '../screens/local/LocalEntryScreen';
+import ShopFeedbackScreen from '../screens/shared/ShopFeedbackScreen';
 
 // Sales Screens
 import SalesDashboardScreen from '../screens/sales/SalesDashboardScreen';
@@ -214,6 +215,11 @@ export default function AppNavigator() {
                 options={{ title: 'Record Sale' }}
               />
               <Stack.Screen
+                name="ShopFeedback"
+                component={ShopFeedbackScreen}
+                options={{ title: 'Add Feedback' }}
+              />
+              <Stack.Screen
                 name="MorningStockEntry"
                 component={MorningStockEntryScreen}
                 options={{ title: 'Today\'s Stock' }}
@@ -281,6 +287,11 @@ export default function AppNavigator() {
                 name="LocalEntry"
                 component={LocalEntryScreen}
                 options={{ title: 'Enter' }}
+              />
+              <Stack.Screen
+                name="LocalShopFeedback"
+                component={ShopFeedbackScreen}
+                options={{ title: 'Add Feedback' }}
               />
             </>
           )}

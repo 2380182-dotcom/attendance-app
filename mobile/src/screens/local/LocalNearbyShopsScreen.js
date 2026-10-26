@@ -56,8 +56,20 @@ export default function LocalNearbyShopsScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={[styles.banner, { backgroundColor: modeColor }]}>
-        <Text style={styles.bannerEnglish}>{STRINGS.recordVisit.en} — {STRINGS.pickShop.en}</Text>
-        <Text style={styles.bannerUrdu}>{STRINGS.pickShop.ur}</Text>
+        {/* "Salesman updates" fix: each line is its own bilingual pair now
+            (not English-line-then-Urdu-line) — the Urdu portion is a
+            nested Text with its own RTL direction so mixed Urdu+Latin
+            (e.g. shop names) doesn't scramble word order. */}
+        <Text style={styles.bannerEnglish}>
+          {STRINGS.selectShopTitle.en}
+          {' · '}
+          <Text style={{ writingDirection: 'rtl' }}>{STRINGS.selectShopTitle.ur}</Text>
+        </Text>
+        <Text style={styles.bannerUrdu}>
+          {STRINGS.selectShopSubtitle.en}
+          {' · '}
+          <Text style={{ writingDirection: 'rtl' }}>{STRINGS.selectShopSubtitle.ur}</Text>
+        </Text>
       </View>
 
       {error ? (
@@ -85,6 +97,15 @@ export default function LocalNearbyShopsScreen({ navigation }) {
               {item.distanceMeters != null && (
                 <Text style={styles.shopDistance}>{Math.round(item.distanceMeters)} m</Text>
               )}
+              {/* "Salesman updates" feature: reached the shop, couldn't sell — record feedback instead of a voucher. */}
+              <TouchableOpacity
+                style={styles.feedbackButton}
+                onPress={() => navigation.navigate('LocalShopFeedback', { shop: item })}
+                accessibilityRole="button"
+                accessibilityLabel={`${STRINGS.addFeedback.en} ${STRINGS.addFeedback.ur}`}
+              >
+                <MaterialIcons name="feedback" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
             </TouchableOpacity>
           )}
           ListEmptyComponent={
@@ -99,7 +120,8 @@ export default function LocalNearbyShopsScreen({ navigation }) {
 
       <View style={styles.footer}>
         <AppButton
-          title={`${STRINGS.scanQr.en} · ${STRINGS.scanQr.ur}`}
+          titleEn={STRINGS.scanQr.en}
+          titleUr={STRINGS.scanQr.ur}
           variant="success"
           size="lg"
           icon="qr-code-scanner"
@@ -141,5 +163,6 @@ const createStyles = (colors) =>
     shopName: { fontSize: 22, fontWeight: 'bold', color: colors.textPrimary },
     shopMeta: { fontSize: 15, color: colors.textSecondary, marginTop: 2 },
     shopDistance: { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary },
+    feedbackButton: { padding: 8, marginLeft: 4 },
     footer: { padding: 12 },
   });

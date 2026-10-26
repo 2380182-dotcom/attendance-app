@@ -338,12 +338,12 @@ class LocalSalesmanTest {
         visit(local, shop, sold, 6, "SALE", 24.86, 67.0);
         visit(local, shop, returned, 2, "RETURN", 24.86, 67.0);
 
-        ReportDTO report = salesService.generateDailyReport(LocalDate.now(), "SALESMAN_LOCAL");
+        ReportDTO report = salesService.generateDailyReport(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), "SALESMAN_LOCAL");
 
         assertEquals(6, report.getTotalUnits(), "6 sold; the 2 returned are not sold units");
         assertTrue(report.getAgentSummaries().stream().anyMatch(s -> s.getEmployeeId().equals("LOCAL_REPORT")));
         // and the LMT report must not contain the local salesman at all
-        assertTrue(salesService.generateDailyReport(LocalDate.now(), "SALESMAN_LMT").getAgentSummaries().stream()
+        assertTrue(salesService.generateDailyReport(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), "SALESMAN_LMT").getAgentSummaries().stream()
                 .noneMatch(s -> s.getEmployeeId().equals("LOCAL_REPORT")));
     }
 

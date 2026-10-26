@@ -21,10 +21,14 @@ export function getDiscountPercent(product, shop, shopDiscounts) {
   return shop?.discountPercent ?? 0;
 }
 
-/** The price shown next to each bread: after discount for a sale, plain for a return. */
+/**
+ * The price shown next to each bread: after discount for a sale, plain for
+ * anything else (RETURN, and "salesman updates"' RETURN_BEFORE_EXPIRY —
+ * a swap, not a sale, so it gets no discount either, same as RETURN).
+ */
 export function getFinalUnitPrice(product, mode, shop, shopPrices, shopDiscounts) {
   const base = getBasePrice(product, shopPrices);
-  if (mode === 'RETURN') return base;
+  if (mode !== 'SALE') return base;
   return base * (1 - getDiscountPercent(product, shop, shopDiscounts) / 100);
 }
 

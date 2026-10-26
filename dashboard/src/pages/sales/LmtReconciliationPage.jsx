@@ -58,6 +58,33 @@ function ReturnsByShopTable({ returnsByShop }) {
   );
 }
 
+/** "Salesman updates" feature — same shape as ReturnsByShopTable, for Return Before Expiry. */
+function RbeByShopTable({ rbeByShop }) {
+  if (!rbeByShop || rbeByShop.length === 0) {
+    return <Typography color="text.secondary" sx={{ p: 2 }}>No per-shop Return Before Expiry recorded for this product.</Typography>;
+  }
+  return (
+    <TableContainer><Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell>Shop Code</TableCell>
+          <TableCell>Shop</TableCell>
+          <TableCell align="right">Return Before Expiry (replaced)</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {rbeByShop.map((shop) => (
+          <TableRow key={shop.shopId}>
+            <TableCell>{shop.shopCode}</TableCell>
+            <TableCell>{shop.shopName}</TableCell>
+            <TableCell align="right">{shop.rbeQty}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table></TableContainer>
+  );
+}
+
 function ReconciliationRow({ row }) {
   const [open, setOpen] = useState(false);
   const hasShortage = row.reconciled && row.missingQty > 0;
@@ -76,6 +103,7 @@ function ReconciliationRow({ row }) {
         <TableCell align="right">{row.reconciled ? row.soldQty : '—'}</TableCell>
         <TableCell align="right">{row.reconciled ? row.returnedQty : '—'}</TableCell>
         <TableCell align="right">{row.reconciled ? row.unsoldQty : '—'}</TableCell>
+        <TableCell align="right">{row.reconciled ? row.rbeQty : '—'}</TableCell>
         <TableCell align="right">
           {row.reconciled ? (
             hasShortage
@@ -87,11 +115,13 @@ function ReconciliationRow({ row }) {
         </TableCell>
       </TableRow>
       <TableRow>
-        <TableCell colSpan={9} sx={{ py: 0, borderBottom: open ? undefined : 'none' }}>
+        <TableCell colSpan={10} sx={{ py: 0, borderBottom: open ? undefined : 'none' }}>
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Box sx={{ py: 1 }}>
               <Typography variant="subtitle2" sx={{ px: 2, pt: 1 }}>Returns by shop</Typography>
               <ReturnsByShopTable returnsByShop={row.returnsByShop} />
+              <Typography variant="subtitle2" sx={{ px: 2, pt: 1 }}>Return Before Expiry by shop</Typography>
+              <RbeByShopTable rbeByShop={row.rbeByShop} />
             </Box>
           </Collapse>
         </TableCell>
@@ -137,8 +167,10 @@ export default function LmtReconciliationPage() {
           soldQty: item.soldQty,
           returnedQty: item.returnedQty,
           unsoldQty: item.unsoldQty,
+          rbeQty: item.rbeQty,
           missingQty: item.missingQty,
           returnsByShop: item.returnsByShop,
+          rbeByShop: item.rbeByShop,
           reconciled,
         });
       });
@@ -176,9 +208,11 @@ export default function LmtReconciliationPage() {
         soldQty: r.reconciled ? r.soldQty : '',
         returnedQty: r.reconciled ? r.returnedQty : '',
         unsoldQty: r.reconciled ? r.unsoldQty : '',
+        rbeQty: r.reconciled ? r.rbeQty : '',
         missingQty: r.reconciled ? r.missingQty : '',
         status: r.reconciled ? 'Reconciled' : 'Not reconciled',
         returnsByShopText: (r.returnsByShop || []).map((s) => `${s.shopName}: ${s.returnedQty}`).join('; '),
+        rbeByShopText: (r.rbeByShop || []).map((s) => `${s.shopName}: ${s.rbeQty}`).join('; '),
       })),
       [
         { key: 'stockDate', label: 'Date' },
@@ -188,9 +222,11 @@ export default function LmtReconciliationPage() {
         { key: 'soldQty', label: 'Sold' },
         { key: 'returnedQty', label: 'Returned' },
         { key: 'unsoldQty', label: 'Unsold' },
+        { key: 'rbeQty', label: 'Return Before Expiry (replaced)' },
         { key: 'missingQty', label: 'Missing' },
         { key: 'status', label: 'Status' },
         { key: 'returnsByShopText', label: 'Returns by Shop' },
+        { key: 'rbeByShopText', label: 'Return Before Expiry by Shop' },
       ]
     );
     downloadCsv(`lmt-reconciliation-${startStr}-to-${endStr}.csv`, csv);
@@ -288,13 +324,14 @@ export default function LmtReconciliationPage() {
                     <SortableHeader label="Sold" sortKey="soldQty" sort={sort} onSort={onSort} align="right" />
                     <SortableHeader label="Returned" sortKey="returnedQty" sort={sort} onSort={onSort} align="right" />
                     <SortableHeader label="Unsold" sortKey="unsoldQty" sort={sort} onSort={onSort} align="right" />
+                    <SortableHeader label="Return Before Expiry (replaced)" sortKey="rbeQty" sort={sort} onSort={onSort} align="right" />
                     <SortableHeader label="Missing" sortKey="missingQty" sort={sort} onSort={onSort} align="right" />
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {paged.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">
+                      <TableCell colSpan={10} align="center">
                         {shortagesOnly ? 'No shortages in this period.' : 'No stock records in this period.'}
                       </TableCell>
                     </TableRow>

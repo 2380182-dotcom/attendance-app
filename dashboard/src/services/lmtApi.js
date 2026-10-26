@@ -117,12 +117,14 @@ export const shopVisitApi = {
    * Admin-only now (was ADMIN/HR/SALES). Returns a PageResponse shape:
    * { content, page, size, totalElements, totalPages, hasNext }.
    */
-  async getReport(startDate, endDate, { agentId, role, shopSearch, failedOnly, page = 0, size = 25 } = {}) {
+  async getReport(startDate, endDate, { agentId, role, shopSearch, failedOnly, feedbackOnly, page = 0, size = 25 } = {}) {
     const params = { startDate, endDate, page, size };
     if (agentId) params.agentId = agentId;
     if (role) params.role = role;
     if (shopSearch) params.shopSearch = shopSearch;
     if (failedOnly) params.failedOnly = true;
+    // "Salesman updates" feature: merged "Visited" list now includes feedback rows; this shows feedback rows only.
+    if (feedbackOnly) params.feedbackOnly = true;
     const response = await api.get('/lmt/shop-visits', { params });
     return unwrap(response);
   },

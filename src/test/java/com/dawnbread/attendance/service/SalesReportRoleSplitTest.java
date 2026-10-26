@@ -93,7 +93,7 @@ class SalesReportRoleSplitTest {
         record.setTotalAmount(quantity * 50.0);
         record.setTotalUnits(quantity);
         record.setSaleDate(saleDate);
-        record.setSaleTime(LocalTime.now());
+        record.setSaleTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         record.setSubmittedAt(LocalDateTime.now());
         record.setLocation("Test Location");
         record.setCreatedAt(LocalDateTime.now());
@@ -109,7 +109,7 @@ class SalesReportRoleSplitTest {
 
     @Test
     void dailyReportSeparatesAgentAndLmtSalesByRole() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         Agent agent = seedAgent("RSPLIT_AGENT_1", "AGENT");
         Agent lmt = seedAgent("RSPLIT_LMT_1", "SALESMAN_LMT");
         Product product = seedProduct();
@@ -144,7 +144,7 @@ class SalesReportRoleSplitTest {
 
     @Test
     void nullRoleReproducesTheExactUnfilteredReport() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         Agent agent = seedAgent("RSPLIT_AGENT_2", "AGENT");
         Agent lmt = seedAgent("RSPLIT_LMT_2", "SALESMAN_LMT");
         Product product = seedProduct();
@@ -168,7 +168,7 @@ class SalesReportRoleSplitTest {
         // per-product performance (each test uses its own unique product)
         // rather than the report's absolute total, which isn't isolated
         // across tests sharing the same date window.
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         Agent agent = seedAgent("RSPLIT_AGENT_3", "AGENT");
         Agent lmt = seedAgent("RSPLIT_LMT_3", "SALESMAN_LMT");
         Product agentProduct = seedProduct();

@@ -247,7 +247,7 @@ class ReportUnitCountTest {
         seedCompanyCheckIn(lmt);
         submitMixedVisit(lmt, shop, sold, returned, 5, 3);
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         List<SalesRecord> lmtRecords = salesRecordRepository.findBySaleDateAndAgentRole(today, "SALESMAN_LMT");
         int expectedSold = saleLineUnits(lmtRecords);
         assertTrue(allLineUnits(lmtRecords) >= expectedSold + 3, "the test data must actually contain returned units");
@@ -283,7 +283,7 @@ class ReportUnitCountTest {
         Product p = seedProduct(100.0);
         salesService.addSalesWithImages(new SalesRequest(agent.getId(), "Units Store", List.of(new SaleItemRequest(p.getId(), 7))));
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         List<SalesRecord> agentRecords = salesRecordRepository.findBySaleDateAndAgentRole(today, "AGENT");
         // "before" behavior = sum of EVERY line's quantity; for agents every line is a SALE, so this must be identical
         assertEquals(allLineUnits(agentRecords), saleLineUnits(agentRecords), "every Agent line is a SALE");
@@ -303,7 +303,7 @@ class ReportUnitCountTest {
         seedCompanyCheckIn(lmt);
         submitMixedVisit(lmt, shop, sold, returned, 5, 3);
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         ReportDTO unfiltered = salesService.generateDailyReport(today, null);
         assertEquals(allLineUnits(salesRecordRepository.findBySaleDate(today)), unfiltered.getTotalUnits());
     }

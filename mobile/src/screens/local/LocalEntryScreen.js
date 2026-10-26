@@ -51,15 +51,18 @@ export default function LocalEntryScreen({ route, navigation }) {
   const [shopDiscounts, setShopDiscounts] = useState([]);
   const [saleQuantities, setSaleQuantities] = useState({});
   const [returnQuantities, setReturnQuantities] = useState({});
+  // "Salesman updates" feature: Return Before Expiry — a separate line
+  // type, its own quantity map, same pattern as sale/return.
+  const [expiryQuantities, setExpiryQuantities] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [voucher, setVoucher] = useState(null);
-  // 'SALE' | 'ASK_RETURN' | 'RETURN' | 'CONFIRM'
+  // 'SALE' | 'ASK_RETURN' | 'RETURN' | 'ASK_EXPIRY_RETURN' | 'EXPIRY_RETURN' | 'CONFIRM'
   const [step, setStep] = useState('SALE');
 
   useEffect(() => {
-    const titles = { SALE: STRINGS.enterSales, RETURN: STRINGS.enterReturn };
+    const titles = { SALE: STRINGS.enterSales, RETURN: STRINGS.enterReturn, EXPIRY_RETURN: STRINGS.returnBeforeExpiry };
     navigation.setOptions({ title: (titles[step] || STRINGS.recordVisit).en });
   }, [navigation, step]);
 
@@ -99,8 +102,15 @@ export default function LocalEntryScreen({ route, navigation }) {
     () => computeTotals(products, returnQuantities, 'RETURN', shop, shopPrices, shopDiscounts),
     [products, returnQuantities, shop, shopPrices, shopDiscounts]
   );
+  // "Salesman updates" feature: Return Before Expiry — priced like RETURN
+  // (no discount, see pricing.js), and deliberately NOT part of netRs —
+  // it's a swap, not money changing hands.
+  const expiryTotals = useMemo(
+    () => computeTotals(products, expiryQuantities, 'RETURN_BEFORE_EXPIRY', shop, shopPrices, shopDiscounts),
+    [products, expiryQuantities, shop, shopPrices, shopDiscounts]
+  );
   const netRs = saleTotals.totalRs - returnTotals.totalRs;
-  const hasNothing = saleTotals.totalBreads === 0 && returnTotals.totalBreads === 0;
+  const hasNothing = saleTotals.totalBreads === 0 && returnTotals.totalBreads === 0 && expiryTotals.totalBreads === 0;
 
   const visibleProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -112,6 +122,9 @@ export default function LocalEntryScreen({ route, navigation }) {
   };
   const setReturnQuantity = (productId, next) => {
     setReturnQuantities((prev) => ({ ...prev, [productId]: next }));
+  };
+  const setExpiryQuantity = (productId, next) => {
+    setExpiryQuantities((prev) => ({ ...prev, [productId]: next }));
   };
 
   const goToConfirm = () => {
@@ -144,6 +157,7 @@ export default function LocalEntryScreen({ route, navigation }) {
       const items = [
         ...saleTotals.lines.map((line) => ({ productId: line.product.id, quantity: line.quantity, transactionType: 'SALE' })),
         ...returnTotals.lines.map((line) => ({ productId: line.product.id, quantity: line.quantity, transactionType: 'RETURN' })),
+        ...expiryTotals.lines.map((line) => ({ productId: line.product.id, quantity: line.quantity, transactionType: 'RETURN_BEFORE_EXPIRY' })),
       ];
 
       const saved = await apiService.lmt.submitShopVisit({
@@ -222,13 +236,47 @@ export default function LocalEntryScreen({ route, navigation }) {
             variant="success"
             size="lg"
             icon="check-circle"
-            onPress={goToConfirm}
+            onPress={() => setStep('ASK_EXPIRY_RETURN')}
           />
           <AppButton
             title={`${STRINGS.goBack.en} · ${STRINGS.goBack.ur}`}
             variant="outline"
             size="lg"
             onPress={() => setStep('SALE')}
+            style={{ marginTop: 24 }}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (step === 'ASK_EXPIRY_RETURN') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.askContent}>
+          <Text style={styles.askQuestion}>{STRINGS.askExpiryReturn.en}</Text>
+          <Text style={styles.askQuestionUrdu}>{STRINGS.askExpiryReturn.ur}</Text>
+
+          <AppButton
+            title={`${STRINGS.yes.en} · ${STRINGS.yes.ur}`}
+            variant="accent"
+            size="lg"
+            icon="autorenew"
+            onPress={() => setStep('EXPIRY_RETURN')}
+            style={{ marginTop: 24, marginBottom: 12 }}
+          />
+          <AppButton
+            title={`${STRINGS.no.en} · ${STRINGS.no.ur}`}
+            variant="success"
+            size="lg"
+            icon="check-circle"
+            onPress={goToConfirm}
+          />
+          <AppButton
+            title={`${STRINGS.goBack.en} · ${STRINGS.goBack.ur}`}
+            variant="outline"
+            size="lg"
+            onPress={() => setStep(returnTotals.totalBreads > 0 ? 'RETURN' : 'ASK_RETURN')}
             style={{ marginTop: 24 }}
           />
         </View>
@@ -289,6 +337,22 @@ export default function LocalEntryScreen({ route, navigation }) {
               ))}
             </>
           )}
+
+          {/* "Salesman updates" feature: shown separately and clearly marked as not affecting the net total, per the spec. */}
+          {expiryTotals.lines.length > 0 && (
+            <>
+              <Text style={[styles.confirmSectionHeader, { color: colors.accentDark }]}>
+                {STRINGS.expiryItems.en} · {STRINGS.expiryItems.ur}
+              </Text>
+              <Text style={styles.expiryHint}>{STRINGS.replacedHint.en} · {STRINGS.replacedHint.ur}</Text>
+              {expiryTotals.lines.map((line) => (
+                <View key={`expiry-${line.product.id}`} style={styles.confirmLine}>
+                  <Text style={styles.confirmLineName} numberOfLines={2}>{line.product.name}</Text>
+                  <Text style={styles.confirmLineQty}>× {line.quantity}</Text>
+                </View>
+              ))}
+            </>
+          )}
         </ScrollView>
 
         <View style={styles.confirmButtons}>
@@ -311,14 +375,19 @@ export default function LocalEntryScreen({ route, navigation }) {
     );
   }
 
-  // step === 'SALE' or 'RETURN' — same product-list UI, bound to a different quantity map.
+  // step === 'SALE', 'RETURN', or 'EXPIRY_RETURN' — same product-list UI,
+  // bound to a different quantity map per mode. "Salesman updates"
+  // feature: EXPIRY_RETURN gets its own header color (accentDark) so it's
+  // never confused with a normal return (warningDark).
   const isReturn = step === 'RETURN';
-  const modeColor = isReturn ? colors.warningDark : colors.successDark;
-  const modeLabel = isReturn ? STRINGS.enterReturn : STRINGS.enterSales;
-  const quantities = isReturn ? returnQuantities : saleQuantities;
-  const setQuantity = isReturn ? setReturnQuantity : setSaleQuantity;
-  const totals = isReturn ? returnTotals : saleTotals;
-  const amountLabel = isReturn ? STRINGS.returnValue : STRINGS.totalRs;
+  const isExpiry = step === 'EXPIRY_RETURN';
+  const modeColor = isExpiry ? colors.accentDark : isReturn ? colors.warningDark : colors.successDark;
+  const modeLabel = isExpiry ? STRINGS.returnBeforeExpiry : isReturn ? STRINGS.enterReturn : STRINGS.enterSales;
+  const quantities = isExpiry ? expiryQuantities : isReturn ? returnQuantities : saleQuantities;
+  const setQuantity = isExpiry ? setExpiryQuantity : isReturn ? setReturnQuantity : setSaleQuantity;
+  const totals = isExpiry ? expiryTotals : isReturn ? returnTotals : saleTotals;
+  const amountLabel = isExpiry ? null : isReturn ? STRINGS.returnValue : STRINGS.totalRs;
+  const priceMode = isExpiry ? 'RETURN_BEFORE_EXPIRY' : isReturn ? 'RETURN' : 'SALE';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -342,18 +411,23 @@ export default function LocalEntryScreen({ route, navigation }) {
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
           const quantity = quantities[item.id] || 0;
-          const unitPrice = getFinalUnitPrice(item, isReturn ? 'RETURN' : 'SALE', shop, shopPrices, shopDiscounts);
+          const unitPrice = getFinalUnitPrice(item, priceMode, shop, shopPrices, shopDiscounts);
           return (
             <View style={[styles.row, quantity > 0 && { borderColor: modeColor, borderWidth: 2 }]}>
               <View style={styles.rowTop}>
                 <ProductThumbnail productId={item.id} uri={item.thumbnailUrl} size={60} />
                 <View style={styles.rowInfo}>
                   <Text style={styles.productName} numberOfLines={2} ellipsizeMode="tail">{item.name}</Text>
-                  <Text style={[styles.productPrice, { color: modeColor }]}>Rs {formatRs(unitPrice)}</Text>
+                  {/* "Salesman updates" feature: no Rs amount for Return Before Expiry — it's a swap, never money, so showing a price here would be misleading. */}
+                  {!isExpiry && <Text style={[styles.productPrice, { color: modeColor }]}>Rs {formatRs(unitPrice)}</Text>}
                   {quantity > 0 && (
-                    <Text style={[styles.lineTotal, { color: modeColor }]} numberOfLines={1}>
-                      {quantity} × {formatRs(unitPrice)} = {formatRs(unitPrice * quantity)}
-                    </Text>
+                    isExpiry ? (
+                      <Text style={[styles.lineTotal, { color: modeColor }]} numberOfLines={1}>{quantity} {STRINGS.breads.en}</Text>
+                    ) : (
+                      <Text style={[styles.lineTotal, { color: modeColor }]} numberOfLines={1}>
+                        {quantity} × {formatRs(unitPrice)} = {formatRs(unitPrice * quantity)}
+                      </Text>
+                    )
                   )}
                 </View>
               </View>
@@ -373,8 +447,8 @@ export default function LocalEntryScreen({ route, navigation }) {
       <View style={styles.totalBar}>
         {totals.totalBreads === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: 6 }}>
-            <Text style={styles.hint}>{isReturn ? STRINGS.nothingYet.en : STRINGS.noSaleHint.en}</Text>
-            <Text style={styles.hintUrdu}>{isReturn ? STRINGS.nothingYet.ur : STRINGS.noSaleHint.ur}</Text>
+            <Text style={styles.hint}>{isExpiry || isReturn ? STRINGS.nothingYet.en : STRINGS.noSaleHint.en}</Text>
+            <Text style={styles.hintUrdu}>{isExpiry || isReturn ? STRINGS.nothingYet.ur : STRINGS.noSaleHint.ur}</Text>
           </View>
         ) : (
           <View style={styles.totalsRow}>
@@ -382,18 +456,25 @@ export default function LocalEntryScreen({ route, navigation }) {
               <Text style={styles.totalLabel}>{STRINGS.totalBreads.en} · {STRINGS.totalBreads.ur}</Text>
               <Text style={styles.totalValue}>{totals.totalBreads}</Text>
             </View>
-            <View style={styles.totalCell}>
-              <Text style={styles.totalLabel}>{amountLabel.en} · {amountLabel.ur}</Text>
-              <Text style={[styles.totalValue, { color: modeColor }]}>{formatRs(totals.totalRs)}</Text>
-            </View>
+            {/* "Salesman updates" feature: no Rs total for Return Before Expiry — see styles.productPrice note above. */}
+            {!isExpiry && (
+              <View style={styles.totalCell}>
+                <Text style={styles.totalLabel}>{amountLabel.en} · {amountLabel.ur}</Text>
+                <Text style={[styles.totalValue, { color: modeColor }]}>{formatRs(totals.totalRs)}</Text>
+              </View>
+            )}
           </View>
         )}
         <AppButton
           title={`${STRINGS.next.en} · ${STRINGS.next.ur}`}
-          variant={isReturn ? 'warning' : 'success'}
+          variant={isExpiry ? 'accent' : isReturn ? 'warning' : 'success'}
           size="lg"
           icon="arrow-forward"
-          onPress={() => (isReturn ? goToConfirm() : setStep('ASK_RETURN'))}
+          onPress={() => {
+            if (isExpiry) return goToConfirm();
+            if (isReturn) return setStep('ASK_EXPIRY_RETURN');
+            return setStep('ASK_RETURN');
+          }}
           style={{ marginTop: 8 }}
         />
       </View>
@@ -467,6 +548,7 @@ const createStyles = (colors) =>
     netLabel: { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary },
     netValue: { fontSize: 24, fontWeight: 'bold', color: colors.textPrimary },
     netNegativeHint: { fontSize: 13, color: colors.error, textAlign: 'right', marginTop: 6 },
+    expiryHint: { fontSize: 13, color: colors.accentDark, marginBottom: 4 },
     confirmSectionHeader: {
       fontSize: 14,
       fontWeight: 'bold',

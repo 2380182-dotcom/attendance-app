@@ -11,6 +11,8 @@ import { salesVoucherApi } from '../../services/lmtApi';
 import { formatSaleTimeToKarachi } from '../../utils/dateUtils';
 
 const ROLE_LABEL = { SALESMAN_LOCAL: 'Local', SALESMAN_LMT: 'LMT' };
+const TYPE_LABEL = { RETURN_BEFORE_EXPIRY: 'Return Before Expiry' };
+const TYPE_COLOR = { RETURN: 'warning', RETURN_BEFORE_EXPIRY: 'info', UNSOLD: 'default', SALE: 'success' };
 
 /**
  * Task 4 — single voucher detail. Unlike the shop/list pages, this one DOES
@@ -119,7 +121,7 @@ export default function SalesVoucherDetailPage() {
                 {voucher.items.map((item, idx) => (
                   <TableRow key={idx}>
                     <TableCell>{item.productName}</TableCell>
-                    <TableCell><Chip size="small" label={item.transactionType} /></TableCell>
+                    <TableCell><Chip size="small" color={TYPE_COLOR[item.transactionType] || 'default'} label={TYPE_LABEL[item.transactionType] || item.transactionType} /></TableCell>
                     <TableCell align="right">{item.quantity}</TableCell>
                     <TableCell align="right">{Number(item.unitPrice).toFixed(2)}</TableCell>
                     <TableCell align="right">{item.discountPercent != null ? item.discountPercent.toFixed(1) : '-'}</TableCell>
@@ -129,6 +131,40 @@ export default function SalesVoucherDetailPage() {
               </TableBody>
             </Table>
           </TableContainer>
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* "Salesman updates" fix: totals are always computed live from items (never a stored field), and unit counts are now broken out by type instead of one combined total. */}
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary">Sale Total</Typography>
+              <Typography fontWeight="bold">{Number(voucher.saleTotal).toFixed(2)}</Typography>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary">Return Total</Typography>
+              <Typography fontWeight="bold">{Number(voucher.returnTotal).toFixed(2)}</Typography>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary">Net Total</Typography>
+              <Typography fontWeight="bold">{Number(voucher.netTotal).toFixed(2)}</Typography>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Typography variant="body2" color="text.secondary">Sold Units</Typography>
+              <Typography>{voucher.soldUnits}</Typography>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Typography variant="body2" color="text.secondary">Returned Units</Typography>
+              <Typography>{voucher.returnedUnits}</Typography>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Typography variant="body2" color="text.secondary">Unsold Units</Typography>
+              <Typography>{voucher.unsoldUnits}</Typography>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Typography variant="body2" color="text.secondary">Return Before Expiry (replaced)</Typography>
+              <Typography>{voucher.returnBeforeExpiryUnits} <Typography component="span" variant="caption" color="text.secondary">— does not change the total</Typography></Typography>
+            </Grid>
+          </Grid>
         </Paper>
       )}
     </Box>

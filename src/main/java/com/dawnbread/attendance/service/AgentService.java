@@ -22,6 +22,10 @@ import java.util.Optional;
 @Transactional
 public class AgentService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.dawnbread.attendance.repository.AgentAbsenceRepository agentAbsenceRepository;
+
+
     @Autowired
     private Clock clock;
 
@@ -244,6 +248,9 @@ public class AgentService {
     }
 
     public void deleteAgent(Long id) {
+        // agent_absence has no foreign key (V34), so clear it explicitly,
+        // the same way attendance rows are removed by the cascade.
+        agentAbsenceRepository.deleteForAgent(id);
         agentRepository.deleteById(id);
     }
 

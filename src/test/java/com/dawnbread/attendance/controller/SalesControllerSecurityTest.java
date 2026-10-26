@@ -91,8 +91,8 @@ class SalesControllerSecurityTest {
         record.setStoreName("Test Store");
         record.setTotalAmount(100.0);
         record.setTotalUnits(2);
-        record.setSaleDate(LocalDate.now());
-        record.setSaleTime(LocalTime.now());
+        record.setSaleDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        record.setSaleTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         record.setSubmittedAt(LocalDateTime.now());
         record.setLocation("Test Location");
         record.setCreatedAt(LocalDateTime.now());

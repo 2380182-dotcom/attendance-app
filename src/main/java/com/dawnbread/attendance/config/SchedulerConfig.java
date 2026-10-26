@@ -3,7 +3,6 @@ package com.dawnbread.attendance.config;
 import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.entity.Attendance;
 import com.dawnbread.attendance.repository.AttendanceRepository;
-import com.dawnbread.attendance.service.AgentService;
 import com.dawnbread.attendance.service.FaceVerificationService;
 import com.dawnbread.attendance.service.NotificationService;
 import org.slf4j.Logger;
@@ -38,13 +37,13 @@ public class SchedulerConfig {
     private AttendanceRepository attendanceRepository;
 
     @Autowired
-    private AgentService agentService;
-
-    @Autowired
     private NotificationService notificationService;
 
     @Autowired
     private FaceVerificationService faceVerificationService;
+
+    @Autowired
+    private com.dawnbread.attendance.service.AbsenceService absenceService;
 
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Karachi")
     public void resetDailyFaceVerificationCounts() {
@@ -93,16 +92,20 @@ public class SchedulerConfig {
     public void markAbsentAgents() {
         logger.info("Running daily absenteeism status verification scheduler at 10:00 PM");
         java.time.LocalDate today = java.time.LocalDate.now(clock);
-        LocalDateTime start = com.dawnbread.attendance.util.KarachiTime.startOfDayUtc(today);
-        LocalDateTime end = com.dawnbread.attendance.util.KarachiTime.endOfDayUtc(today);
-        List<Agent> agents = agentService.getAllAgents();
-
-        for (Agent agent : agents) {
-            List<Attendance> attendances = attendanceRepository.findByAgentIdAndCheckInTimeBetween(agent.getId(), start, end);
-            if (attendances.isEmpty()) {
-                notificationService.sendAbsenteeismNotification(agent);
-                logger.info("Agent {} (id: {}) marked as absent today.", agent.getName(), agent.getId());
-            }
+        // One rule for both the saved ABSENT records (V34) and the
+        // notifications: active mart agents (role AGENT) on their working
+        // days, never on company holidays, never salesmen — see
+        // AbsenceService.absentMartAgents.
+        List<Agent> absentAgents = absenceService.absentMartAgents(today);
+        try {
+            absenceService.saveAbsences(today, absentAgents);
+        } catch (Exception ex) {
+            // Saving must never stop the notifications below.
+            logger.error("Failed to save absence records for {}", today, ex);
+        }
+        for (Agent agent : absentAgents) {
+            notificationService.sendAbsenteeismNotification(agent);
+            logger.info("Agent {} (id: {}) marked as absent today.", agent.getName(), agent.getId());
         }
     }
 }

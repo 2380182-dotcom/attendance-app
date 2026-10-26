@@ -41,7 +41,8 @@ public class LmtSettingsController {
         }
         try {
             lmtSettingsService.updateBuffer(dto.getGeofenceBufferMeters());
-            LmtSettings updated = lmtSettingsService.updateModes(dto.getGeofenceMode(), dto.getQrMode());
+            lmtSettingsService.updateModes(dto.getGeofenceMode(), dto.getQrMode());
+            LmtSettings updated = lmtSettingsService.updateReturnAlertPercent(dto.getReturnAlertPercent());
             return ResponseEntity.ok(ApiResponse.success("LMT settings updated successfully", convertToDTO(updated)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
@@ -49,10 +50,12 @@ public class LmtSettingsController {
     }
 
     private LmtSettingsDTO convertToDTO(LmtSettings settings) {
-        return new LmtSettingsDTO(
+        LmtSettingsDTO dto = new LmtSettingsDTO(
                 settings.getGeofenceBufferMeters(),
                 settings.getGeofenceMode().name(),
                 settings.getQrMode().name(),
                 settings.getUpdatedAt());
+        dto.setReturnAlertPercent(settings.getReturnAlertPercent());
+        return dto;
     }
 }

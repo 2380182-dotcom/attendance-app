@@ -84,8 +84,8 @@ class SalesControllerOverrideSecurityTest {
         record.setStoreName("Test Store");
         record.setTotalAmount(0.0);
         record.setTotalUnits(0);
-        record.setSaleDate(LocalDate.now());
-        record.setSaleTime(LocalTime.now());
+        record.setSaleDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        record.setSaleTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         record.setSubmittedAt(LocalDateTime.now());
         record.setLocation("Test Location");
         record.setCreatedAt(LocalDateTime.now());

@@ -39,13 +39,23 @@ public class NotificationService {
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("hh:mm a");
 
     public Notification saveNotification(Notification notification) {
+        // Scheduled jobs (10 PM absentee check, 11:59 PM auto-checkout) run
+        // outside any request, so there is no tenant context and
+        // TenantEntityListener refuses the save. Take the company from the
+        // agent the notification is about. Inside a request this is the same
+        // tenant the listener would have used.
+        if (notification.getTenantId() == null && notification.getAgent() != null) {
+            notification.setTenantId(notification.getAgent().getTenantId());
+        }
         notification.setCreatedAt(LocalDateTime.now());
         if (notification.getIsRead() == null) {
             notification.setIsRead(false);
         }
         Notification saved = notificationRepository.save(notification);
         try {
-            messagingTemplate.convertAndSend("/topic/alerts", saved);
+            // Send the DTO, never the entity (its lazy agent proxy can't be
+            // serialized — the live Sales feed silently got nothing).
+            messagingTemplate.convertAndSend("/topic/alerts", com.dawnbread.attendance.dto.NotificationDTO.from(saved));
         } catch (Exception e) {
             logger.error("Failed to broadcast notification: ", e);
         }

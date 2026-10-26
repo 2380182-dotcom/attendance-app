@@ -30,6 +30,16 @@ public class ShopVisitScanRecordDTO {
     /** Task 3: does a SalesRecord exist for this agent/shop/day? Independent of whether THIS scan succeeded — a later scan or a different attempt that day may be the one the voucher pairs with. */
     private Boolean voucherCreated;
 
+    // "Salesman updates" feature: the merged "Visited" list carries both
+    // real QR scans and feedback rows. isFeedback=true means this row has
+    // no scannedCode/geofenceStatus-from-a-scan — visitStatus is the
+    // literal string "FEEDBACK" for those rows, and feedbackReason/
+    // feedbackNote carry what the salesman actually recorded.
+    private Boolean isFeedback;
+    /** SHOP_CLOSED | STOCK_FULL | OWNER_NOT_AVAILABLE | OTHER — null for a real scan row. */
+    private String feedbackReason;
+    private String feedbackNote;
+
     public ShopVisitScanRecordDTO() {}
 
     public Long getVisitId() { return visitId; }
@@ -73,4 +83,13 @@ public class ShopVisitScanRecordDTO {
 
     public Boolean getVoucherCreated() { return voucherCreated; }
     public void setVoucherCreated(Boolean voucherCreated) { this.voucherCreated = voucherCreated; }
+
+    public Boolean getIsFeedback() { return isFeedback; }
+    public void setIsFeedback(Boolean isFeedback) { this.isFeedback = isFeedback; }
+
+    public String getFeedbackReason() { return feedbackReason; }
+    public void setFeedbackReason(String feedbackReason) { this.feedbackReason = feedbackReason; }
+
+    public String getFeedbackNote() { return feedbackNote; }
+    public void setFeedbackNote(String feedbackNote) { this.feedbackNote = feedbackNote; }
 }

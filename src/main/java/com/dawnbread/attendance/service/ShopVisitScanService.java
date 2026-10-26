@@ -13,11 +13,13 @@ import com.dawnbread.attendance.entity.CustomerShop;
 import com.dawnbread.attendance.entity.GeofenceStatus;
 import com.dawnbread.attendance.entity.MartType;
 import com.dawnbread.attendance.entity.SalesRecord;
+import com.dawnbread.attendance.entity.ShopFeedback;
 import com.dawnbread.attendance.entity.ShopVisitScan;
 import com.dawnbread.attendance.entity.ShopVisitStatus;
 import com.dawnbread.attendance.repository.AttendanceRepository;
 import com.dawnbread.attendance.repository.CustomerShopRepository;
 import com.dawnbread.attendance.repository.SalesRecordRepository;
+import com.dawnbread.attendance.repository.ShopFeedbackRepository;
 import com.dawnbread.attendance.repository.ShopVisitScanRepository;
 import com.dawnbread.attendance.util.GeoUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,6 +90,9 @@ public class ShopVisitScanService {
 
     @Autowired
     private SalesRecordRepository salesRecordRepository;
+
+    @Autowired
+    private ShopFeedbackRepository shopFeedbackRepository;
 
     public ShopVisitScanResponseDTO recordScan(ShopVisitScanRequest request) {
         Agent agent = agentService.getAgentById(request.getAgentId())
@@ -199,32 +204,97 @@ public class ShopVisitScanService {
      * Replaces the old unpaginated getReport — only the dashboard's
      * QrShopVisitsPage called it, rewritten in the same change.
      * voucherCreated is computed in one bulk query per page, never per row.
+     *
+     * "Salesman updates" feature: a shop with FEEDBACK counts as visited
+     * too, so this list is now a merge of real QR scans and feedback rows
+     * (feedbackOnly=true shows feedback rows alone — "a filter to show
+     * only feedback visits"). The merge is done in Java, same as Task 3's
+     * other merged reports (Not Visited, Voucher Without Scan) — never
+     * millions of rows for one date range, so this scales the same way
+     * those already do. failedOnly only ever applies to real scans
+     * (feedback has no pass/fail concept) and so excludes feedback rows
+     * when set, same as it already excludes successful scans.
      */
     public Page<ShopVisitScanRecordDTO> getPagedReport(LocalDate startDate, LocalDate endDate, Long agentId,
                                                          String role, String shopSearch, boolean failedOnly,
-                                                         Pageable pageable) {
-        // "" means no filter for these two String params — never null (see
-        // findFiltered's doc: a null String bound inside LOWER(CONCAT(...))
-        // or compared via "=" crashes on real Postgres).
-        Page<ShopVisitScan> page = shopVisitScanRepository.findFiltered(
-                startDate, endDate, agentId, role == null ? "" : role,
-                (shopSearch == null || shopSearch.isBlank()) ? "" : shopSearch.trim(),
-                failedOnly, pageable);
-
+                                                         boolean feedbackOnly, Pageable pageable) {
         Set<String> voucheredKeys = new HashSet<>();
         for (Object[] row : salesRecordRepository.findAgentShopDatePairsWithVoucherBetween(startDate, endDate)) {
             voucheredKeys.add(row[0] + ":" + row[1] + ":" + row[2]);
         }
 
-        return page.map(scan -> {
-            ShopVisitScanRecordDTO dto = toRecordDTO(scan);
-            if (scan.getCustomerShop() != null) {
-                dto.setVoucherCreated(voucheredKeys.contains(scan.getAgentId() + ":" + scan.getCustomerShop().getId() + ":" + scan.getScanDate()));
-            } else {
-                dto.setVoucherCreated(false);
+        List<ShopVisitScanRecordDTO> merged = new ArrayList<>();
+
+        if (!feedbackOnly) {
+            // "" means no filter for these two String params — never null
+            // (see findFiltered's doc: a null String bound inside
+            // LOWER(CONCAT(...)) or compared via "=" crashes on real Postgres).
+            // Unpaginated here (Pageable.unpaged()) since the merge below
+            // needs every matching row before it can page the combined list.
+            List<ShopVisitScan> scans = shopVisitScanRepository.findFiltered(
+                    startDate, endDate, agentId, role == null ? "" : role,
+                    (shopSearch == null || shopSearch.isBlank()) ? "" : shopSearch.trim(),
+                    failedOnly, org.springframework.data.domain.Pageable.unpaged()).getContent();
+            for (ShopVisitScan scan : scans) {
+                ShopVisitScanRecordDTO dto = toRecordDTO(scan);
+                if (scan.getCustomerShop() != null) {
+                    dto.setVoucherCreated(voucheredKeys.contains(scan.getAgentId() + ":" + scan.getCustomerShop().getId() + ":" + scan.getScanDate()));
+                } else {
+                    dto.setVoucherCreated(false);
+                }
+                merged.add(dto);
             }
-            return dto;
+        }
+
+        if (!failedOnly) {
+            // Feedback has no pass/fail concept — failedOnly (a scan-only
+            // filter) excludes it, same as it would exclude a successful scan.
+            List<ShopFeedback> feedbackRows = shopFeedbackRepository.findFiltered(
+                    startDate, endDate, agentId, role == null ? "" : role);
+            String search = (shopSearch == null || shopSearch.isBlank()) ? null : shopSearch.trim().toLowerCase();
+            for (ShopFeedback feedback : feedbackRows) {
+                if (search != null) {
+                    CustomerShop shop = feedback.getCustomerShop();
+                    boolean matches = shop != null && (
+                            (shop.getShopName() != null && shop.getShopName().toLowerCase().contains(search))
+                                    || (shop.getShopCode() != null && shop.getShopCode().toLowerCase().contains(search)));
+                    if (!matches) continue;
+                }
+                merged.add(toFeedbackRecordDTO(feedback));
+            }
+        }
+
+        merged.sort((a, b) -> {
+            int dateCmp = b.getScanDate().compareTo(a.getScanDate());
+            if (dateCmp != 0) return dateCmp;
+            return b.getScanTime().compareTo(a.getScanTime());
         });
+
+        return paginate(merged, pageable);
+    }
+
+    private ShopVisitScanRecordDTO toFeedbackRecordDTO(ShopFeedback feedback) {
+        ShopVisitScanRecordDTO dto = new ShopVisitScanRecordDTO();
+        dto.setVisitId(feedback.getId());
+        dto.setAgentId(feedback.getAgentId());
+        CustomerShop shop = feedback.getCustomerShop();
+        if (shop != null) {
+            dto.setShopId(shop.getId());
+            dto.setShopCode(shop.getShopCode());
+            dto.setShopName(shop.getShopName());
+            dto.setAreaName(shop.getArea() != null ? shop.getArea().getName() : null);
+            dto.setCity(parseCity(shop.getShopCode()));
+        }
+        dto.setScanDate(feedback.getVisitDate());
+        dto.setScanTime(feedback.getVisitTime());
+        dto.setDistanceMeters(feedback.getDistanceFromShopMeters());
+        dto.setGeofenceStatus(feedback.getGeofenceStatus() != null ? feedback.getGeofenceStatus().name() : null);
+        dto.setVisitStatus("FEEDBACK");
+        dto.setVoucherCreated(false);
+        dto.setIsFeedback(true);
+        dto.setFeedbackReason(feedback.getReason() != null ? feedback.getReason().name() : null);
+        dto.setFeedbackNote(feedback.getNote());
+        return dto;
     }
 
     /** Q2 — one salesman's visit history for one day, plus the four summary counts from the spec's example screen. */
@@ -268,12 +338,18 @@ public class ShopVisitScanService {
         List<CustomerShop> assignedShops = agentId != null
                 ? customerShopRepository.findByIsActiveTrueAndAssignedAgentId(agentId)
                 : customerShopRepository.findByIsActiveTrueAndAssignedAgentRole(role);
-        Map<Long, Set<Long>> scannedByAgent = new HashMap<>();
+        Map<Long, Set<Long>> visitedByAgent = new HashMap<>();
         for (CustomerShop shop : assignedShops) {
             Long shopAgentId = shop.getAssignedAgent().getId();
-            Set<Long> scanned = scannedByAgent.computeIfAbsent(shopAgentId,
-                    id -> shopVisitScanRepository.findSuccessfullyScannedShopIdsForAgentAndDate(id, date));
-            if (!scanned.contains(shop.getId())) {
+            // "Salesman updates" feature: a shop with FEEDBACK counts as
+            // visited too, so this is a union of successfully-scanned AND
+            // feedback shop ids — not scans alone.
+            Set<Long> visited = visitedByAgent.computeIfAbsent(shopAgentId, id -> {
+                Set<Long> union = new HashSet<>(shopVisitScanRepository.findSuccessfullyScannedShopIdsForAgentAndDate(id, date));
+                union.addAll(shopFeedbackRepository.findShopIdsForAgentAndDate(id, date));
+                return union;
+            });
+            if (!visited.contains(shop.getId())) {
                 result.add(toNotVisitedDTO(shop, label));
             }
         }
@@ -289,9 +365,12 @@ public class ShopVisitScanService {
      */
     private List<NotVisitedShopDTO> computeUnassignedNotScanned(LocalDate date) {
         List<CustomerShop> unassignedShops = customerShopRepository.findByIsActiveTrueAndAssignedAgentIsNull();
-        Set<Long> scannedShopIds = shopVisitScanRepository.findSuccessfullyScannedShopIdsForDate(date);
+        // "Salesman updates" feature: union with feedback-visited shop ids,
+        // same as computeNotVisited above.
+        Set<Long> visitedShopIds = new HashSet<>(shopVisitScanRepository.findSuccessfullyScannedShopIdsForDate(date));
+        visitedShopIds.addAll(shopFeedbackRepository.findShopIdsForDate(date));
         return unassignedShops.stream()
-                .filter(shop -> !scannedShopIds.contains(shop.getId()))
+                .filter(shop -> !visitedShopIds.contains(shop.getId()))
                 .map(shop -> toNotVisitedDTO(shop, "UNASSIGNED"))
                 .collect(Collectors.toList());
     }
@@ -334,7 +413,22 @@ public class ShopVisitScanService {
         int notVisited = computeNotVisited(date, role, agentId).size();
         int visited = totalShops - notVisited;
         int voucherWithoutScan = computeVouchersWithoutScan(date, date, agentId, role).size();
-        return new QrVisitSummaryDTO(totalShops, visited, notVisited, voucherWithoutScan);
+        // "Salesman updates" feature: how many assigned shops were visited
+        // via feedback specifically (not a scan) — a subset of `visited`.
+        List<CustomerShop> assignedShops = agentId != null
+                ? customerShopRepository.findByIsActiveTrueAndAssignedAgentId(agentId)
+                : customerShopRepository.findByIsActiveTrueAndAssignedAgentRole(role);
+        Map<Long, Set<Long>> feedbackByAgent = new HashMap<>();
+        int feedbackCount = 0;
+        for (CustomerShop shop : assignedShops) {
+            Long shopAgentId = shop.getAssignedAgent().getId();
+            Set<Long> feedbackShopIds = feedbackByAgent.computeIfAbsent(shopAgentId,
+                    id -> shopFeedbackRepository.findShopIdsForAgentAndDate(id, date));
+            if (feedbackShopIds.contains(shop.getId())) {
+                feedbackCount++;
+            }
+        }
+        return new QrVisitSummaryDTO(totalShops, visited, notVisited, voucherWithoutScan, feedbackCount);
     }
 
     /** Task 3 "voucher without scan": a SalesRecord exists for this agent/shop/day but no successful scan does. */

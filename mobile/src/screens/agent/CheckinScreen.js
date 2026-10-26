@@ -175,7 +175,7 @@ export default function CheckinScreen({ navigation }) {
       return;
     }
 
-    // DIAG(2026-08-10): pre-flight only, not the security boundary — the
+    // Pre-flight only, not the security boundary — the
     // server independently rejects this in AttendanceService.checkIn() and
     // is what actually can't be bypassed. This just avoids a round-trip and
     // gives a friendlier message. Recomputed fresh here (not read off

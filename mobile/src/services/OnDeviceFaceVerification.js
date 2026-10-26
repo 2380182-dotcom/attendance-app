@@ -1,7 +1,6 @@
 import FaceDetection from '@react-native-ml-kit/face-detection';
 import config from '../config';
 import { apiService } from './api';
-import { debugLog } from '../utils/debugLog';
 import {
   getFaceEmbedding,
   cosineSimilarity,
@@ -96,16 +95,6 @@ export async function verifyAgainstReference(imageUri, referenceBase64, threshol
   const refFirst5 = reference.slice(0, 5).map((v) => v.toFixed(5));
   const liveFirst5 = embedding.slice(0, 5).map((v) => v.toFixed(5));
   const diag = { identical, maxAbsDiff, refConstant, liveConstant, refFirst5, liveFirst5 };
-
-  // DIAG(2026-08-15): the full 384-value vectors (raw biometric data) must
-  // never reach a production device's system log, readable via adb or by any
-  // app with legacy log-read access — see the security audit's Finding 05.
-  // debugLog is __DEV__-gated internally, so this can't ship by omission.
-  // Remove once the face-verification pixel/embedding investigation closes.
-  debugLog('FaceDiag', 'reference (full):', JSON.stringify(reference));
-  debugLog('FaceDiag', 'live capture (full):', JSON.stringify(embedding));
-  debugLog('FaceDiag', 'identical (within', EPSILON, '):', identical, 'maxAbsDiff:', maxAbsDiff,
-    'refConstant:', refConstant, 'liveConstant:', liveConstant);
 
   // Dev-only, and only appended to `reason` (an internal string surfaced by
   // the caller) — never shown to a real agent in production. Also closes a

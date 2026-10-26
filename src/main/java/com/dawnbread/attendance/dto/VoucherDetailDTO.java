@@ -98,4 +98,37 @@ public class VoucherDetailDTO {
 
     public List<Item> getItems() { return items; }
     public void setItems(List<Item> items) { this.items = items; }
+
+    // "Salesman updates" fix: these breakdown totals are always computed
+    // live from `items` (never a stored field) so they're correct whether
+    // this is an old or new voucher. saleTotal/returnTotal/netTotal mirror
+    // VoucherListItemDTO's saleAmount/returnAmount/netAmount; soldUnits is
+    // the SALE-only replacement for the old inflated totalUnits semantics.
+
+    public Double getSaleTotal() { return sumPriceByType("SALE"); }
+    public Double getReturnTotal() { return sumPriceByType("RETURN"); }
+    public Double getNetTotal() { return getSaleTotal() - getReturnTotal(); }
+
+    public Integer getSoldUnits() { return sumQuantityByType("SALE"); }
+    public Integer getReturnedUnits() { return sumQuantityByType("RETURN"); }
+    public Integer getUnsoldUnits() { return sumQuantityByType("UNSOLD"); }
+
+    /** "Salesman updates" feature: fresh bread handed over as a Return-Before-Expiry replacement — does not affect saleTotal/returnTotal/netTotal. */
+    public Integer getReturnBeforeExpiryUnits() { return sumQuantityByType("RETURN_BEFORE_EXPIRY"); }
+
+    private double sumPriceByType(String type) {
+        if (items == null) return 0.0;
+        return items.stream()
+                .filter(i -> type.equals(i.getTransactionType()))
+                .mapToDouble(i -> i.getTotalPrice() != null ? i.getTotalPrice() : 0.0)
+                .sum();
+    }
+
+    private int sumQuantityByType(String type) {
+        if (items == null) return 0;
+        return items.stream()
+                .filter(i -> type.equals(i.getTransactionType()))
+                .mapToInt(i -> i.getQuantity() != null ? i.getQuantity() : 0)
+                .sum();
+    }
 }

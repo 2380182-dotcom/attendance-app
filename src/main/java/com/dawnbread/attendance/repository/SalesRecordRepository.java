@@ -113,13 +113,16 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
      * change never retroactively moves an already-existing voucher.
      * :shopSearch is optional — "" means no filter (never null; see
      * searchSales's doc for why "= '' OR ..." replaces "IS NULL OR ..."
-     * here — a real production outage on Postgres 15, invisible on H2).
+     * here — a real production outage on PostgreSQL, invisible on H2).
      */
     @Query(value = "SELECT new com.dawnbread.attendance.dto.VoucherShopSummaryDTO(" +
             "sh.id, sh.shopCode, sh.shopName, sh.branch, COUNT(DISTINCT sr.id), " +
             "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.SALE THEN si.totalPrice ELSE 0.0 END), " +
             "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN THEN si.totalPrice ELSE 0.0 END), " +
             "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.SALE THEN si.quantity ELSE 0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN THEN si.quantity ELSE 0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.UNSOLD THEN si.quantity ELSE 0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN_BEFORE_EXPIRY THEN si.quantity ELSE 0 END), " +
             "MAX(sr.saleDate)) " +
             "FROM SalesRecord sr JOIN sr.items si JOIN sr.customerShop sh " +
             "WHERE COALESCE(sr.agentRoleAtSale, sr.agent.role) = :role " +
@@ -146,6 +149,9 @@ public interface SalesRecordRepository extends JpaRepository<SalesRecord, Long> 
             "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.SALE THEN si.totalPrice ELSE 0.0 END), " +
             "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN THEN si.totalPrice ELSE 0.0 END), " +
             "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.SALE THEN si.quantity ELSE 0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN THEN si.quantity ELSE 0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.UNSOLD THEN si.quantity ELSE 0 END), " +
+            "SUM(CASE WHEN si.transactionType = com.dawnbread.attendance.entity.TransactionType.RETURN_BEFORE_EXPIRY THEN si.quantity ELSE 0 END), " +
             "sr.distanceFromShopMeters, sr.status) " +
             "FROM SalesRecord sr JOIN sr.items si " +
             "WHERE sr.customerShop.id = :shopId AND COALESCE(sr.agentRoleAtSale, sr.agent.role) = :role " +

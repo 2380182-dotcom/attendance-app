@@ -277,7 +277,7 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(closeBody, token), String.class);
         assertEquals(HttpStatus.OK, closeResponse.getStatusCode());
         assertTrue(customerShopRepository.findByShopCode(shop.getShopCode()).isPresent());
-        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
                 .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
                 .findFirst().orElseThrow();
         assertNotNull(saved.getDistanceFromShopMeters(), "Distance must always be logged when the shop has a geofence configured");
@@ -320,7 +320,7 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
-        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
                 .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
                 .findFirst().orElseThrow();
         assertNotNull(saved.getDistanceFromShopMeters(), "Distance must be recorded on the merged record even with both SALE and RETURN lines");
@@ -364,11 +364,49 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
-        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
                 .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
                 .findFirst().orElseThrow();
         assertNotNull(saved.getDistanceFromShopMeters(), "A Local salesman's shop always has a mandatory geofence, so distance must be recorded on the merged record");
         assertTrue(saved.getDistanceFromShopMeters() < 150.0);
+    }
+
+    /**
+     * "Salesman updates" feature: RETURN_BEFORE_EXPIRY is a swap (take back
+     * unexpired bread, replace with fresh stock) — it must NOT change
+     * totalAmount (the net), but its units DO count outside totalUnits
+     * (which is now SALE-only, also fixed by this feature).
+     */
+    @Test
+    void returnBeforeExpiryDoesNotAffectMoneyButIsTrackedSeparately() {
+        Agent salesman = seedAgent("SV_RBE_1", "SALESMAN_LMT");
+        Product saleProduct = seedProduct();
+        Product rbeProduct = seedProduct();
+        CustomerShop shop = seedShop("SV-SHOP-RBE-1", 0.0, 0.0, 100.0, true);
+        seedCompanyCheckIn(salesman);
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LMT");
+
+        Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0.0, 0.0, List.of(
+                item(saleProduct.getId(), 5, "SALE"),
+                item(rbeProduct.getId(), 3, "RETURN_BEFORE_EXPIRY")
+        ));
+        ResponseEntity<String> response = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode(), response.getBody());
+
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
+                .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
+                .findFirst().orElseThrow();
+
+        double saleProductPrice = productRepository.findById(saleProduct.getId()).orElseThrow().getSalesmanPrice();
+        assertEquals(saleProductPrice * 5, saved.getTotalAmount(), 0.01,
+                "totalAmount must be SALE-only — the RBE line's price must not be added in");
+        assertEquals(5, saved.getTotalUnits(), "totalUnits must be SALE-only units (the fix in this feature) — RBE units must not inflate it");
+
+        long rbeLines = saleItemRepository.findAll().stream()
+                .filter(i -> i.getSalesRecord().getId().equals(saved.getId()) && i.getTransactionType() == TransactionType.RETURN_BEFORE_EXPIRY)
+                .count();
+        assertEquals(1, rbeLines, "The RBE line must be saved with its own transaction type, not folded into SALE or RETURN");
     }
 
     @Test
@@ -408,7 +446,7 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
-        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
                 .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
                 .findFirst().orElseThrow();
         assertEquals(50.0 * 10, saved.getTotalAmount(), 0.001, "totalAmount must reflect only the SALE line, not RETURN or UNSOLD");

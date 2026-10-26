@@ -41,7 +41,7 @@ public class SalesAgentCsvService {
 
         StringBuilder csv = new StringBuilder();
         csv.append(CsvUtil.row(
-                "Date", "Time", "Agent ID", "Agent Name", "Mart / Store", "Product", "Quantity",
+                "Date", "Time", "Agent ID", "Agent Name", "Mart / Store", "Product", "Type", "Quantity",
                 "Unit Price (PKR)", "Line Total (PKR)", "Sale Total (PKR)", "Status",
                 "Override Reason", "Override By", "Override At"
         ));
@@ -58,7 +58,7 @@ public class SalesAgentCsvService {
             if (items == null || items.isEmpty()) {
                 csv.append(CsvUtil.row(
                         dateStr, timeStr, agent.getAgentId(), agent.getName(), store,
-                        "", "", "", "", record.getTotalAmount(), record.getStatus(),
+                        "", "", "", "", "", record.getTotalAmount(), record.getStatus(),
                         overrideReason, overrideBy, overrideAt
                 ));
                 continue;
@@ -72,6 +72,7 @@ public class SalesAgentCsvService {
                         agent.getName(),
                         store,
                         item.getProduct() != null ? item.getProduct().getName() : "",
+                        item.getTransactionType() != null ? item.getTransactionType().name() : "",
                         item.getQuantity(),
                         item.getUnitPrice(),
                         item.getTotalPrice(),

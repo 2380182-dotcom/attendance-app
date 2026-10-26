@@ -1,11 +1,14 @@
 package com.dawnbread.attendance.controller;
 
 import com.dawnbread.attendance.dto.ApiResponse;
+import com.dawnbread.attendance.dto.ShopFeedbackRequest;
+import com.dawnbread.attendance.dto.ShopFeedbackResponseDTO;
 import com.dawnbread.attendance.dto.ShopVisitDaySummaryDTO;
 import com.dawnbread.attendance.dto.ShopVisitScanRecordDTO;
 import com.dawnbread.attendance.dto.ShopVisitScanRequest;
 import com.dawnbread.attendance.dto.ShopVisitScanResponseDTO;
 import com.dawnbread.attendance.security.AccessControl;
+import com.dawnbread.attendance.service.ShopFeedbackService;
 import com.dawnbread.attendance.service.ShopVisitScanService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -35,6 +38,9 @@ public class ShopVisitScanController {
 
     @Autowired
     private ShopVisitScanService shopVisitScanService;
+
+    @Autowired
+    private ShopFeedbackService shopFeedbackService;
 
     @Autowired
     private HttpServletRequest request;
@@ -80,6 +86,29 @@ public class ShopVisitScanController {
         }
     }
 
+    /**
+     * "Salesman updates" feature: no QR scan needed, but GPS/geofence IS
+     * checked — same self-or-admin gate as /scan above.
+     */
+    @PostMapping("/feedback")
+    public ResponseEntity<ApiResponse<ShopFeedbackResponseDTO>> feedback(@Valid @RequestBody ShopFeedbackRequest feedbackRequest) {
+        String callerRole = AccessControl.callerRole(this.request);
+        Long callerId = AccessControl.callerId(this.request);
+        boolean isAdmin = "ADMIN".equals(callerRole);
+        boolean isSelfSalesman = ("SALESMAN_LMT".equals(callerRole) || "SALESMAN_LOCAL".equals(callerRole))
+                && callerId != null && callerId.equals(feedbackRequest.getAgentId());
+        if (!isAdmin && !isSelfSalesman) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only a salesman (for themselves) or an ADMIN can record shop feedback."));
+        }
+        try {
+            ShopFeedbackResponseDTO result = shopFeedbackService.recordFeedback(feedbackRequest);
+            return ResponseEntity.ok(ApiResponse.success("Feedback saved successfully", result));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
     private static final int MAX_PAGE_SIZE = 200;
 
     private org.springframework.data.domain.Pageable pageable(int page, int size) {
@@ -102,6 +131,7 @@ public class ShopVisitScanController {
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String shopSearch,
             @RequestParam(defaultValue = "false") boolean failedOnly,
+            @RequestParam(defaultValue = "false") boolean feedbackOnly,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
         if (!AccessControl.hasRole(request, MANAGEMENT_ROLES)) {
@@ -109,7 +139,7 @@ public class ShopVisitScanController {
         }
         LocalDate end = endDate != null ? endDate : LocalDate.now(clock);
         LocalDate start = startDate != null ? startDate : end;
-        var result = shopVisitScanService.getPagedReport(start, end, agentId, role, shopSearch, failedOnly, pageable(page, size));
+        var result = shopVisitScanService.getPagedReport(start, end, agentId, role, shopSearch, failedOnly, feedbackOnly, pageable(page, size));
         return ResponseEntity.ok(ApiResponse.success("Shop visit scans retrieved successfully", com.dawnbread.attendance.dto.PageResponse.of(result)));
     }
 

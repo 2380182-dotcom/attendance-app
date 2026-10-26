@@ -29,6 +29,15 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- Cockpit dashboards: 90-second per-tenant cache so auto-refresh never hammers the 512 MB server. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -119,7 +128,7 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
-        <!-- Testcontainers: real Postgres 15 for tests H2 can't be trusted
+        <!-- Testcontainers: real Postgres 18 (same major version as production) for tests H2 can't be trusted
              for (see PostgresCompatibilityTest) — H2 silently accepts SQL
              that Postgres rejects (untyped null parameters inside
              LOWER()/CONCAT(), confirmed by a real production outage). -->
@@ -154,6 +163,41 @@
 
     <build>
         <plugins>
+            <!-- Tests run with the same UTC default timezone as production
+                 (see ServerTimeZone) so attendance results never depend on
+                 the developer machine's timezone or time of day. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Duser.timezone=UTC</argLine>
+                    <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+                    <excludes>
+                        <exclude>**/PostgresCompatibilityTest.java</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <!-- The real-Postgres (Testcontainers) test runs in its OWN
+                         test JVM. Static bridges such as AuditLogRepositoryHolder
+                         keep the most recently created Spring context's beans;
+                         sharing a JVM let later tests write through the
+                         Postgres test's context after its container stopped
+                         (SaleItemUniqueConstraintTest / AgentRoleAtSaleBackfillTest
+                         errors, also seen in CI). Still part of `mvn test`. -->
+                    <execution>
+                        <id>postgres-compatibility</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <excludes combine.self="override"/>
+                            <includes>
+                                <include>**/PostgresCompatibilityTest.java</include>
+                            </includes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 public class AttendanceApplication {
 
 	public static void main(String[] args) {
+		// Must run before anything reads the clock — see ServerTimeZone for why.
+		com.dawnbread.attendance.util.ServerTimeZone.pinToUtc();
 		SpringApplication.run(AttendanceApplication.class, args);
 	}
 

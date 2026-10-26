@@ -6,6 +6,7 @@ const ADMIN_NAV = [
   { path: '/admin/areas', label: 'Areas' },
   { path: '/admin/customer-shops', label: 'Customer Shops' },
   { path: '/admin/lmt-settings', label: 'LMT Settings' },
+  { path: '/admin/holidays', label: 'Holidays' },
   // QR Scanned Shops moved to the Sales sidebar (Task 4 correction) —
   // ADMIN and SALES can both open it now, see SalesLayout.
 ];

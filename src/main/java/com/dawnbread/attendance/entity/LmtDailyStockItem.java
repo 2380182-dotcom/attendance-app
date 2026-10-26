@@ -46,10 +46,19 @@ public class LmtDailyStockItem implements TenantAware {
     @Column(name = "sold_qty", nullable = false)
     private Integer soldQty = 0;
 
+    // "Salesman updates" feature: fresh bread the LMT handed over as a
+    // Return-Before-Expiry replacement — computed at reconciliation time
+    // from that day's SaleItem rows (transaction_type = RETURN_BEFORE_EXPIRY),
+    // same pattern as sold_qty. Consumes van stock exactly like a sale (see
+    // missing_qty's formula below) even though it carries no revenue.
+    @Column(name = "rbe_qty", nullable = false)
+    private Integer rbeQty = 0;
+
     // Computed at reconciliation time: opening_stock - sold - returned -
-    // unsold. Deliberately allowed to go negative (an LMT selling more
-    // than their declared opening stock) — recorded as a real discrepancy
-    // for the Sales Department to see, never rejected or clamped.
+    // unsold - rbe. Deliberately allowed to go negative (an LMT selling
+    // more than their declared opening stock) — recorded as a real
+    // discrepancy for the Sales Department to see, never rejected or
+    // clamped.
     @Column(name = "missing_qty", nullable = false)
     private Integer missingQty = 0;
 
@@ -78,6 +87,9 @@ public class LmtDailyStockItem implements TenantAware {
 
     public Integer getSoldQty() { return soldQty; }
     public void setSoldQty(Integer soldQty) { this.soldQty = soldQty; }
+
+    public Integer getRbeQty() { return rbeQty; }
+    public void setRbeQty(Integer rbeQty) { this.rbeQty = rbeQty; }
 
     public Integer getMissingQty() { return missingQty; }
     public void setMissingQty(Integer missingQty) { this.missingQty = missingQty; }

@@ -1,0 +1,100 @@
+/* Cockpit-only styles. Fonts are bundled (no CDN). */
+.cockpit-root {
+  font-family: "Manrope Variable", "Segoe UI", system-ui, sans-serif;
+  font-feature-settings: "tnum" 1;
+}
+.cockpit-num {
+  font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.cockpit-root section {
+  scroll-margin-top: 136px;
+}
+.cockpit-root .recharts-wrapper,
+.cockpit-root .recharts-surface {
+  outline: none;
+}
+.cockpit-root .recharts-bar-rectangle,
+.cockpit-root .recharts-sector {
+  cursor: pointer;
+}
+.cockpit-clickable:focus-visible {
+  outline: 2px solid #0057B8;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cockpit-root * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* A4 print: no app bar, sidebar, filters, menu or side panel. */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+@media print {
+  body:has(.cockpit-root) header.MuiAppBar-root,
+  body:has(.cockpit-root) .MuiDrawer-docked,
+  body:has(.cockpit-root) .MuiDrawer-modal,
+  .cockpit-no-print {
+    display: none !important;
+  }
+  body:has(.cockpit-root) main {
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  body:has(.cockpit-root) main > .MuiToolbar-root {
+    display: none !important;
+  }
+  .cockpit-root {
+    background: #fff !important;
+  }
+  .cockpit-root section {
+    break-inside: auto;
+  }
+  .cockpit-root h2,
+  .cockpit-root h3 {
+    break-after: avoid;
+  }
+  .cockpit-attention-head {
+    break-after: avoid;
+  }
+  .cockpit-card {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border-top: 1px solid #E3E8F0 !important;
+    border-right: 1px solid #E3E8F0 !important;
+    border-bottom: 1px solid #E3E8F0 !important;
+  }
+  .cockpit-banner {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .cockpit-grid-print-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .cockpit-cards-print {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 10px !important;
+  }
+  .cockpit-cards-print .cockpit-card {
+    min-height: 0 !important;
+    padding: 12px !important;
+    gap: 4px !important;
+  }
+  .cockpit-kpi-value {
+    font-size: 21px !important;
+  }
+  .cockpit-delta {
+    white-space: normal !important;
+    font-size: 9.5px !important;
+  }
+  .cockpit-kpi-context {
+    font-size: 10.5px !important;
+    min-height: 0 !important;
+  }
+}

@@ -56,7 +56,7 @@ public class SaleItem implements TenantAware {
     // keeps comparing equal to itself under the widened index, exactly as
     // it did under V17's narrower one.
     @Enumerated(EnumType.STRING)
-    @Column(name = "transaction_type", nullable = false, length = 20)
+    @Column(name = "transaction_type", nullable = false, length = 30)
     private TransactionType transactionType = TransactionType.SALE;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -19,6 +19,25 @@ public class NotificationDTO {
 
     public NotificationDTO() {}
 
+    /**
+     * The one mapping used by both the REST endpoints and the live
+     * WebSocket broadcast. Never serialize the Notification entity itself:
+     * its lazy `agent` is a Hibernate proxy that Jackson cannot write
+     * ("No serializer found for class ByteBuddyInterceptor"). Reading the
+     * proxy's id does not load the agent.
+     */
+    public static NotificationDTO from(com.dawnbread.attendance.entity.Notification n) {
+        return new NotificationDTO(
+                n.getId(),
+                n.getAgent() != null ? n.getAgent().getId() : null,
+                n.getAgentName(),
+                n.getMessage(),
+                n.getType(),
+                n.getDepartment(),
+                n.getIsRead(),
+                n.getCreatedAt());
+    }
+
     public NotificationDTO(Long id, Long agentId, String agentName, String message, String type,
                             String department, Boolean isRead, LocalDateTime createdAt) {
         this.id = id;

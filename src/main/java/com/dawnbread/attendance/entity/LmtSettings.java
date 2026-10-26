@@ -39,6 +39,10 @@ public class LmtSettings implements TenantAware {
     @Column(name = "qr_mode", nullable = false)
     private GlobalToggleMode qrMode = GlobalToggleMode.PER_SHOP;
 
+    /** V33 — cockpit "Needs attention": return % above this (return value / sale value) is flagged. */
+    @Column(name = "return_alert_percent", nullable = false)
+    private Double returnAlertPercent = 15.0;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -64,4 +68,7 @@ public class LmtSettings implements TenantAware {
     public void setQrMode(GlobalToggleMode qrMode) { this.qrMode = qrMode; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Double getReturnAlertPercent() { return returnAlertPercent; }
+    public void setReturnAlertPercent(Double returnAlertPercent) { this.returnAlertPercent = returnAlertPercent; }
 }

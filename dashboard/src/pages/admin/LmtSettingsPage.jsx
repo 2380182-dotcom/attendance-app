@@ -33,6 +33,7 @@ export default function LmtSettingsPage() {
   const [buffer, setBuffer] = useState('');
   const [geofenceMode, setGeofenceMode] = useState('PER_SHOP');
   const [qrMode, setQrMode] = useState('PER_SHOP');
+  const [returnAlert, setReturnAlert] = useState('15');
   const [formError, setFormError] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -42,6 +43,7 @@ export default function LmtSettingsPage() {
     }
     if (data?.geofenceMode) setGeofenceMode(data.geofenceMode);
     if (data?.qrMode) setQrMode(data.qrMode);
+    if (data?.returnAlertPercent != null) setReturnAlert(String(data.returnAlertPercent));
   }, [data]);
 
   const updateMutation = useMutation({
@@ -61,7 +63,12 @@ export default function LmtSettingsPage() {
       setFormError('Buffer must be a non-negative number.');
       return;
     }
-    updateMutation.mutate({ geofenceBufferMeters: value, geofenceMode, qrMode });
+    const alertValue = Number(returnAlert);
+    if (returnAlert.trim() === '' || Number.isNaN(alertValue) || alertValue < 0 || alertValue > 100) {
+      setFormError('Return alert must be a number from 0 to 100.');
+      return;
+    }
+    updateMutation.mutate({ geofenceBufferMeters: value, geofenceMode, qrMode, returnAlertPercent: alertValue });
   };
 
   if (isLoading) return <CircularProgress />;
@@ -103,6 +110,17 @@ export default function LmtSettingsPage() {
             value={qrMode}
             onChange={setQrMode}
             helperText="Overrides every shop's own QR Required switch the same way — reversible, per-shop settings are never overwritten."
+          />
+
+          <Divider />
+          <Typography variant="subtitle2">Cockpit — Return Alert</Typography>
+          <TextField
+            label="Return alert (%)"
+            type="number"
+            value={returnAlert}
+            onChange={(e) => setReturnAlert(e.target.value)}
+            slotProps={{ htmlInput: { min: 0, max: 100, step: 1 } }}
+            helperText="The Sales Cockpit's “Needs attention” flags any shop or product whose returns are above this % of its sales. Default is 15%."
           />
 
           <Box>

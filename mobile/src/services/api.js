@@ -579,6 +579,20 @@ export const apiService = {
         return handleApiError(error);
       }
     },
+    /**
+     * "Salesman updates" feature: reached a shop, couldn't make a sale —
+     * no QR scan, no voucher, but GPS/geofence is checked server-side the
+     * same way submitShopVisit's is. feedbackRequest:
+     * { agentId, shopCode, reason, note, latitude, longitude, requestId }.
+     */
+    async submitFeedback(feedbackRequest) {
+      try {
+        const response = await api.post('/lmt/shop-visits/feedback', feedbackRequest);
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
     /** { geofenceBufferMeters, updatedAt } — for the client-side pre-check only; the server enforces its own copy independently. */
     async getSettings() {
       try {

@@ -22,6 +22,7 @@ import EmptyState from '../../components/EmptyState';
 import SalesVoucher from '../../components/SalesVoucher';
 import { cachedFetch } from '../../services/apiCache';
 import { useTheme } from '../../theme';
+import { STRINGS } from './strings';
 
 /**
  * Sub-stage 5 (SALESMAN_LMT): the one write-risk screen in Phase A.
@@ -76,6 +77,10 @@ export default function RecordVisitScreen({ route, navigation }) {
   const [cart, setCart] = useState([]);
   const [saleQuantities, setSaleQuantities] = useState({});
   const [returnQuantities, setReturnQuantities] = useState({});
+  // "Salesman updates" feature: Return Before Expiry — a 3rd per-product
+  // field alongside Sold/Returned, same pattern (no step-wizard rewrite
+  // needed for LMT, unlike Local's screen).
+  const [expiryQuantities, setExpiryQuantities] = useState({});
   const [reviewMode, setReviewMode] = useState(false);
   const [shopProductDiscounts, setShopProductDiscounts] = useState([]);
   const [shopPrices, setShopPrices] = useState([]);
@@ -154,6 +159,10 @@ export default function RecordVisitScreen({ route, navigation }) {
     setReturnQuantities((prev) => ({ ...prev, [productId]: val }));
   };
 
+  const handleExpiryQtyChange = (productId, val) => {
+    setExpiryQuantities((prev) => ({ ...prev, [productId]: val }));
+  };
+
   /** Blank is a valid "not applicable" for either field — only defaults to 0 here, at add-to-cart time. */
   const parseQty = (val) => {
     if (!val || !val.trim()) return 0;
@@ -164,16 +173,17 @@ export default function RecordVisitScreen({ route, navigation }) {
   const handleAddToCart = (product) => {
     const saleQty = parseQty(saleQuantities[product.id]);
     const returnQty = parseQty(returnQuantities[product.id]);
+    const expiryQty = parseQty(expiryQuantities[product.id]);
 
-    if (isNaN(saleQty) || isNaN(returnQty) || saleQty < 0 || returnQty < 0) {
-      Alert.alert('Invalid Quantity', 'Sold and Returned quantities must be 0 or more.');
+    if (isNaN(saleQty) || isNaN(returnQty) || isNaN(expiryQty) || saleQty < 0 || returnQty < 0 || expiryQty < 0) {
+      Alert.alert('Invalid Quantity', 'Sold, Returned, and Return Before Expiry quantities must be 0 or more.');
       return;
     }
-    if (saleQty === 0 && returnQty === 0) {
-      Alert.alert('Nothing to Add', 'Enter a Sold and/or Returned quantity before adding this product.');
+    if (saleQty === 0 && returnQty === 0 && expiryQty === 0) {
+      Alert.alert('Nothing to Add', 'Enter a Sold, Returned, and/or Return Before Expiry quantity before adding this product.');
       return;
     }
-    if (saleQty > 500 || returnQty > 500) {
+    if (saleQty > 500 || returnQty > 500 || expiryQty > 500) {
       Alert.alert('Limit Exceeded', 'Maximum allowed quantity per product is 500.');
       return;
     }
@@ -184,11 +194,18 @@ export default function RecordVisitScreen({ route, navigation }) {
 
     // Display-only preview using this shop's price (or the global
     // salesmanPrice) — the server independently recomputes the real amount,
-    // plus any shop discount, at submission time. RETURN is never
-    // discounted (mirrors SalesService.submitShopVisit).
+    // plus any shop discount, at submission time. RETURN and Return
+    // Before Expiry are never discounted (mirrors SalesService
+    // .submitShopVisit) — expiryTotalPrice is tracked for the preview but
+    // deliberately never added into the sale/net totals below.
     setCart((prev) => [
       ...prev,
-      { product, saleQty, returnQty, totalPrice: getBasePrice(product) * saleQty, returnTotalPrice: getBasePrice(product) * returnQty },
+      {
+        product, saleQty, returnQty, expiryQty,
+        totalPrice: getBasePrice(product) * saleQty,
+        returnTotalPrice: getBasePrice(product) * returnQty,
+        expiryTotalPrice: getBasePrice(product) * expiryQty,
+      },
     ]);
   };
 
@@ -200,6 +217,8 @@ export default function RecordVisitScreen({ route, navigation }) {
   const calculateReturnTotal = () => cart.reduce((sum, item) => sum + item.returnTotalPrice, 0);
   const calculateTotalSoldUnits = () => cart.reduce((sum, item) => sum + item.saleQty, 0);
   const calculateTotalReturnedUnits = () => cart.reduce((sum, item) => sum + item.returnQty, 0);
+  // "Salesman updates" feature — units only, never added to any Rs total.
+  const calculateTotalExpiryUnits = () => cart.reduce((sum, item) => sum + (item.expiryQty || 0), 0);
   // Preview only — same salesmanPrice-then-discount order of operations as
   // the server. item.totalPrice already reflects saleQty only (RETURN
   // never contributes to it), matching the "SALE lines only" discount rule.
@@ -265,9 +284,10 @@ export default function RecordVisitScreen({ route, navigation }) {
         }
       }
 
-      // Each cart entry becomes up to two line items — SALE and/or RETURN —
-      // since a shop can both buy and hand back the same product on one
-      // visit. Server already accepts both types on this endpoint.
+      // Each cart entry becomes up to three line items — SALE, RETURN,
+      // and/or RETURN_BEFORE_EXPIRY ("salesman updates" feature) — since a
+      // shop can buy, hand back, and swap the same product on one visit.
+      // Server already accepts all three types on this endpoint.
       const items = [];
       cart.forEach((item) => {
         if (item.saleQty > 0) {
@@ -275,6 +295,9 @@ export default function RecordVisitScreen({ route, navigation }) {
         }
         if (item.returnQty > 0) {
           items.push({ productId: item.product.id, quantity: item.returnQty, transactionType: 'RETURN' });
+        }
+        if (item.expiryQty > 0) {
+          items.push({ productId: item.product.id, quantity: item.expiryQty, transactionType: 'RETURN_BEFORE_EXPIRY' });
         }
       });
 
@@ -344,6 +367,7 @@ export default function RecordVisitScreen({ route, navigation }) {
             <Text style={[styles.reviewHeaderLabel, styles.reviewProductHeaderLabel]}>Product</Text>
             <Text style={styles.reviewHeaderLabel}>Sold</Text>
             <Text style={styles.reviewHeaderLabel}>Returned</Text>
+            <Text style={styles.reviewHeaderLabel}>Expiry</Text>
           </View>
           <FlatList
             data={cart}
@@ -353,6 +377,7 @@ export default function RecordVisitScreen({ route, navigation }) {
                 <Text style={[styles.reviewProductName, { flex: 1 }]} numberOfLines={2}>{item.product.name}</Text>
                 <Text style={styles.reviewQty}>{item.saleQty || '—'}</Text>
                 <Text style={styles.reviewQty}>{item.returnQty || '—'}</Text>
+                <Text style={styles.reviewQty}>{item.expiryQty || '—'}</Text>
               </View>
             )}
           />
@@ -368,6 +393,13 @@ export default function RecordVisitScreen({ route, navigation }) {
               <Text style={styles.summaryText}>Total Returned:</Text>
               <Text style={styles.summaryValue}>{calculateTotalReturnedUnits()} units</Text>
             </View>
+            {/* "Salesman updates" feature: units only, no Rs amount, clearly marked as not affecting the total below. */}
+            {calculateTotalExpiryUnits() > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryText}>Return Before Expiry (replaced):</Text>
+                <Text style={styles.summaryValue}>{calculateTotalExpiryUnits()} units — does not change the total</Text>
+              </View>
+            )}
             {calculateDiscountedCartTotal() < calculateCartTotal() ? (
               <>
                 <View style={styles.summaryRow}>
@@ -470,6 +502,21 @@ export default function RecordVisitScreen({ route, navigation }) {
                     placeholderTextColor={colors.textMuted}
                     value={returnQuantities[item.id] || ''}
                     onChangeText={(val) => handleReturnQtyChange(item.id, val)}
+                    maxLength={3}
+                  />
+                </View>
+                {/* "Salesman updates" feature: Return Before Expiry — a 3rd field, same pattern as Sold/Returned. */}
+                <View style={styles.qtyField}>
+                  <Text style={styles.qtyFieldLabel}>
+                    {STRINGS.expiryField.en} <Text style={{ writingDirection: 'rtl' }}>{STRINGS.expiryField.ur}</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.qtyInput}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={colors.textMuted}
+                    value={expiryQuantities[item.id] || ''}
+                    onChangeText={(val) => handleExpiryQtyChange(item.id, val)}
                     maxLength={3}
                   />
                 </View>

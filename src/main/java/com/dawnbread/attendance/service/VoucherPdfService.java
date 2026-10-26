@@ -72,10 +72,9 @@ public class VoucherPdfService {
                 cs.stroke();
                 y -= lineHeight;
 
-                double totalSale = 0, totalReturn = 0;
                 List<VoucherDetailDTO.Item> items = voucher.getItems() != null ? voucher.getItems() : List.of();
                 for (VoucherDetailDTO.Item item : items) {
-                    if (y < margin + 60) {
+                    if (y < margin + 100) {
                         // Simple single-page assumption is safe here: a shop
                         // visit's item list is small (a handful of SKUs),
                         // never large enough to need multi-page pagination.
@@ -88,11 +87,6 @@ public class VoucherPdfService {
                             money(item.getUnitPrice()),
                             item.getDiscountPercent() != null ? String.format(Locale.ENGLISH, "%.1f", item.getDiscountPercent()) : "-",
                             money(item.getTotalPrice()));
-                    if ("SALE".equals(item.getTransactionType()) && item.getTotalPrice() != null) {
-                        totalSale += item.getTotalPrice();
-                    } else if ("RETURN".equals(item.getTransactionType()) && item.getTotalPrice() != null) {
-                        totalReturn += item.getTotalPrice();
-                    }
                 }
 
                 y -= 6;
@@ -101,9 +95,18 @@ public class VoucherPdfService {
                 cs.stroke();
                 y -= lineHeight;
 
-                y = writeLine(cs, bold, 11, margin, y, "Sale Total: " + money(totalSale));
-                y = writeLine(cs, bold, 11, margin, y, "Return Total: " + money(totalReturn));
-                y = writeLine(cs, bold, 11, margin, y, "Net Total: " + money(totalSale - totalReturn));
+                // "Salesman updates" fix: every total below is computed
+                // live by VoucherDetailDTO from `items` (SALE-only units,
+                // never the old inflated all-types sum).
+                y = writeLine(cs, bold, 11, margin, y, "Sale Total: " + money(voucher.getSaleTotal()));
+                y = writeLine(cs, bold, 11, margin, y, "Return Total: " + money(voucher.getReturnTotal()));
+                y = writeLine(cs, bold, 11, margin, y, "Net Total: " + money(voucher.getNetTotal()));
+                y = writeLine(cs, regular, 10, margin, y, "Sold Units: " + voucher.getSoldUnits()
+                        + "   Returned: " + voucher.getReturnedUnits() + "   Unsold: " + voucher.getUnsoldUnits());
+                if (voucher.getReturnBeforeExpiryUnits() != null && voucher.getReturnBeforeExpiryUnits() > 0) {
+                    y = writeLine(cs, regular, 10, margin, y, "Return Before Expiry (replaced): "
+                            + voucher.getReturnBeforeExpiryUnits() + " units - does not change the total");
+                }
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();

@@ -8,7 +8,10 @@ import java.time.LocalDate;
  * shop) — never computed by loading vouchers/items into Java, per the
  * server's 512MB RAM limit (see SalesRecordRepository's shop-summary
  * query). saleAmount/returnAmount are independent item-level sums, not a
- * subtraction of anything already fanned out through a join.
+ * subtraction of anything already fanned out through a join. totalUnits
+ * is SALE-line units only ("salesman updates" fix) — returnedUnits/
+ * unsoldUnits/returnBeforeExpiryUnits each get their own column instead of
+ * being folded into totalUnits.
  */
 public class VoucherShopSummaryDTO {
     private Long shopId;
@@ -19,13 +22,18 @@ public class VoucherShopSummaryDTO {
     private Double saleAmount;
     private Double returnAmount;
     private Long totalUnits;
+    private Long returnedUnits;
+    private Long unsoldUnits;
+    /** "Salesman updates" feature: fresh bread handed over as a Return-Before-Expiry replacement — does not affect saleAmount/returnAmount/netAmount. */
+    private Long returnBeforeExpiryUnits;
     private LocalDate lastVisitDate;
 
     public VoucherShopSummaryDTO() {}
 
     public VoucherShopSummaryDTO(Long shopId, String shopCode, String shopName, String branch,
                                   Long voucherCount, Double saleAmount, Double returnAmount,
-                                  Long totalUnits, LocalDate lastVisitDate) {
+                                  Long totalUnits, Long returnedUnits, Long unsoldUnits,
+                                  Long returnBeforeExpiryUnits, LocalDate lastVisitDate) {
         this.shopId = shopId;
         this.shopCode = shopCode;
         this.shopName = shopName;
@@ -34,6 +42,9 @@ public class VoucherShopSummaryDTO {
         this.saleAmount = saleAmount;
         this.returnAmount = returnAmount;
         this.totalUnits = totalUnits;
+        this.returnedUnits = returnedUnits;
+        this.unsoldUnits = unsoldUnits;
+        this.returnBeforeExpiryUnits = returnBeforeExpiryUnits;
         this.lastVisitDate = lastVisitDate;
     }
 
@@ -66,6 +77,15 @@ public class VoucherShopSummaryDTO {
 
     public Long getTotalUnits() { return totalUnits; }
     public void setTotalUnits(Long totalUnits) { this.totalUnits = totalUnits; }
+
+    public Long getReturnedUnits() { return returnedUnits; }
+    public void setReturnedUnits(Long returnedUnits) { this.returnedUnits = returnedUnits; }
+
+    public Long getUnsoldUnits() { return unsoldUnits; }
+    public void setUnsoldUnits(Long unsoldUnits) { this.unsoldUnits = unsoldUnits; }
+
+    public Long getReturnBeforeExpiryUnits() { return returnBeforeExpiryUnits; }
+    public void setReturnBeforeExpiryUnits(Long returnBeforeExpiryUnits) { this.returnBeforeExpiryUnits = returnBeforeExpiryUnits; }
 
     public LocalDate getLastVisitDate() { return lastVisitDate; }
     public void setLastVisitDate(LocalDate lastVisitDate) { this.lastVisitDate = lastVisitDate; }

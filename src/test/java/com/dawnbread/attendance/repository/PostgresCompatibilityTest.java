@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.repository;
 
+import com.dawnbread.attendance.dto.cockpit.CockpitFilter;
 import com.dawnbread.attendance.entity.*;
 import com.dawnbread.attendance.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * actually null — Postgres can't resolve the type of an untyped null bound
  * inside LOWER(CONCAT(...)) and defaults to bytea. H2 (every other test in
  * this suite) accepts the untyped null fine and never caught this. This
- * class runs the exact same queries against a REAL Postgres 15 container —
+ * class runs the exact same queries against a REAL Postgres 18 container
+ * (production runs PostgreSQL 18.6) —
  * the only way to trust this bug class is fixed and stays fixed. Hibernate
  * creates the schema directly here (ddl-auto=create-drop) rather than
  * running Flyway — this test is about JPQL-to-SQL type inference on real
@@ -40,10 +42,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @Testcontainers
 @SpringBootTest
+// The Postgres container stops when this class ends; close this Spring
+// context too, so no later test can reuse a context pointing at a dead
+// container (that is what broke SaleItemUniqueConstraintTest and
+// AgentRoleAtSaleBackfillTest when they ran after this class, incl. in CI).
+@org.springframework.test.annotation.DirtiesContext(classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 class PostgresCompatibilityTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine");
 
     @DynamicPropertySource
     static void postgresProperties(DynamicPropertyRegistry registry) {
@@ -76,6 +83,9 @@ class PostgresCompatibilityTest {
 
     @Autowired
     private ShopVisitScanRepository shopVisitScanRepository;
+
+    @Autowired
+    private ShopFeedbackRepository shopFeedbackRepository;
 
     private Long tenantId;
 
@@ -141,8 +151,8 @@ class PostgresCompatibilityTest {
         record.setAgent(agent);
         record.setCustomerShop(shop);
         record.setTotalAmount(100.0);
-        record.setSaleDate(LocalDate.now());
-        record.setSaleTime(LocalTime.now());
+        record.setSaleDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        record.setSaleTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         record.setCreatedAt(LocalDateTime.now());
         record.setStatus("PENDING");
         record.setAgentRoleAtSale(role);
@@ -227,8 +237,8 @@ class PostgresCompatibilityTest {
         scan.setAgentId(agent.getId());
         scan.setCustomerShop(shop);
         scan.setScannedCode(shop.getShopCode());
-        scan.setScanDate(LocalDate.now());
-        scan.setScanTime(LocalTime.now());
+        scan.setScanDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        scan.setScanTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         scan.setGpsLatitude(0.0);
         scan.setGpsLongitude(0.0);
         scan.setGeofenceStatus(GeofenceStatus.INSIDE);
@@ -242,7 +252,7 @@ class PostgresCompatibilityTest {
         Agent lmt = seedAgent("PG_SCAN_1", "SALESMAN_LMT");
         CustomerShop shop = seedShop("PG-SHOP-5", "PG Shop Five");
         seedScan(lmt, shop);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         // role="" and shopSearch="" (the fix), agentId=null (the Long
         // param — confirms the "IS NULL OR ..." pattern is genuinely fine
@@ -257,10 +267,133 @@ class PostgresCompatibilityTest {
         Agent lmt = seedAgent("PG_SCAN_2", "SALESMAN_LMT");
         CustomerShop shop = seedShop("PG-SHOP-6", "Findable Outlet");
         seedScan(lmt, shop);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         Page<ShopVisitScan> page = assertDoesNotThrow(
                 () -> shopVisitScanRepository.findFiltered(today, today, lmt.getId(), "SALESMAN_LMT", "findable", false, PageRequest.of(0, 25)));
         assertEquals(1, page.getTotalElements());
+    }
+
+    // ===== ShopFeedbackRepository.findFiltered ("salesman updates" feature) =====
+
+    @Test
+    void shopFeedbackFindFilteredWithBlankRoleDoesNotThrowOnPostgres() {
+        Agent lmt = seedAgent("PG_FEEDBACK_1", "SALESMAN_LMT");
+        CustomerShop shop = seedShop("PG-SHOP-7", "PG Shop Seven");
+
+        ShopFeedback feedback = new ShopFeedback();
+        feedback.setTenantId(tenantId);
+        feedback.setAgentId(lmt.getId());
+        feedback.setCustomerShop(shop);
+        feedback.setReason(ShopFeedbackReason.SHOP_CLOSED);
+        feedback.setGpsLatitude(0.0);
+        feedback.setGpsLongitude(0.0);
+        feedback.setGeofenceStatus(GeofenceStatus.INSIDE);
+        feedback.setVisitDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        feedback.setVisitTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        feedback.setCreatedAt(LocalDateTime.now());
+        shopFeedbackRepository.save(feedback);
+
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
+        // role="" (the Postgres-safe fix) — the exact pattern that crashed
+        // production for ShopVisitScanRepository.findFiltered, now reused
+        // here for the new feedback query.
+        List<ShopFeedback> result = assertDoesNotThrow(
+                () -> shopFeedbackRepository.findFiltered(today, today, null, ""));
+        assertEquals(1, result.size());
+    }
+
+    // ===== Sales cockpit (SalesCockpitQueries) — every query, with and without filters, empty and seeded =====
+
+    @Autowired
+    private SalesCockpitQueries cockpitQueries;
+
+    private void runEveryCockpitQuery(CockpitFilter f) {
+        LocalDate from = f.startDate();
+        LocalDate to = f.endDate();
+        assertDoesNotThrow(() -> cockpitQueries.dailySales(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.salesBySegment(f));
+        assertDoesNotThrow(() -> cockpitQueries.salesByAgent(f));
+        assertDoesNotThrow(() -> cockpitQueries.salesByArea(f));
+        assertDoesNotThrow(() -> cockpitQueries.topProducts(f, 15));
+        assertDoesNotThrow(() -> cockpitQueries.shopsAboveReturnPercent(f, 15.0));
+        assertDoesNotThrow(() -> cockpitQueries.productsAboveReturnPercent(f, 15.0));
+        assertDoesNotThrow(() -> cockpitQueries.vouchers(f, null, false, 0, 25));
+        assertDoesNotThrow(() -> cockpitQueries.vouchers(f, 1L, true, 0, 25));
+        assertDoesNotThrow(() -> cockpitQueries.countVouchers(f, 1L, false));
+        assertDoesNotThrow(() -> cockpitQueries.dailyOffLocationAttempts(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.offLocationAttemptsByAgent(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.dailyLocationNotChecked(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.dailyVouchersWithoutScan(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.vouchersWithoutScanByAgent(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.dailyFeedback(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.dailyLmtMissing(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.lmtMissingByAgent(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.unreconciledByAgent(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.countAssignedShops(f));
+        assertDoesNotThrow(() -> cockpitQueries.countVisitedAssignedShops(f, to));
+        assertDoesNotThrow(() -> cockpitQueries.countShopsNotVisitedSince(f, to.minusDays(3)));
+        assertDoesNotThrow(() -> cockpitQueries.shopsNotVisitedSince(f, to.minusDays(3), 10));
+        assertDoesNotThrow(() -> cockpitQueries.countSalesmen(f));
+        assertDoesNotThrow(() -> cockpitQueries.countActiveSalesmen(f, to));
+        assertDoesNotThrow(() -> cockpitQueries.salesmenWithoutVisit(f, to));
+        assertDoesNotThrow(() -> cockpitQueries.activeAreas());
+        assertDoesNotThrow(() -> cockpitQueries.activeSalesmen());
+    }
+
+    @Test
+    void everyCockpitQueryRunsOnPostgresWithAndWithoutFiltersAndWithNoData() {
+        // A fixed past date, so this scan never shows up in other tests that count today's scans.
+        LocalDate today = LocalDate.of(2025, 1, 15);
+        CockpitFilter none = new CockpitFilter(today.minusDays(29), today, "ALL", null, null);
+        CockpitFilter all = new CockpitFilter(today.minusDays(29), today, "LMT", 1L, 1L);
+        runEveryCockpitQuery(none);   // empty database
+        runEveryCockpitQuery(all);
+
+        Agent lmt = seedAgent("PG_COCKPIT_1", "SALESMAN_LMT");
+        CustomerShop shop = seedShop("PG-SHOP-CK", "PG Cockpit Shop");
+        ShopVisitScan scan = new ShopVisitScan();
+        scan.setTenantId(tenantId);
+        scan.setAgentId(lmt.getId());
+        scan.setCustomerShop(shop);
+        scan.setScannedCode("PG-SHOP-CK");
+        scan.setScanDate(today);
+        scan.setScanTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        scan.setGpsLatitude(0.0);
+        scan.setGpsLongitude(0.0);
+        scan.setGeofenceStatus(GeofenceStatus.OUTSIDE);
+        scan.setVisitStatus(ShopVisitStatus.OUTSIDE_GEOFENCE);
+        scan.setCreatedAt(LocalDateTime.now());
+        shopVisitScanRepository.save(scan);
+
+        runEveryCockpitQuery(none);   // seeded
+        runEveryCockpitQuery(new CockpitFilter(today.minusDays(29), today, "LOCAL", shop.getArea().getId(), lmt.getId()));
+        assertEquals(1L, cockpitQueries.dailyOffLocationAttempts(none, today, today).size());
+    }
+
+    // ===== V34 absences + V35 holidays =====
+
+    @Autowired
+    private AgentAbsenceRepository agentAbsenceRepository;
+
+    @Autowired
+    private CompanyHolidayRepository companyHolidayRepository;
+
+    @Test
+    void absenceAndHolidayQueriesRunOnPostgres() {
+        Agent agent = seedAgent("PG_ABSENT_1", "AGENT");
+        LocalDate day = LocalDate.of(2026, 3, 2);
+        AgentAbsence absence = new AgentAbsence();
+        absence.setTenantId(tenantId);
+        absence.setAgentId(agent.getId());
+        absence.setAbsenceDate(day);
+        absence.setCreatedAt(LocalDateTime.now());
+        agentAbsenceRepository.saveAndFlush(absence);
+
+        assertTrue(agentAbsenceRepository.existsByTenantIdAndAgentIdAndAbsenceDate(tenantId, agent.getId(), day));
+        assertEquals(1, agentAbsenceRepository.findInRange(day, day).size());
+        assertEquals(1, agentAbsenceRepository.findInRangeForAgent(day, day, agent.getId()).size());
+        assertDoesNotThrow(() -> companyHolidayRepository.existsByTenantIdAndHolidayDate(tenantId, day));
+        assertDoesNotThrow(() -> companyHolidayRepository.findByTenantIdOrderByHolidayDateDesc(tenantId));
     }
 }
