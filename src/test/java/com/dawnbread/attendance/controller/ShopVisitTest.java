@@ -277,7 +277,7 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(closeBody, token), String.class);
         assertEquals(HttpStatus.OK, closeResponse.getStatusCode());
         assertTrue(customerShopRepository.findByShopCode(shop.getShopCode()).isPresent());
-        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
                 .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
                 .findFirst().orElseThrow();
         assertNotNull(saved.getDistanceFromShopMeters(), "Distance must always be logged when the shop has a geofence configured");
@@ -320,7 +320,7 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
-        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
                 .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
                 .findFirst().orElseThrow();
         assertNotNull(saved.getDistanceFromShopMeters(), "Distance must be recorded on the merged record even with both SALE and RETURN lines");
@@ -364,7 +364,7 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
-        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
                 .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
                 .findFirst().orElseThrow();
         assertNotNull(saved.getDistanceFromShopMeters(), "A Local salesman's shop always has a mandatory geofence, so distance must be recorded on the merged record");
@@ -394,7 +394,7 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode(), response.getBody());
 
-        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
                 .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
                 .findFirst().orElseThrow();
 
@@ -446,7 +446,7 @@ class ShopVisitTest {
                 url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
-        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now())
+        SalesRecord saved = salesRecordRepository.findByAgentIdAndSaleDate(salesman.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE))
                 .stream().filter(r -> r.getCustomerShop() != null && r.getCustomerShop().getId().equals(shop.getId()))
                 .findFirst().orElseThrow();
         assertEquals(50.0 * 10, saved.getTotalAmount(), 0.001, "totalAmount must reflect only the SALE line, not RETURN or UNSOLD");

@@ -71,8 +71,8 @@ class AgentRoleAtSaleBackfillTest {
         record.setTenantId(tid);
         record.setAgent(agent);
         record.setTotalAmount(100.0);
-        record.setSaleDate(LocalDate.now());
-        record.setSaleTime(LocalTime.now());
+        record.setSaleDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        record.setSaleTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         record.setCreatedAt(LocalDateTime.now());
         record.setStatus("PENDING");
         record = salesRecordRepository.save(record);

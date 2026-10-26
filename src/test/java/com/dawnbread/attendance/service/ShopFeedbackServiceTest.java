@@ -170,7 +170,7 @@ class ShopFeedbackServiceTest {
 
         assertEquals(shop.getShopCode(), result.getShopCode());
         assertEquals("SHOP_CLOSED", result.getReason());
-        assertTrue(salesRecordRepository.findByAgentIdAndSaleDate(lmt.getId(), LocalDate.now()).isEmpty(),
+        assertTrue(salesRecordRepository.findByAgentIdAndSaleDate(lmt.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE)).isEmpty(),
                 "Feedback must never create a SalesRecord/voucher");
     }
 
@@ -237,7 +237,7 @@ class ShopFeedbackServiceTest {
                 request(lmt.getId(), shop.getShopCode(), "OWNER_NOT_AVAILABLE", null, 24.86, 67.0, requestId));
 
         assertEquals(first.getId(), second.getId(), "A reused requestId must return the SAME saved feedback, not create a second one");
-        assertEquals(1, shopFeedbackRepository.findShopIdsForAgentAndDate(lmt.getId(), LocalDate.now()).size());
+        assertEquals(1, shopFeedbackRepository.findShopIdsForAgentAndDate(lmt.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE)).size());
     }
 
     @Test
@@ -251,7 +251,7 @@ class ShopFeedbackServiceTest {
         shopFeedbackService.recordFeedback(
                 request(lmt.getId(), shop.getShopCode(), "SHOP_CLOSED", null, 24.86, 67.0, null));
 
-        assertTrue(shopFeedbackRepository.findShopIdsForAgentAndDate(lmt.getId(), LocalDate.now()).contains(shop.getId()),
+        assertTrue(shopFeedbackRepository.findShopIdsForAgentAndDate(lmt.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE)).contains(shop.getId()),
                 "The shop must show up as feedback-visited for this agent/date, which ShopVisitScanService unions into its Not-Visited check");
     }
 }

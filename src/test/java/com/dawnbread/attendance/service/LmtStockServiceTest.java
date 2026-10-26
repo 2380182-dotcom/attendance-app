@@ -176,7 +176,7 @@ class LmtStockServiceTest {
         record.setTotalAmount(quantity * 50.0);
         record.setTotalUnits(quantity);
         record.setSaleDate(saleDate);
-        record.setSaleTime(LocalTime.now());
+        record.setSaleTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         record.setSubmittedAt(LocalDateTime.now());
         record.setLocation("Test Location");
         record.setCreatedAt(LocalDateTime.now());
@@ -203,7 +203,7 @@ class LmtStockServiceTest {
     void soldIsSummedAcrossMultipleShopsForTheSameProductAndDay() {
         Agent lmt = seedLmt("LMT_STOCK_MULTISHOP");
         Product product = seedProduct();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         LmtMorningStockRequest morning = new LmtMorningStockRequest();
         morning.setAgentId(lmt.getId());
@@ -247,7 +247,7 @@ class LmtStockServiceTest {
     void returnBeforeExpiryIsSubtractedFromMissingExactlyLikeSold() {
         Agent lmt = seedLmt("LMT_STOCK_RBE");
         Product product = seedProduct();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         LmtMorningStockRequest morning = new LmtMorningStockRequest();
         morning.setAgentId(lmt.getId());
@@ -290,7 +290,7 @@ class LmtStockServiceTest {
 
         // No SALE rows, but one RETURN row — Returned is computed the same
         // way Sold is, independently.
-        seedReturn(lmt, product, LocalDate.now(), 401L, 5);
+        seedReturn(lmt, product, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), 401L, 5);
 
         LmtReconcileRequest reconcile = new LmtReconcileRequest();
         reconcile.setAgentId(lmt.getId());
@@ -311,7 +311,7 @@ class LmtStockServiceTest {
     void missingGoesNegativeWhenSoldExceedsOpeningStockAndIsNotRejected() {
         Agent lmt = seedLmt("LMT_STOCK_OVERSOLD");
         Product product = seedProduct();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         LmtMorningStockRequest morning = new LmtMorningStockRequest();
         morning.setAgentId(lmt.getId());
@@ -424,7 +424,7 @@ class LmtStockServiceTest {
         reconcile.setItems(Collections.emptyList());
         lmtStockService.reconcile(reconcile);
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         List<LmtDailyStockDTO> report = lmtStockService.getReconciliationReport(today, today, null);
 
         assertTrue(report.stream().anyMatch(r -> r.getAgentId().equals(lmtOpen.getId()) && "OPEN".equals(r.getStatus())),
@@ -449,7 +449,7 @@ class LmtStockServiceTest {
             lmtStockService.enterMorningStock(morning);
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         List<LmtDailyStockDTO> reportForA = lmtStockService.getReconciliationReport(today, today, lmtA.getId());
 
         assertTrue(reportForA.stream().allMatch(r -> r.getAgentId().equals(lmtA.getId())),
@@ -464,7 +464,7 @@ class LmtStockServiceTest {
     void returnedIsSummedAcrossMultipleShopsForTheSameProductAndDay() {
         Agent lmt = seedLmt("LMT_STOCK_RETURN_MULTISHOP");
         Product product = seedProduct();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         LmtMorningStockRequest morning = new LmtMorningStockRequest();
         morning.setAgentId(lmt.getId());
@@ -496,7 +496,7 @@ class LmtStockServiceTest {
     void reconciliationReportBreaksReturnsDownByShop() {
         Agent lmt = seedLmt("LMT_STOCK_RETURN_BYSHOP");
         Product product = seedProduct();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         LmtMorningStockRequest morning = new LmtMorningStockRequest();
         morning.setAgentId(lmt.getId());

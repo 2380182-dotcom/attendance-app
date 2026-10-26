@@ -145,8 +145,8 @@ class PostgresCompatibilityTest {
         record.setAgent(agent);
         record.setCustomerShop(shop);
         record.setTotalAmount(100.0);
-        record.setSaleDate(LocalDate.now());
-        record.setSaleTime(LocalTime.now());
+        record.setSaleDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        record.setSaleTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         record.setCreatedAt(LocalDateTime.now());
         record.setStatus("PENDING");
         record.setAgentRoleAtSale(role);
@@ -231,8 +231,8 @@ class PostgresCompatibilityTest {
         scan.setAgentId(agent.getId());
         scan.setCustomerShop(shop);
         scan.setScannedCode(shop.getShopCode());
-        scan.setScanDate(LocalDate.now());
-        scan.setScanTime(LocalTime.now());
+        scan.setScanDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        scan.setScanTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         scan.setGpsLatitude(0.0);
         scan.setGpsLongitude(0.0);
         scan.setGeofenceStatus(GeofenceStatus.INSIDE);
@@ -246,7 +246,7 @@ class PostgresCompatibilityTest {
         Agent lmt = seedAgent("PG_SCAN_1", "SALESMAN_LMT");
         CustomerShop shop = seedShop("PG-SHOP-5", "PG Shop Five");
         seedScan(lmt, shop);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         // role="" and shopSearch="" (the fix), agentId=null (the Long
         // param — confirms the "IS NULL OR ..." pattern is genuinely fine
@@ -261,7 +261,7 @@ class PostgresCompatibilityTest {
         Agent lmt = seedAgent("PG_SCAN_2", "SALESMAN_LMT");
         CustomerShop shop = seedShop("PG-SHOP-6", "Findable Outlet");
         seedScan(lmt, shop);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         Page<ShopVisitScan> page = assertDoesNotThrow(
                 () -> shopVisitScanRepository.findFiltered(today, today, lmt.getId(), "SALESMAN_LMT", "findable", false, PageRequest.of(0, 25)));
@@ -283,12 +283,12 @@ class PostgresCompatibilityTest {
         feedback.setGpsLatitude(0.0);
         feedback.setGpsLongitude(0.0);
         feedback.setGeofenceStatus(GeofenceStatus.INSIDE);
-        feedback.setVisitDate(LocalDate.now());
-        feedback.setVisitTime(LocalTime.now());
+        feedback.setVisitDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        feedback.setVisitTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         feedback.setCreatedAt(LocalDateTime.now());
         shopFeedbackRepository.save(feedback);
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         // role="" (the Postgres-safe fix) — the exact pattern that crashed
         // production for ShopVisitScanRepository.findFiltered, now reused
         // here for the new feedback query.
@@ -337,7 +337,7 @@ class PostgresCompatibilityTest {
 
     @Test
     void everyCockpitQueryRunsOnPostgresWithAndWithoutFiltersAndWithNoData() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         CockpitFilter none = new CockpitFilter(today.minusDays(29), today, "ALL", null, null);
         CockpitFilter all = new CockpitFilter(today.minusDays(29), today, "LMT", 1L, 1L);
         runEveryCockpitQuery(none);   // empty database
@@ -351,7 +351,7 @@ class PostgresCompatibilityTest {
         scan.setCustomerShop(shop);
         scan.setScannedCode("PG-SHOP-CK");
         scan.setScanDate(today);
-        scan.setScanTime(LocalTime.now());
+        scan.setScanTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         scan.setGpsLatitude(0.0);
         scan.setGpsLongitude(0.0);
         scan.setGeofenceStatus(GeofenceStatus.OUTSIDE);

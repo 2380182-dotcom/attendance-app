@@ -89,7 +89,7 @@ class SaleItemUniqueConstraintTest {
         record.setTotalAmount(100.0);
         record.setTotalUnits(2);
         record.setSaleDate(saleDate);
-        record.setSaleTime(LocalTime.now());
+        record.setSaleTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         record.setSubmittedAt(LocalDateTime.now());
         record.setLocation("Test Location");
         record.setCreatedAt(LocalDateTime.now());
@@ -109,7 +109,7 @@ class SaleItemUniqueConstraintTest {
     void secondSaleItemForSameAgentProductAndDateIsRejectedByTheDbConstraint() {
         Agent agent = seedAgent("SALEITEM_UNIQ_1");
         Product product = seedProduct();
-        LocalDate saleDate = LocalDate.now();
+        LocalDate saleDate = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
 
         SalesRecord firstSubmission = seedSalesRecord(agent, saleDate);
         SaleItem firstItem = buildSaleItem(firstSubmission, product, agent.getId(), saleDate);
@@ -131,12 +131,12 @@ class SaleItemUniqueConstraintTest {
         Agent agent = seedAgent("SALEITEM_UNIQ_2");
         Product product = seedProduct();
 
-        SalesRecord today = seedSalesRecord(agent, LocalDate.now());
-        SaleItem todayItem = buildSaleItem(today, product, agent.getId(), LocalDate.now());
+        SalesRecord today = seedSalesRecord(agent, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        SaleItem todayItem = buildSaleItem(today, product, agent.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         assertDoesNotThrow(() -> saleItemRepository.saveAndFlush(todayItem));
 
-        SalesRecord yesterday = seedSalesRecord(agent, LocalDate.now().minusDays(1));
-        SaleItem yesterdayItem = buildSaleItem(yesterday, product, agent.getId(), LocalDate.now().minusDays(1));
+        SalesRecord yesterday = seedSalesRecord(agent, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE).minusDays(1));
+        SaleItem yesterdayItem = buildSaleItem(yesterday, product, agent.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE).minusDays(1));
         assertDoesNotThrow(() -> saleItemRepository.saveAndFlush(yesterdayItem),
                 "The same agent/product combination on a different date must not collide with the constraint");
     }

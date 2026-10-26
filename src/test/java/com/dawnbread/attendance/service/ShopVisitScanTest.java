@@ -211,7 +211,7 @@ class ShopVisitScanTest {
         scan.setCustomerShop(shop);
         scan.setScannedCode(shop.getShopCode());
         scan.setScanDate(date);
-        scan.setScanTime(LocalTime.now());
+        scan.setScanTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         scan.setGpsLatitude(24.86);
         scan.setGpsLongitude(67.0);
         scan.setGeofenceStatus(GeofenceStatus.INSIDE);
@@ -227,7 +227,7 @@ class ShopVisitScanTest {
         scan.setAgentId(who.getId());
         scan.setScannedCode(code);
         scan.setScanDate(date);
-        scan.setScanTime(LocalTime.now());
+        scan.setScanTime(LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         scan.setGpsLatitude(24.86);
         scan.setGpsLongitude(67.0);
         scan.setGeofenceStatus(GeofenceStatus.NOT_EVALUATED);
@@ -265,7 +265,7 @@ class ShopVisitScanTest {
         CustomerShop shop = seedShop(true, true);
         Agent lmt = seedLmt("QR_SCANNED_TODAY");
         seedCompanyCheckIn(lmt);
-        seedScan(lmt, shop, LocalDate.now(), ShopVisitStatus.SUCCESS);
+        seedScan(lmt, shop, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), ShopVisitStatus.SUCCESS);
 
         SalesRecord saved = submitSale(lmt, shop, product, 24.86, 67.0);
         assertEquals(100.0, saved.getTotalAmount(), 0.001);
@@ -278,7 +278,7 @@ class ShopVisitScanTest {
         Agent lmt = seedLmt("QR_AGENT_A");
         Agent otherLmt = seedLmt("QR_AGENT_B");
         seedCompanyCheckIn(lmt);
-        seedScan(otherLmt, shop, LocalDate.now(), ShopVisitStatus.SUCCESS);
+        seedScan(otherLmt, shop, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), ShopVisitStatus.SUCCESS);
 
         assertThrows(IllegalArgumentException.class, () -> submitSale(lmt, shop, product, 24.86, 67.0));
     }
@@ -289,7 +289,7 @@ class ShopVisitScanTest {
         CustomerShop shop = seedShop(true, true);
         Agent lmt = seedLmt("QR_FAILED_SCAN");
         seedCompanyCheckIn(lmt);
-        seedScan(lmt, shop, LocalDate.now(), ShopVisitStatus.OUTSIDE_GEOFENCE);
+        seedScan(lmt, shop, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), ShopVisitStatus.OUTSIDE_GEOFENCE);
 
         assertThrows(IllegalArgumentException.class, () -> submitSale(lmt, shop, product, 24.86, 67.0));
     }
@@ -300,7 +300,7 @@ class ShopVisitScanTest {
         CustomerShop shop = seedShop(true, true);
         Agent lmt = seedLmt("QR_YESTERDAY");
         seedCompanyCheckIn(lmt);
-        seedScan(lmt, shop, LocalDate.now().minusDays(1), ShopVisitStatus.SUCCESS);
+        seedScan(lmt, shop, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE).minusDays(1), ShopVisitStatus.SUCCESS);
 
         assertThrows(IllegalArgumentException.class, () -> submitSale(lmt, shop, product, 24.86, 67.0));
     }
@@ -338,7 +338,7 @@ class ShopVisitScanTest {
 
         assertThrows(IllegalArgumentException.class, () -> submitSale(lmt, shop, product, 24.86, 67.0));
 
-        seedScan(lmt, shop, LocalDate.now(), ShopVisitStatus.SUCCESS);
+        seedScan(lmt, shop, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), ShopVisitStatus.SUCCESS);
         assertEquals(100.0, submitSale(lmt, shop, product, 24.86, 67.0).getTotalAmount(), 0.001);
     }
 
@@ -400,7 +400,7 @@ class ShopVisitScanTest {
         assertEquals("INSIDE", result.getGeofenceStatus());
         assertEquals(shop.getId(), result.getShop().getId());
         assertTrue(shopVisitScanRepository.existsByAgentIdAndCustomerShopIdAndScanDateAndVisitStatus(
-                lmt.getId(), shop.getId(), LocalDate.now(), ShopVisitStatus.SUCCESS));
+                lmt.getId(), shop.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), ShopVisitStatus.SUCCESS));
     }
 
     @Test
@@ -412,7 +412,7 @@ class ShopVisitScanTest {
 
         assertEquals("INVALID_CODE", result.getVisitStatus());
         assertNull(result.getShop());
-        assertEquals(1L, shopVisitScanRepository.findByAgentIdAndScanDateOrderByScanTimeDesc(lmt.getId(), LocalDate.now()).size());
+        assertEquals(1L, shopVisitScanRepository.findByAgentIdAndScanDateOrderByScanTimeDesc(lmt.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE)).size());
     }
 
     @Test
@@ -459,7 +459,7 @@ class ShopVisitScanTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> shopVisitScanService.recordScan(scanRequest(lmt, shop.getShopCode(), 24.86, 67.0)));
-        assertTrue(shopVisitScanRepository.findByAgentIdAndScanDateOrderByScanTimeDesc(lmt.getId(), LocalDate.now()).isEmpty(),
+        assertTrue(shopVisitScanRepository.findByAgentIdAndScanDateOrderByScanTimeDesc(lmt.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE)).isEmpty(),
                 "a precondition failure (not checked in) is never recorded as a scan attempt");
     }
 
@@ -486,7 +486,7 @@ class ShopVisitScanTest {
         CustomerShop shop = seedShop(true, false);
         Agent lmt = seedLmt("REPORT_LMT");
         Agent local = seedLocal("REPORT_LOCAL");
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         seedScan(local, shop, today, ShopVisitStatus.OUTSIDE_GEOFENCE);
 
@@ -503,7 +503,7 @@ class ShopVisitScanTest {
         CustomerShop shop = seedShop(true, false);
         Agent lmt = seedLmt("REPORT_SCOPED_A");
         Agent other = seedLmt("REPORT_SCOPED_B");
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         seedScan(other, shop, today, ShopVisitStatus.SUCCESS);
 
@@ -520,7 +520,7 @@ class ShopVisitScanTest {
         shop.setShopCode("ISB-I14-005");
         customerShopRepository.save(shop);
         Agent lmt = seedLmt("REPORT_CITY");
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
 
         ShopVisitScanRecordDTO row = shopVisitScanService.getPagedReport(
@@ -535,7 +535,7 @@ class ShopVisitScanTest {
     @Test
     void reportShowsAnInvalidCodeScanWithNullShopFieldsRatherThanOmittingIt() {
         Agent lmt = seedLmt("REPORT_INVALID");
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedInvalidScan(lmt, "BOGUS-CODE", today);
 
         List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
@@ -552,10 +552,10 @@ class ShopVisitScanTest {
     void reportExcludesScansOutsideTheRequestedDateRange() {
         CustomerShop shop = seedShop(true, false);
         Agent lmt = seedLmt("REPORT_OUT_OF_RANGE");
-        seedScan(lmt, shop, LocalDate.now().minusDays(10), ShopVisitStatus.SUCCESS);
+        seedScan(lmt, shop, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE).minusDays(10), ShopVisitStatus.SUCCESS);
 
         List<ShopVisitScanRecordDTO> report = shopVisitScanService.getPagedReport(
-                LocalDate.now(), LocalDate.now(), lmt.getId(), null, null, false, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
+                LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), lmt.getId(), null, null, false, false, org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
 
         assertTrue(report.isEmpty());
     }
@@ -565,7 +565,7 @@ class ShopVisitScanTest {
         CustomerShop shopA = seedShop(true, false);
         CustomerShop shopB = seedShop(true, false);
         Agent lmt = seedLmt("SUMMARY_COUNTS");
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, shopA, today, ShopVisitStatus.SUCCESS);
         seedScan(lmt, shopA, today, ShopVisitStatus.SUCCESS); // same shop again — must not double-count as a second unique shop
         seedScan(lmt, shopB, today, ShopVisitStatus.OUTSIDE_GEOFENCE);
@@ -584,9 +584,9 @@ class ShopVisitScanTest {
     void daySummaryIsScopedToOneDayOnly() {
         CustomerShop shop = seedShop(true, false);
         Agent lmt = seedLmt("SUMMARY_ONE_DAY");
-        seedScan(lmt, shop, LocalDate.now().minusDays(1), ShopVisitStatus.SUCCESS);
+        seedScan(lmt, shop, LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE).minusDays(1), ShopVisitStatus.SUCCESS);
 
-        ShopVisitDaySummaryDTO summary = shopVisitScanService.getDaySummary(lmt.getId(), LocalDate.now());
+        ShopVisitDaySummaryDTO summary = shopVisitScanService.getDaySummary(lmt.getId(), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
 
         assertEquals(0, summary.getTotalVisits());
     }
@@ -608,7 +608,7 @@ class ShopVisitScanTest {
         assignShop(assignedScanned, lmt);
         assignShop(assignedUnscanned, lmt);
         assignShop(notAssignedToThisAgent, otherLmt);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, assignedScanned, today, ShopVisitStatus.SUCCESS);
 
         var page = shopVisitScanService.getNotVisited(today, "SALESMAN_LMT", lmt.getId(), null,
@@ -627,7 +627,7 @@ class ShopVisitScanTest {
         CustomerShop shopB = seedShop(true, false);
         assignShop(shopA, lmtA);
         assignShop(shopB, lmtB);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmtA, shopA, today, ShopVisitStatus.SUCCESS); // A's shop IS scanned
         // B's shop is never scanned
 
@@ -650,7 +650,7 @@ class ShopVisitScanTest {
         Agent lmt = seedLmt("NV_LMT_UNASSIGNED");
         seedShop(true, false); // never assigned to anyone
 
-        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LMT", lmt.getId(), null,
+        var page = shopVisitScanService.getNotVisited(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), "SALESMAN_LMT", lmt.getId(), null,
                 org.springframework.data.domain.PageRequest.of(0, 50));
 
         assertEquals(0, page.getTotalElements());
@@ -672,7 +672,7 @@ class ShopVisitScanTest {
         assignShop(assignedScanned, local);
         assignShop(assignedUnscanned, local);
         assignShop(notAssignedToThisAgent, otherLocal);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(local, assignedScanned, today, ShopVisitStatus.SUCCESS);
 
         var page = shopVisitScanService.getNotVisited(today, "SALESMAN_LOCAL", local.getId(), null,
@@ -691,7 +691,7 @@ class ShopVisitScanTest {
         CustomerShop lmtShop = seedShop(true, false);
         assignShop(lmtShop, lmt);
 
-        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LOCAL", local.getId(), null,
+        var page = shopVisitScanService.getNotVisited(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), "SALESMAN_LOCAL", local.getId(), null,
                 org.springframework.data.domain.PageRequest.of(0, 50));
 
         assertEquals(0, page.getTotalElements(), "An LMT salesman's assigned shop must not show up under Local, even scoped to a different agent");
@@ -712,12 +712,12 @@ class ShopVisitScanTest {
         feedback.setGpsLatitude(24.86);
         feedback.setGpsLongitude(67.0);
         feedback.setGeofenceStatus(com.dawnbread.attendance.entity.GeofenceStatus.INSIDE);
-        feedback.setVisitDate(LocalDate.now());
-        feedback.setVisitTime(java.time.LocalTime.now());
+        feedback.setVisitDate(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
+        feedback.setVisitTime(java.time.LocalTime.now(com.dawnbread.attendance.util.KarachiTime.ZONE));
         feedback.setCreatedAt(LocalDateTime.now());
         shopFeedbackRepository.save(feedback);
 
-        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LMT", lmt.getId(), null,
+        var page = shopVisitScanService.getNotVisited(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), "SALESMAN_LMT", lmt.getId(), null,
                 org.springframework.data.domain.PageRequest.of(0, 50));
 
         assertEquals(0, page.getTotalElements(), "A shop with feedback must count as visited, not appear in Not Visited");
@@ -733,7 +733,7 @@ class ShopVisitScanTest {
         CustomerShop unrelated = seedShop(true, false); // a second assigned-but-unscanned shop that shouldn't match the search
         assignShop(unrelated, local);
 
-        var page = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LOCAL", local.getId(), "findable",
+        var page = shopVisitScanService.getNotVisited(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), "SALESMAN_LOCAL", local.getId(), "findable",
                 org.springframework.data.domain.PageRequest.of(0, 50));
 
         assertEquals(1, page.getTotalElements());
@@ -745,7 +745,7 @@ class ShopVisitScanTest {
     void unassignedActiveShopAppearsInUnassignedNotScannedForBothSections() {
         CustomerShop unassigned = seedShop(true, false); // never assigned to anyone
 
-        var page = shopVisitScanService.getUnassignedNotScanned(LocalDate.now(), null,
+        var page = shopVisitScanService.getUnassignedNotScanned(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), null,
                 org.springframework.data.domain.PageRequest.of(0, 1000));
 
         assertTrue(page.getContent().stream().anyMatch(d -> d.getShopId().equals(unassigned.getId())),
@@ -761,7 +761,7 @@ class ShopVisitScanTest {
         CustomerShop assigned = seedShop(true, false);
         assignShop(assigned, local);
 
-        var page = shopVisitScanService.getUnassignedNotScanned(LocalDate.now(), null,
+        var page = shopVisitScanService.getUnassignedNotScanned(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), null,
                 org.springframework.data.domain.PageRequest.of(0, 1000));
 
         assertTrue(page.getContent().stream().noneMatch(d -> d.getShopId().equals(assigned.getId())),
@@ -779,7 +779,7 @@ class ShopVisitScanTest {
             assignShop(seedShop(true, false), lmt);
         }
 
-        var firstPage = shopVisitScanService.getNotVisited(LocalDate.now(), "SALESMAN_LMT", lmt.getId(), null,
+        var firstPage = shopVisitScanService.getNotVisited(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), "SALESMAN_LMT", lmt.getId(), null,
                 org.springframework.data.domain.PageRequest.of(0, 2));
 
         assertEquals(5, firstPage.getTotalElements());
@@ -794,7 +794,7 @@ class ShopVisitScanTest {
         CustomerShop notVisited = seedShop(true, false);
         assignShop(visited, lmt);
         assignShop(notVisited, lmt);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, visited, today, ShopVisitStatus.SUCCESS);
 
         var summary = shopVisitScanService.getSummaryCounts(today, "SALESMAN_LMT", lmt.getId());
@@ -816,7 +816,7 @@ class ShopVisitScanTest {
 
         // Scoped to this test's own agentId — isolated from other tests'
         // leftover vouchers in the shared full-suite database.
-        var page = shopVisitScanService.getVouchersWithoutScan(LocalDate.now(), LocalDate.now(), lmt.getId(), null,
+        var page = shopVisitScanService.getVouchersWithoutScan(LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE), lmt.getId(), null,
                 org.springframework.data.domain.PageRequest.of(0, 50));
 
         assertEquals(1, page.getTotalElements());
@@ -829,7 +829,7 @@ class ShopVisitScanTest {
         Agent lmt = seedLmt("VWS_2");
         CustomerShop shop = seedShop(false, false);
         seedCompanyCheckIn(lmt);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
 
         submitSale(lmt, shop, product, 24.86, 67.0);
@@ -846,7 +846,7 @@ class ShopVisitScanTest {
         Agent lmt = seedLmt("VC_COLUMN");
         CustomerShop shop = seedShop(false, false);
         seedCompanyCheckIn(lmt);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         submitSale(lmt, shop, product, 24.86, 67.0);
 
@@ -861,7 +861,7 @@ class ShopVisitScanTest {
     void pagedReportFailedOnlyFilterExcludesSuccessfulScans() {
         Agent lmt = seedLmt("FAILED_ONLY");
         CustomerShop shop = seedShop(true, false);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         seedScan(lmt, shop, today, ShopVisitStatus.OUTSIDE_GEOFENCE);
 
@@ -877,7 +877,7 @@ class ShopVisitScanTest {
         Agent lmt = seedLmt("ROLE_FILTER_LMT");
         Agent local = seedLocal("ROLE_FILTER_LOCAL");
         CustomerShop shop = seedShop(true, false);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(com.dawnbread.attendance.util.KarachiTime.ZONE);
         seedScan(lmt, shop, today, ShopVisitStatus.SUCCESS);
         seedScan(local, shop, today, ShopVisitStatus.SUCCESS);
 
