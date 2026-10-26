@@ -58,26 +58,45 @@ public class AbsenceService {
     private AbsenceService self;
 
     /**
-     * Called by the 10 PM job for today's Pakistan date. Runs outside any
-     * request (no tenant filter), so it covers every company and passes
-     * tenantId explicitly. Each absence is saved on its own, so one
-     * duplicate never stops the others. Returns how many were saved.
+     * The ONE rule for who counts as absent on a Pakistan date — used for both
+     * the saved records and the 10 PM notification, so they never disagree:
+     * active mart agents (role AGENT) only, on one of their working days, not
+     * on their company's holiday, not created after that date, and with no
+     * check-in that day. Runs outside any request (no tenant filter), so it
+     * covers every company and reads tenantId from each agent.
      */
-    public int recordAbsences(LocalDate date) {
+    public List<Agent> absentMartAgents(LocalDate date) {
         String dayCode = date.getDayOfWeek().name().substring(0, 3);
         LocalDateTime start = KarachiTime.startOfDayUtc(date);
         LocalDateTime end = KarachiTime.endOfDayUtc(date);
-        int saved = 0;
+        List<Agent> absent = new java.util.ArrayList<>();
         for (Agent agent : agentRepository.findAll()) {
             if (!MART_AGENT_ROLE.equals(agent.getRole()) || !Boolean.TRUE.equals(agent.getIsActive())) continue;
             List<String> workingDays = agent.getWorkingDays();
             if (workingDays != null && !workingDays.contains(dayCode)) continue;
             if (agent.getCreatedAt() != null && agent.getCreatedAt().toLocalDate().isAfter(date)) continue;
-            Long tenantId = agent.getTenantId();
-            if (holidayRepository.existsByTenantIdAndHolidayDate(tenantId, date)) continue;
+            if (holidayRepository.existsByTenantIdAndHolidayDate(agent.getTenantId(), date)) continue;
             if (!attendanceRepository.findByAgentIdAndCheckInTimeBetween(agent.getId(), start, end).isEmpty()) continue;
-            if (absenceRepository.existsByTenantIdAndAgentIdAndAbsenceDate(tenantId, agent.getId(), date)) continue;
+            absent.add(agent);
+        }
+        return absent;
+    }
 
+    /** Saves absences for today's Pakistan date; returns how many were newly saved. */
+    public int recordAbsences(LocalDate date) {
+        return saveAbsences(date, absentMartAgents(date));
+    }
+
+    /**
+     * Saves one absence per agent. Each is saved on its own, so one duplicate
+     * (e.g. the job running twice) never stops the others; the V34 unique key
+     * is the final guard.
+     */
+    public int saveAbsences(LocalDate date, List<Agent> agents) {
+        int saved = 0;
+        for (Agent agent : agents) {
+            Long tenantId = agent.getTenantId();
+            if (absenceRepository.existsByTenantIdAndAgentIdAndAbsenceDate(tenantId, agent.getId(), date)) continue;
             AgentAbsence absence = new AgentAbsence();
             absence.setTenantId(tenantId);
             absence.setAgentId(agent.getId());
@@ -87,7 +106,6 @@ public class AbsenceService {
                 absenceRepository.saveAndFlush(absence);
                 saved++;
             } catch (DataIntegrityViolationException duplicate) {
-                // Another run saved it first — the unique key did its job.
                 log.info("Absence for agent {} on {} already saved", agent.getId(), date);
             }
         }

@@ -39,6 +39,14 @@ public class NotificationService {
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("hh:mm a");
 
     public Notification saveNotification(Notification notification) {
+        // Scheduled jobs (10 PM absentee check, 11:59 PM auto-checkout) run
+        // outside any request, so there is no tenant context and
+        // TenantEntityListener refuses the save. Take the company from the
+        // agent the notification is about. Inside a request this is the same
+        // tenant the listener would have used.
+        if (notification.getTenantId() == null && notification.getAgent() != null) {
+            notification.setTenantId(notification.getAgent().getTenantId());
+        }
         notification.setCreatedAt(LocalDateTime.now());
         if (notification.getIsRead() == null) {
             notification.setIsRead(false);

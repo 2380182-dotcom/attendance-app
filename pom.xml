@@ -163,6 +163,16 @@
 
     <build>
         <plugins>
+            <!-- Tests run with the same UTC default timezone as production
+                 (see ServerTimeZone) so attendance results never depend on
+                 the developer machine's timezone or time of day. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Duser.timezone=UTC</argLine>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

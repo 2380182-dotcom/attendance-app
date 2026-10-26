@@ -62,6 +62,10 @@ class AbsenceAndHolidayTest {
     private AbsenceService absenceService;
     @Autowired
     private AgentService agentService;
+    @Autowired
+    private com.dawnbread.attendance.config.SchedulerConfig schedulerConfig;
+    @Autowired
+    private NotificationRepository notificationRepository;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -302,6 +306,48 @@ class AbsenceAndHolidayTest {
         agentService.deleteAgent(agent.getId());
 
         assertFalse(absent(t, agent, MONDAY));
+    }
+
+    private long absentNotifications(Agent agent) {
+        return notificationRepository.findByAgentIdOrderByCreatedAtDesc(agent.getId(), org.springframework.data.domain.PageRequest.of(0, 100))
+                .stream().filter(n -> "ABSENT".equals(n.getType())).count();
+    }
+
+    @Test
+    void tenPmNotificationFollowsExactlyTheSameRulesAsTheAbsenceRecords() {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Karachi"));
+        String todayCode = today.getDayOfWeek().name().substring(0, 3);
+        List<String> everyDayButToday = EVERY_DAY.stream().filter(d -> !d.equals(todayCode)).toList();
+
+        Tenant t = tenant("NOTIFY");
+        Agent missing = agent(t, "AGENT", EVERY_DAY);
+        Agent dayOff = agent(t, "AGENT", everyDayButToday);
+        Agent local = agent(t, "SALESMAN_LOCAL", EVERY_DAY);
+        Agent lmt = agent(t, "SALESMAN_LMT", EVERY_DAY);
+        Agent inactive = agent(t, "AGENT", EVERY_DAY);
+        inactive.setIsActive(false);
+        agentRepository.save(inactive);
+        Agent present = agent(t, "AGENT", EVERY_DAY);
+        checkedInOn(t, present, mart(t), today);
+
+        Tenant onHoliday = tenant("NOTIFYHOL");
+        Agent holidayAgent = agent(onHoliday, "AGENT", EVERY_DAY);
+        CompanyHoliday h = new CompanyHoliday();
+        h.setTenantId(onHoliday.getId());
+        h.setHolidayDate(today);
+        h.setName("Test Holiday");
+        h.setCreatedAt(LocalDateTime.now());
+        holidayRepository.save(h);
+
+        schedulerConfig.markAbsentAgents();
+
+        assertEquals(1, absentNotifications(missing), "absent mart agent on a working day is notified");
+        assertTrue(absent(t, missing, today), "and his absence is saved");
+        for (Agent notNotified : List.of(dayOff, local, lmt, inactive, present, holidayAgent)) {
+            assertEquals(0, absentNotifications(notNotified), notNotified.getRole() + " " + notNotified.getAgentId());
+        }
+        assertFalse(absent(t, dayOff, today));
+        assertFalse(absent(onHoliday, holidayAgent, today));
     }
 
     // ------------------------------------------------------------------ endpoints

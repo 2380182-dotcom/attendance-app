@@ -18,6 +18,12 @@ import java.time.ZoneId;
 @Configuration
 public class TimeConfig {
 
+    // Safety net for every Spring context, including tests started from an
+    // IDE (which skip both main() and Surefire's argLine). See ServerTimeZone.
+    static {
+        com.dawnbread.attendance.util.ServerTimeZone.pinToUtc();
+    }
+
     @Bean
     public Clock clock() {
         return Clock.system(ZoneId.of("Asia/Karachi"));
