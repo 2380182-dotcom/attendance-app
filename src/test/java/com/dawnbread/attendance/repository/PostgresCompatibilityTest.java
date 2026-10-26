@@ -41,6 +41,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @Testcontainers
 @SpringBootTest
+// The Postgres container stops when this class ends; close this Spring
+// context too, so no later test can reuse a context pointing at a dead
+// container (that is what broke SaleItemUniqueConstraintTest and
+// AgentRoleAtSaleBackfillTest when they ran after this class, incl. in CI).
+@org.springframework.test.annotation.DirtiesContext(classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 class PostgresCompatibilityTest {
 
     @Container

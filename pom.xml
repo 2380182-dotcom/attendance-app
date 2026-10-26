@@ -171,7 +171,32 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>-Duser.timezone=UTC</argLine>
+                    <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+                    <excludes>
+                        <exclude>**/PostgresCompatibilityTest.java</exclude>
+                    </excludes>
                 </configuration>
+                <executions>
+                    <!-- The real-Postgres (Testcontainers) test runs in its OWN
+                         test JVM. Static bridges such as AuditLogRepositoryHolder
+                         keep the most recently created Spring context's beans;
+                         sharing a JVM let later tests write through the
+                         Postgres test's context after its container stopped
+                         (SaleItemUniqueConstraintTest / AgentRoleAtSaleBackfillTest
+                         errors, also seen in CI). Still part of `mvn test`. -->
+                    <execution>
+                        <id>postgres-compatibility</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <excludes combine.self="override"/>
+                            <includes>
+                                <include>**/PostgresCompatibilityTest.java</include>
+                            </includes>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
