@@ -63,7 +63,7 @@ public class AttendanceService {
     @Autowired
     private ShiftValidationService shiftValidationService;
 
-    // DIAG(2026-08-10): OFF by default on purpose — every currently-stored
+    // OFF by default on purpose — every currently-stored
     // faceEmbedding was captured through a since-confirmed-broken TFLite
     // pipeline (constant output regardless of input; see the face-model
     // investigation), so every agent's reference is the same non-
