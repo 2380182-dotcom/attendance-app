@@ -363,4 +363,30 @@ class PostgresCompatibilityTest {
         runEveryCockpitQuery(new CockpitFilter(today.minusDays(29), today, "LOCAL", shop.getArea().getId(), lmt.getId()));
         assertEquals(1L, cockpitQueries.dailyOffLocationAttempts(none, today, today).size());
     }
+
+    // ===== V34 absences + V35 holidays =====
+
+    @Autowired
+    private AgentAbsenceRepository agentAbsenceRepository;
+
+    @Autowired
+    private CompanyHolidayRepository companyHolidayRepository;
+
+    @Test
+    void absenceAndHolidayQueriesRunOnPostgres() {
+        Agent agent = seedAgent("PG_ABSENT_1", "AGENT");
+        LocalDate day = LocalDate.of(2026, 3, 2);
+        AgentAbsence absence = new AgentAbsence();
+        absence.setTenantId(tenantId);
+        absence.setAgentId(agent.getId());
+        absence.setAbsenceDate(day);
+        absence.setCreatedAt(LocalDateTime.now());
+        agentAbsenceRepository.saveAndFlush(absence);
+
+        assertTrue(agentAbsenceRepository.existsByTenantIdAndAgentIdAndAbsenceDate(tenantId, agent.getId(), day));
+        assertEquals(1, agentAbsenceRepository.findInRange(day, day).size());
+        assertEquals(1, agentAbsenceRepository.findInRangeForAgent(day, day, agent.getId()).size());
+        assertDoesNotThrow(() -> companyHolidayRepository.existsByTenantIdAndHolidayDate(tenantId, day));
+        assertDoesNotThrow(() -> companyHolidayRepository.findByTenantIdOrderByHolidayDateDesc(tenantId));
+    }
 }

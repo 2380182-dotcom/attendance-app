@@ -46,6 +46,9 @@ public class SchedulerConfig {
     @Autowired
     private FaceVerificationService faceVerificationService;
 
+    @Autowired
+    private com.dawnbread.attendance.service.AbsenceService absenceService;
+
     @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Karachi")
     public void resetDailyFaceVerificationCounts() {
         logger.info("Resetting daily face verification counts at midnight");
@@ -93,6 +96,14 @@ public class SchedulerConfig {
     public void markAbsentAgents() {
         logger.info("Running daily absenteeism status verification scheduler at 10:00 PM");
         java.time.LocalDate today = java.time.LocalDate.now(clock);
+        // V34: save real ABSENT records (mart agents on working days, not on
+        // company holidays). Separate from the notifications below, and
+        // guarded so a failure here never stops them.
+        try {
+            absenceService.recordAbsences(today);
+        } catch (Exception ex) {
+            logger.error("Failed to save absence records for {}", today, ex);
+        }
         LocalDateTime start = com.dawnbread.attendance.util.KarachiTime.startOfDayUtc(today);
         LocalDateTime end = com.dawnbread.attendance.util.KarachiTime.endOfDayUtc(today);
         List<Agent> agents = agentService.getAllAgents();

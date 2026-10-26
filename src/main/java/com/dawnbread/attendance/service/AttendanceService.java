@@ -27,6 +27,10 @@ import java.util.Optional;
 @Transactional
 public class AttendanceService {
 
+    @Autowired
+    private AbsenceService absenceService;
+
+
     // Users are in Pakistan; the container this runs on is UTC (confirmed
     // via a real check-in: 06:14 stored for an actual 11:14am PKT action).
     // Every checkInTime/checkOutTime/etc. is and remains stored as a naive
@@ -201,6 +205,10 @@ public class AttendanceService {
             throw new RuntimeException("Agent already checked in. Please check out first.");
         }
         notificationService.sendCheckInNotification(saved);
+        // V34: a check-in removes an absence already saved for this Pakistan
+        // date (e.g. checking in after the 10 PM job). Runs only after this
+        // check-in commits and never throws — check-in itself is unchanged.
+        absenceService.removeAfterCheckIn(agent.getTenantId(), agent.getId(), LocalDate.now(clock));
         return saved;
     }
 

@@ -26,6 +26,7 @@ const SalesCockpitPage = lazy(() => import('./cockpit/sales/SalesCockpitPage'));
 const AreasPage = lazy(() => import('./pages/admin/AreasPage'));
 const CustomerShopsPage = lazy(() => import('./pages/admin/CustomerShopsPage'));
 const LmtSettingsPage = lazy(() => import('./pages/admin/LmtSettingsPage'));
+const HolidaysPage = lazy(() => import('./pages/admin/HolidaysPage'));
 
 export default function App() {
   return (
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="areas" element={<AreasPage />} />
           <Route path="customer-shops" element={<CustomerShopsPage />} />
           <Route path="lmt-settings" element={<LmtSettingsPage />} />
+          <Route path="holidays" element={<HolidaysPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />
