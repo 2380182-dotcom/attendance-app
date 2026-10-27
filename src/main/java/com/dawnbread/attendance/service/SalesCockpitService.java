@@ -336,13 +336,13 @@ public class SalesCockpitService {
     // Drill-down + filter options (not cached: drill-down is on demand)
     // ==================================================================
 
-    public PageResponse<VoucherRow> vouchers(CockpitFilter f, Long productId, boolean noArea, int page, int size) {
+    public PageResponse<VoucherRow> vouchers(CockpitFilter f, Long productId, boolean noArea, Long shopId, int page, int size) {
         List<VoucherRow> rows = new ArrayList<>();
-        for (Object[] r : queries.vouchers(f, productId, noArea, page, size)) {
+        for (Object[] r : queries.vouchers(f, productId, noArea, shopId, page, size)) {
             rows.add(new VoucherRow(SalesCockpitQueries.id(r[0]), (LocalDate) r[1], (LocalTime) r[2], (String) r[3], (String) r[4],
                     (String) r[5], (String) r[6], num(r[7]), num(r[8]), num(r[7]) - num(r[8]), lng(r[9]), lng(r[10])));
         }
-        long total = queries.countVouchers(f, productId, noArea);
+        long total = queries.countVouchers(f, productId, noArea, shopId);
         int totalPages = (int) Math.ceil(total / (double) size);
         return new PageResponse<>(rows, page, size, total, totalPages, page + 1 < totalPages);
     }

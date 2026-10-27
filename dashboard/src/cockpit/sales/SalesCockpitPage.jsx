@@ -11,9 +11,13 @@ import { LazySection, Section, SectionNav } from '../components/Sections';
 import KpiCard, { KpiGrid, KpiSkeleton } from '../components/KpiCard';
 import AlertsPanel from '../components/AlertsPanel';
 import DrillDrawer from '../components/DrillDrawer';
-import Card from '../components/Card';
 import { ErrorState } from '../components/States';
 import SalesSection from './SalesSection';
+import ReturnsSection from './ReturnsSection';
+import CoverageSection from './CoverageSection';
+import ScorecardSection from './ScorecardSection';
+import LmtStockSection from './LmtStockSection';
+import ProductsSection from './ProductsSection';
 import { salesCockpitApi } from '../api';
 import { useCockpitFilters } from '../useCockpitFilters';
 import { INK } from '../tokens';
@@ -59,17 +63,6 @@ function jumpTo(id) {
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
 }
 
-/** Placeholder for sections that are built in the next step — honest, never a fake chart. */
-function ComingNext({ what }) {
-  return (
-    <Card sx={{ bgcolor: '#FAFBFD', border: `1px dashed ${INK.border}`, boxShadow: 'none' }}>
-      <Box sx={{ fontSize: 13.5, color: INK.secondary }}>
-        <strong style={{ color: INK.primary }}>Coming in the next step:</strong> {what}
-      </Box>
-    </Card>
-  );
-}
-
 export default function SalesCockpitPage() {
   const state = useCockpitFilters();
   const { filters, segment, areaId, setAreaId, agentId, setAgentId, autoRefresh } = state;
@@ -91,6 +84,7 @@ export default function SalesCockpitPage() {
   // Load one heavy section at a time: Needs attention starts only after
   // Highlights has answered (the server also caps concurrent cockpit work).
   const attention = useQuery(sectionQuery('attention', highlights.isSuccess || highlights.isError));
+  const ready = attention.isSuccess || attention.isError;
   const fetching = useIsFetching({ queryKey: ['cockpit', 'sales'] }) > 0;
 
   const refresh = useCallback(() => {
@@ -175,24 +169,39 @@ export default function SalesCockpitPage() {
 
       <Section id="sales" title="Sales" hint={`${rangeLabel} · net = sales minus returns · click any bar, slice or row for its vouchers`}>
         <LazySection>
-          {(visible) => <SalesSectionLoader visible={visible && (attention.isSuccess || attention.isError)} sectionQuery={sectionQuery} filters={filters} onDrill={setDrill} />}
+          {(visible) => <SalesSectionLoader visible={visible && ready} sectionQuery={sectionQuery} filters={filters} onDrill={setDrill} />}
         </LazySection>
       </Section>
 
-      <Section id="returns" title="Returns" hint="Return % by shop, salesman and product · expired returns vs return before expiry">
-        <ComingNext what="return % by shop, salesman and product, and expired returns vs return before expiry over time." />
+      <Section id="returns" title="Returns" hint={`${rangeLabel} · return % by shop, salesman and product · expired returns vs return before expiry`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="returns" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(query) => <ReturnsSection query={query} onDrill={setDrill} />} />}
+        </LazySection>
       </Section>
-      <Section id="coverage" title="Shop coverage" hint="Visited vs not visited · coverage trend · feedback reasons · shop × day heatmap">
-        <ComingNext what="visited / not visited per salesman, coverage % trend, feedback reasons and the shop × day heatmap." />
+      <Section id="coverage" title="Shop coverage" hint={`${rangeLabel} · visited = QR scan or feedback by the assigned salesman`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="coverage" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(query, on) => <CoverageSection query={query} filters={filters} visible={on} onDrill={setDrill} />} />}
+        </LazySection>
       </Section>
-      <Section id="salesmen" title="Salesman scorecard" hint="Sortable · search · click a name for details">
-        <ComingNext what="the sortable salesman scorecard with visits, shops covered, sales, returns, net, average per visit, flags and first/last visit." />
+      <Section id="salesmen" title="Salesman scorecard" hint={`${rangeLabel} · sortable · search · click a name for day-by-day detail`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="salesmen" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(query) => <ScorecardSection query={query} filters={filters} />} />}
+        </LazySection>
       </Section>
-      <Section id="lmt" title="LMT stock" hint="Opening vs sold / returned / unsold / replaced / missing">
-        <ComingNext what="per-salesman stock bars and the stock-health bar (OK / shortage / not reconciled)." />
+      <Section id="lmt" title="LMT stock" hint={`${rangeLabel} · opening stock vs sold / returned / unsold / replaced / missing`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="lmt-stock" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(query) => <LmtStockSection query={query} />} />}
+        </LazySection>
       </Section>
-      <Section id="products" title="Products" hint="Product mix · ABC analysis · slow products">
-        <ComingNext what="product mix, ABC analysis (A = top 80% of sales value) and slow products." />
+      <Section id="products" title="Products" hint={`${rangeLabel} · product mix · ABC analysis (A = top 80% of sales value) · slow products`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="products" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(query) => <ProductsSection query={query} onDrill={setDrill} />} />}
+        </LazySection>
       </Section>
 
       <DrillDrawer drill={drill} filters={filters} onClose={() => setDrill(null)} />
@@ -203,4 +212,10 @@ export default function SalesCockpitPage() {
 function SalesSectionLoader({ visible, sectionQuery, filters, onDrill }) {
   const query = useQuery(sectionQuery('sales', visible));
   return <SalesSection query={{ ...query, isLoading: !visible || query.isLoading }} filters={filters} onDrill={onDrill} />;
+}
+
+/** Generic lazy section: its query runs only once the section is near the screen and the page is ready. */
+function SectionLoader({ name, visible, sectionQuery, render }) {
+  const query = useQuery(sectionQuery(name, visible));
+  return render({ ...query, isLoading: !visible || query.isLoading }, visible);
 }

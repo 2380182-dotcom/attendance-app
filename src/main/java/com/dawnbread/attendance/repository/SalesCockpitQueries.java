@@ -94,6 +94,16 @@ public class SalesCockpitQueries {
             return this;
         }
 
+        String text() {
+            return sb.toString();
+        }
+
+        /** Takes over another builder's parameters (used when embedding its text as a subquery). */
+        Sql merge(Sql other) {
+            params.putAll(other.params);
+            return this;
+        }
+
         Query build(EntityManager em) {
             Query q = em.createNativeQuery(sb.toString());
             params.forEach(q::setParameter);
@@ -142,7 +152,7 @@ public class SalesCockpitQueries {
     // ------------------------------------------------------------------
 
     /** The sales base WHERE: tenant + date range + segment + area + salesman. */
-    private Sql sales(String select, String extraJoins, CockpitFilter f, LocalDate from, LocalDate to) {
+    Sql sales(String select, String extraJoins, CockpitFilter f, LocalDate from, LocalDate to) {
         Sql q = new Sql(select + SALES_FROM + (extraJoins == null ? "" : extraJoins)
                 + " WHERE si.tenant_id = :tenantId AND sr.tenant_id = :tenantId AND sr.sale_date BETWEEN :from AND :to");
         q.param("tenantId", tenantId()).param("from", from).param("to", to);
@@ -216,9 +226,10 @@ public class SalesCockpitQueries {
     // Drill-down: vouchers with totals, paginated in the database
     // ------------------------------------------------------------------
 
-    private Sql voucherFilter(String select, CockpitFilter f, Long productId, boolean noArea) {
+    private Sql voucherFilter(String select, CockpitFilter f, Long productId, boolean noArea, Long shopId) {
         Sql q = sales(select, null, f, f.startDate(), f.endDate());
         if (noArea) q.and("ar.id IS NULL");
+        if (shopId != null) q.and("cs.id = :shopId", "shopId", shopId);
         if (productId != null) {
             q.and("EXISTS (SELECT 1 FROM sale_items x WHERE x.sales_record_id = sr.id AND x.tenant_id = :tenantId "
                     + "AND x.product_id = :productId)", "productId", productId);
@@ -227,10 +238,10 @@ public class SalesCockpitQueries {
     }
 
     /** id, date, time, agent, role, shop, area, saleValue, returnValue, soldUnits, rbeUnits. */
-    public List<Object[]> vouchers(CockpitFilter f, Long productId, boolean noArea, int page, int size) {
+    public List<Object[]> vouchers(CockpitFilter f, Long productId, boolean noArea, Long shopId, int page, int size) {
         Query q = voucherFilter("SELECT sr.id, sr.sale_date, sr.sale_time, a.name, " + ROLE_EXPR
                 + ", COALESCE(cs.shop_name, sr.store_name), ar.name, " + SALE_VALUE + ", " + RETURN_VALUE + ", "
-                + SOLD_UNITS + ", " + RBE_UNITS, f, productId, noArea)
+                + SOLD_UNITS + ", " + RBE_UNITS, f, productId, noArea, shopId)
                 .add("GROUP BY sr.id, sr.sale_date, sr.sale_time, a.name, sr.agent_role_at_sale, a.role, cs.shop_name, "
                         + "sr.store_name, ar.name ORDER BY sr.sale_date DESC, sr.sale_time DESC, sr.id DESC")
                 .build(em);
@@ -239,15 +250,15 @@ public class SalesCockpitQueries {
         return rows(q);
     }
 
-    public long countVouchers(CockpitFilter f, Long productId, boolean noArea) {
-        return single(voucherFilter("SELECT COUNT(DISTINCT sr.id)", f, productId, noArea).build(em));
+    public long countVouchers(CockpitFilter f, Long productId, boolean noArea, Long shopId) {
+        return single(voucherFilter("SELECT COUNT(DISTINCT sr.id)", f, productId, noArea, shopId).build(em));
     }
 
     // ------------------------------------------------------------------
     // Location / scan flags
     // ------------------------------------------------------------------
 
-    private Sql scans(String select, CockpitFilter f, LocalDate from, LocalDate to) {
+    Sql scans(String select, CockpitFilter f, LocalDate from, LocalDate to) {
         Sql q = new Sql(select + " FROM shop_visit_scan s JOIN agent a ON a.id = s.agent_id "
                 + "LEFT JOIN customer_shops cs ON cs.id = s.customer_shop_id LEFT JOIN areas ar ON ar.id = cs.area_id "
                 + "WHERE s.tenant_id = :tenantId AND s.scan_date BETWEEN :from AND :to");
@@ -272,7 +283,7 @@ public class SalesCockpitQueries {
                 .add("GROUP BY a.name ORDER BY 2 DESC").build(em));
     }
 
-    private Sql shopVouchers(String select, CockpitFilter f, LocalDate from, LocalDate to) {
+    Sql shopVouchers(String select, CockpitFilter f, LocalDate from, LocalDate to) {
         Sql q = new Sql(select + " FROM sales_records sr JOIN agent a ON a.id = sr.agent_id "
                 + "JOIN customer_shops cs ON cs.id = sr.customer_shop_id LEFT JOIN areas ar ON ar.id = cs.area_id "
                 + "WHERE sr.tenant_id = :tenantId AND sr.sale_date BETWEEN :from AND :to");
@@ -290,7 +301,7 @@ public class SalesCockpitQueries {
                 .add("GROUP BY sr.sale_date").build(em));
     }
 
-    private static final String NO_SCAN = "NOT EXISTS (SELECT 1 FROM shop_visit_scan s WHERE s.tenant_id = :tenantId "
+    static final String NO_SCAN = "NOT EXISTS (SELECT 1 FROM shop_visit_scan s WHERE s.tenant_id = :tenantId "
             + "AND s.agent_id = a.id AND s.customer_shop_id = cs.id AND s.scan_date = sr.sale_date "
             + "AND s.visit_status = 'SUCCESS')";
 
@@ -360,14 +371,14 @@ public class SalesCockpitQueries {
     // ------------------------------------------------------------------
 
     /** Visits (successful scan or feedback) per (date, shop, salesman) in a date range. */
-    private static final String VISITS =
+    static final String VISITS =
             "SELECT s.scan_date AS d, s.customer_shop_id AS shop_id, s.agent_id AS agent_id FROM shop_visit_scan s "
                     + "WHERE s.tenant_id = :tenantId AND s.visit_status = 'SUCCESS' AND s.scan_date BETWEEN :from AND :to "
                     + "UNION "
                     + "SELECT fb.visit_date, fb.customer_shop_id, fb.agent_id FROM shop_feedback fb "
                     + "WHERE fb.tenant_id = :tenantId AND fb.visit_date BETWEEN :from AND :to";
 
-    private void assignedFilters(Sql q, CockpitFilter f) {
+    void assignedFilters(Sql q, CockpitFilter f) {
         q.and("cs.tenant_id = :tenantId AND cs.is_active = true AND ag.role IN (:roles)", "roles", salesmanRoles(f));
         if (f.areaId() != null) q.and("cs.area_id = :areaId", "areaId", f.areaId());
         if (f.agentId() != null) q.and("ag.id = :agentId", "agentId", f.agentId());
@@ -422,7 +433,7 @@ public class SalesCockpitQueries {
         return rows(query);
     }
 
-    private void salesmenFilters(Sql q, CockpitFilter f) {
+    void salesmenFilters(Sql q, CockpitFilter f) {
         q.and("a.tenant_id = :tenantId AND a.is_active = true AND a.role IN (:roles)", "roles", salesmanRoles(f));
         if (f.agentId() != null) q.and("a.id = :agentId", "agentId", f.agentId());
         if (f.areaId() != null) {
@@ -432,7 +443,7 @@ public class SalesCockpitQueries {
     }
 
     /** Any activity (successful scan, feedback or voucher) per (date, salesman). */
-    private static final String ACTIVITY =
+    static final String ACTIVITY =
             "SELECT s.scan_date AS d, s.agent_id AS agent_id FROM shop_visit_scan s WHERE s.tenant_id = :tenantId "
                     + "AND s.visit_status = 'SUCCESS' AND s.scan_date BETWEEN :from AND :to "
                     + "UNION SELECT fb.visit_date, fb.agent_id FROM shop_feedback fb WHERE fb.tenant_id = :tenantId "

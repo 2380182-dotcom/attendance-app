@@ -25,6 +25,18 @@ export const salesCockpitApi = {
     const params = { ...filterParams({ ...filters, ...extra }), page: extra.page || 0, size: extra.size || 25 };
     if (extra.productId) params.productId = extra.productId;
     if (extra.noArea) params.noArea = true;
+    if (extra.shopId) params.shopId = extra.shopId;
     return unwrap(await api.get('/cockpit/sales/vouchers', { params, timeout: 30000 }));
+  },
+  /** One page (20 shops) of the shop x day grid for the week containing weekOf (YYYY-MM-DD, optional). */
+  async heatmap(filters, weekOf, page = 0) {
+    const params = { ...filterParams(filters), page };
+    if (weekOf) params.weekOf = weekOf;
+    return unwrap(await api.get('/cockpit/sales/coverage/heatmap', { params, timeout: 30000 }));
+  },
+  /** One salesman's day-by-day detail for the side panel. */
+  async salesmanDays(filters, salesmanId) {
+    // The salesman is in the path; the page's salesman filter is not sent.
+    return unwrap(await api.get(`/cockpit/sales/salesmen/${salesmanId}/days`, { params: filterParams({ ...filters, agentId: '' }), timeout: 30000 }));
   },
 };

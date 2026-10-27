@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,6 +40,9 @@ public class SalesCockpitController {
 
     @Autowired
     private SalesCockpitService service;
+
+    @Autowired
+    private com.dawnbread.attendance.service.SalesCockpitSectionService sections;
 
     @Autowired
     private HttpServletRequest request;
@@ -82,12 +86,89 @@ public class SalesCockpitController {
                                                         @RequestParam(required = false) Long agentId,
                                                         @RequestParam(required = false) Long productId,
                                                         @RequestParam(defaultValue = "false") boolean noArea,
+                                                        @RequestParam(required = false) Long shopId,
                                                         @RequestParam(defaultValue = "0") int page,
                                                         @RequestParam(defaultValue = "25") int size) {
         int boundedSize = Math.min(Math.max(size, 1), 100);
         int boundedPage = Math.max(page, 0);
         return run(startDate, endDate, segment, areaId, agentId,
-                f -> service.vouchers(f, productId, noArea, boundedPage, boundedSize));
+                f -> service.vouchers(f, productId, noArea, shopId, boundedPage, boundedSize));
+    }
+
+    // ---------------------------------------------------------------- step 2 sections
+
+    @GetMapping("/returns")
+    public ResponseEntity<ApiResponse<Object>> returns(@RequestParam(required = false) String startDate,
+                                                       @RequestParam(required = false) String endDate,
+                                                       @RequestParam(required = false) String segment,
+                                                       @RequestParam(required = false) Long areaId,
+                                                       @RequestParam(required = false) Long agentId) {
+        return run(startDate, endDate, segment, areaId, agentId, sections::returns);
+    }
+
+    @GetMapping("/coverage")
+    public ResponseEntity<ApiResponse<Object>> coverage(@RequestParam(required = false) String startDate,
+                                                        @RequestParam(required = false) String endDate,
+                                                        @RequestParam(required = false) String segment,
+                                                        @RequestParam(required = false) Long areaId,
+                                                        @RequestParam(required = false) Long agentId) {
+        return run(startDate, endDate, segment, areaId, agentId, sections::coverage);
+    }
+
+    /** Shop x day grid for one week (weekOf = any date in it, default the end date), 20 shops per page. */
+    @GetMapping("/coverage/heatmap")
+    public ResponseEntity<ApiResponse<Object>> heatmap(@RequestParam(required = false) String startDate,
+                                                       @RequestParam(required = false) String endDate,
+                                                       @RequestParam(required = false) String segment,
+                                                       @RequestParam(required = false) Long areaId,
+                                                       @RequestParam(required = false) Long agentId,
+                                                       @RequestParam(required = false) String weekOf,
+                                                       @RequestParam(defaultValue = "0") int page) {
+        LocalDate week;
+        try {
+            week = weekOf == null || weekOf.isBlank() ? null : LocalDate.parse(weekOf.trim());
+        } catch (DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("weekOf must be a date like 2026-10-25"));
+        }
+        int boundedPage = Math.max(page, 0);
+        return run(startDate, endDate, segment, areaId, agentId, f -> sections.heatmap(f, week, boundedPage));
+    }
+
+    @GetMapping("/salesmen")
+    public ResponseEntity<ApiResponse<Object>> salesmen(@RequestParam(required = false) String startDate,
+                                                        @RequestParam(required = false) String endDate,
+                                                        @RequestParam(required = false) String segment,
+                                                        @RequestParam(required = false) Long areaId,
+                                                        @RequestParam(required = false) Long agentId) {
+        return run(startDate, endDate, segment, areaId, agentId, sections::scorecard);
+    }
+
+    /** One salesman's day-by-day detail for the side panel. Another company's salesman simply has no rows. */
+    @GetMapping("/salesmen/{salesmanId}/days")
+    public ResponseEntity<ApiResponse<Object>> salesmanDays(@PathVariable Long salesmanId,
+                                                            @RequestParam(required = false) String startDate,
+                                                            @RequestParam(required = false) String endDate,
+                                                            @RequestParam(required = false) String segment,
+                                                            @RequestParam(required = false) Long areaId) {
+        return run(startDate, endDate, segment, areaId, null, f -> sections.salesmanDays(f, salesmanId));
+    }
+
+    @GetMapping("/lmt-stock")
+    public ResponseEntity<ApiResponse<Object>> lmtStock(@RequestParam(required = false) String startDate,
+                                                        @RequestParam(required = false) String endDate,
+                                                        @RequestParam(required = false) String segment,
+                                                        @RequestParam(required = false) Long areaId,
+                                                        @RequestParam(required = false) Long agentId) {
+        return run(startDate, endDate, segment, areaId, agentId, sections::lmtStock);
+    }
+
+    @GetMapping("/products")
+    public ResponseEntity<ApiResponse<Object>> products(@RequestParam(required = false) String startDate,
+                                                        @RequestParam(required = false) String endDate,
+                                                        @RequestParam(required = false) String segment,
+                                                        @RequestParam(required = false) Long areaId,
+                                                        @RequestParam(required = false) Long agentId) {
+        return run(startDate, endDate, segment, areaId, agentId, sections::products);
     }
 
     @GetMapping("/filter-options")

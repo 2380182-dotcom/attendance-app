@@ -318,9 +318,9 @@ class PostgresCompatibilityTest {
         assertDoesNotThrow(() -> cockpitQueries.topProducts(f, 15));
         assertDoesNotThrow(() -> cockpitQueries.shopsAboveReturnPercent(f, 15.0));
         assertDoesNotThrow(() -> cockpitQueries.productsAboveReturnPercent(f, 15.0));
-        assertDoesNotThrow(() -> cockpitQueries.vouchers(f, null, false, 0, 25));
-        assertDoesNotThrow(() -> cockpitQueries.vouchers(f, 1L, true, 0, 25));
-        assertDoesNotThrow(() -> cockpitQueries.countVouchers(f, 1L, false));
+        assertDoesNotThrow(() -> cockpitQueries.vouchers(f, null, false, null, 0, 25));
+        assertDoesNotThrow(() -> cockpitQueries.vouchers(f, 1L, true, 1L, 0, 25));
+        assertDoesNotThrow(() -> cockpitQueries.countVouchers(f, 1L, false, null));
         assertDoesNotThrow(() -> cockpitQueries.dailyOffLocationAttempts(f, from, to));
         assertDoesNotThrow(() -> cockpitQueries.offLocationAttemptsByAgent(f, from, to));
         assertDoesNotThrow(() -> cockpitQueries.dailyLocationNotChecked(f, from, to));
@@ -396,5 +396,64 @@ class PostgresCompatibilityTest {
         assertEquals(1, agentAbsenceRepository.findInRangeForAgent(day, day, agent.getId()).size());
         assertDoesNotThrow(() -> companyHolidayRepository.existsByTenantIdAndHolidayDate(tenantId, day));
         assertDoesNotThrow(() -> companyHolidayRepository.findByTenantIdOrderByHolidayDateDesc(tenantId));
+    }
+
+    // ===== Sales cockpit step 2 sections (SalesCockpitSectionQueries) =====
+
+    @Autowired
+    private SalesCockpitSectionQueries sectionQueries;
+
+    private void runEverySectionQuery(CockpitFilter f) {
+        LocalDate to = f.endDate();
+        assertDoesNotThrow(() -> sectionQueries.returnsByShop(f, 15));
+        assertDoesNotThrow(() -> sectionQueries.returnsBySalesman(f));
+        assertDoesNotThrow(() -> sectionQueries.returnsByProduct(f));
+        assertDoesNotThrow(() -> sectionQueries.coverageBySalesman(f));
+        assertDoesNotThrow(() -> sectionQueries.feedbackReasons(f));
+        assertDoesNotThrow(() -> sectionQueries.heatmapShops(f, to.minusDays(6), to, 0, 20));
+        assertDoesNotThrow(() -> sectionQueries.heatmapCells(java.util.List.of(1L, 2L), to.minusDays(6), to));
+        assertDoesNotThrow(() -> sectionQueries.roster(f));
+        assertDoesNotThrow(() -> sectionQueries.visitsBySalesman(f));
+        assertDoesNotThrow(() -> sectionQueries.moneyBySalesman(f));
+        assertDoesNotThrow(() -> sectionQueries.noScanBySalesman(f));
+        assertDoesNotThrow(() -> sectionQueries.offLocationBySalesman(f));
+        assertDoesNotThrow(() -> sectionQueries.timesBySalesman(f));
+        assertDoesNotThrow(() -> sectionQueries.dayTimesForSalesman(f, 1L));
+        assertDoesNotThrow(() -> sectionQueries.dayVisitsForSalesman(f, 1L));
+        assertDoesNotThrow(() -> sectionQueries.dayMoneyForSalesman(f, 1L));
+        assertDoesNotThrow(() -> sectionQueries.lmtStockBySalesman(f));
+        assertDoesNotThrow(() -> sectionQueries.lmtHealth(f, to));
+        assertDoesNotThrow(() -> sectionQueries.productSales(f));
+        assertDoesNotThrow(() -> sectionQueries.slowProducts(f, 10));
+    }
+
+    @Test
+    void everyCockpitSectionQueryRunsOnPostgresWithAndWithoutFiltersAndWithData() {
+        LocalDate day = LocalDate.of(2025, 2, 10);
+        CockpitFilter none = new CockpitFilter(day.minusDays(29), day, "ALL", null, null);
+        runEverySectionQuery(none);   // empty
+        runEverySectionQuery(new CockpitFilter(day.minusDays(29), day, "LMT", 1L, 1L));
+
+        Agent lmt = seedAgent("PG_SECTIONS_1", "SALESMAN_LMT");
+        CustomerShop shop = seedShop("PG-SHOP-SEC", "PG Section Shop");
+        ShopVisitScan scan = new ShopVisitScan();
+        scan.setTenantId(tenantId);
+        scan.setAgentId(lmt.getId());
+        scan.setCustomerShop(shop);
+        scan.setScannedCode("PG-SHOP-SEC");
+        scan.setScanDate(day);
+        scan.setScanTime(LocalTime.of(9, 15, 30));
+        scan.setGpsLatitude(0.0);
+        scan.setGpsLongitude(0.0);
+        scan.setGeofenceStatus(GeofenceStatus.INSIDE);
+        scan.setVisitStatus(ShopVisitStatus.SUCCESS);
+        scan.setCreatedAt(LocalDateTime.now());
+        shopVisitScanRepository.save(scan);
+
+        runEverySectionQuery(none);   // with data
+        runEverySectionQuery(new CockpitFilter(day.minusDays(29), day, "LMT", shop.getArea().getId(), lmt.getId()));
+        java.util.List<Object[]> times = sectionQueries.dayTimesForSalesman(none, lmt.getId());
+        assertEquals(1, times.size());
+        assertEquals(9 * 3600 + 15 * 60 + 30, ((Number) times.get(0)[1]).intValue(), "time-of-day math is right on Postgres");
     }
 }
