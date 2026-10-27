@@ -331,11 +331,12 @@ class PostgresCompatibilityTest {
         assertDoesNotThrow(() -> cockpitQueries.lmtMissingByAgent(f, from, to));
         assertDoesNotThrow(() -> cockpitQueries.unreconciledByAgent(f, from, to));
         assertDoesNotThrow(() -> cockpitQueries.countAssignedShops(f));
-        assertDoesNotThrow(() -> cockpitQueries.countVisitedAssignedShops(f, to));
+        assertDoesNotThrow(() -> cockpitQueries.visitedAssignedShopsByDay(f, from, to));
         assertDoesNotThrow(() -> cockpitQueries.countShopsNotVisitedSince(f, to.minusDays(3)));
         assertDoesNotThrow(() -> cockpitQueries.shopsNotVisitedSince(f, to.minusDays(3), 10));
         assertDoesNotThrow(() -> cockpitQueries.countSalesmen(f));
-        assertDoesNotThrow(() -> cockpitQueries.countActiveSalesmen(f, to));
+        assertDoesNotThrow(() -> cockpitQueries.activeSalesmenByDay(f, from, to));
+        assertDoesNotThrow(() -> cockpitQueries.workingDays(java.util.List.of(1L, 2L)));
         assertDoesNotThrow(() -> cockpitQueries.salesmenWithoutVisit(f, to));
         assertDoesNotThrow(() -> cockpitQueries.activeAreas());
         assertDoesNotThrow(() -> cockpitQueries.activeSalesmen());

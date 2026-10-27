@@ -4,7 +4,6 @@ import com.dawnbread.attendance.config.CacheConfig;
 import com.dawnbread.attendance.dto.cockpit.CockpitFilter;
 import com.dawnbread.attendance.dto.cockpit.SalesCockpitDTOs.*;
 import com.dawnbread.attendance.dto.PageResponse;
-import com.dawnbread.attendance.entity.Agent;
 import com.dawnbread.attendance.repository.SalesCockpitQueries;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
@@ -65,7 +64,7 @@ public class SalesCockpitService {
     // 1. Highlights
     // ==================================================================
 
-    @Cacheable(cacheNames = CacheConfig.SALES_COCKPIT, key = KEY_PREFIX + "highlights:' + #f.cacheKey()")
+    @Cacheable(cacheNames = CacheConfig.SALES_COCKPIT, sync = true, key = KEY_PREFIX + "highlights:' + #f.cacheKey()")
     public Highlights highlights(CockpitFilter f) {
         LocalDate today = today();
         LocalDate prevStart = f.startDate().minusDays(f.days());
@@ -110,10 +109,12 @@ public class SalesCockpitService {
         // --- today's coverage (same "visited" rule as QR Scanned Shops)
         LocalDate todaySparkStart = today.minusDays(SPARK_DAYS - 1);
         long assigned = queries.countAssignedShops(f);
+        // One grouped query for all 14 days (was one query per day).
+        Map<LocalDate, Double> visitedByDay = byDate(queries.visitedAssignedShopsByDay(f, todaySparkStart, today), 1);
         List<DayValue> visitedSpark = new ArrayList<>();
         List<DayValue> notVisitedSpark = new ArrayList<>();
         for (LocalDate d = todaySparkStart; !d.isAfter(today); d = d.plusDays(1)) {
-            long v = queries.countVisitedAssignedShops(f, d);
+            double v = visitedByDay.getOrDefault(d, 0.0);
             visitedSpark.add(new DayValue(d, v));
             notVisitedSpark.add(new DayValue(d, Math.max(assigned - v, 0)));
         }
@@ -171,10 +172,8 @@ public class SalesCockpitService {
 
         // --- active salesmen today
         long totalSalesmen = queries.countSalesmen(f);
-        List<DayValue> activeSpark = new ArrayList<>();
-        for (LocalDate d = todaySparkStart; !d.isAfter(today); d = d.plusDays(1)) {
-            activeSpark.add(new DayValue(d, queries.countActiveSalesmen(f, d)));
-        }
+        List<DayValue> activeSpark = spark(byDate(queries.activeSalesmenByDay(f, todaySparkStart, today), 1),
+                todaySparkStart, today);
         double activeToday = last(activeSpark);
         cards.add(new HighlightCard("active_salesmen", "Active salesmen today", activeToday, (double) totalSalesmen,
                 "with at least 1 visit · of " + totalSalesmen + " salesmen",
@@ -188,7 +187,7 @@ public class SalesCockpitService {
     // 2. Needs attention
     // ==================================================================
 
-    @Cacheable(cacheNames = CacheConfig.SALES_COCKPIT, key = KEY_PREFIX + "attention:' + #f.cacheKey()")
+    @Cacheable(cacheNames = CacheConfig.SALES_COCKPIT, sync = true, key = KEY_PREFIX + "attention:' + #f.cacheKey()")
     public Attention attention(CockpitFilter f) {
         LocalDate today = today();
         LocalDateTime now = LocalDateTime.now(clock);
@@ -199,10 +198,13 @@ public class SalesCockpitService {
         if (!now.toLocalTime().isBefore(ZERO_VISIT_CHECK_TIME)) {
             String dow = today.getDayOfWeek().name().substring(0, 3);
             List<AlertItem> idle = new ArrayList<>();
-            for (Agent a : queries.salesmenWithoutVisit(f, today)) {
-                List<String> days = a.getWorkingDays();
+            List<Object[]> noVisit = queries.salesmenWithoutVisit(f, today);
+            Map<Long, List<String>> workingDays = queries.workingDays(
+                    noVisit.stream().map(r -> SalesCockpitQueries.id(r[0])).toList());
+            for (Object[] r : noVisit) {
+                List<String> days = workingDays.get(SalesCockpitQueries.id(r[0]));
                 if (days == null || days.contains(dow)) {
-                    idle.add(new AlertItem(a.getName(), roleLabel(a.getRole())));
+                    idle.add(new AlertItem((String) r[1], roleLabel((String) r[2])));
                 }
             }
             if (!idle.isEmpty()) {
@@ -217,7 +219,7 @@ public class SalesCockpitService {
         if (stale > 0) {
             List<AlertItem> items = new ArrayList<>();
             for (Object[] r : queries.shopsNotVisitedSince(f, cutoff, ALERT_ITEMS)) {
-                LocalDate last = latest((LocalDate) r[2], (LocalDate) r[3]);
+                LocalDate last = (LocalDate) r[2];
                 items.add(new AlertItem(r[0] + " · " + r[1],
                         last == null ? "never visited" : "last visit " + last));
             }
@@ -287,7 +289,7 @@ public class SalesCockpitService {
     // 3. Sales section
     // ==================================================================
 
-    @Cacheable(cacheNames = CacheConfig.SALES_COCKPIT, key = KEY_PREFIX + "sales:' + #f.cacheKey()")
+    @Cacheable(cacheNames = CacheConfig.SALES_COCKPIT, sync = true, key = KEY_PREFIX + "sales:' + #f.cacheKey()")
     public SalesSection salesSection(CockpitFilter f) {
         // Six extra days before the range so the first days' 7-day average is real, not partial.
         List<Object[]> rows = queries.dailySales(f, f.startDate().minusDays(6), f.endDate());
@@ -310,21 +312,21 @@ public class SalesCockpitService {
 
         List<AgentSales> byAgent = new ArrayList<>();
         for (Object[] r : queries.salesByAgent(f)) {
-            byAgent.add(new AgentSales((Long) r[0], (String) r[1], (String) r[2], num(r[3]), num(r[4]),
+            byAgent.add(new AgentSales(SalesCockpitQueries.id(r[0]), (String) r[1], (String) r[2], num(r[3]), num(r[4]),
                     num(r[3]) - num(r[4]), lng(r[5]), lng(r[6])));
         }
         byAgent.sort(Comparator.comparingDouble(AgentSales::netValue).reversed());
 
         List<AreaSales> byArea = new ArrayList<>();
         for (Object[] r : queries.salesByArea(f)) {
-            byArea.add(new AreaSales((Long) r[0], r[1] == null ? "No area" : (String) r[1], (String) r[2],
+            byArea.add(new AreaSales(SalesCockpitQueries.id(r[0]), r[1] == null ? "No area" : (String) r[1], (String) r[2],
                     (String) r[3], (String) r[4], num(r[5]), num(r[6]), num(r[5]) - num(r[6]), lng(r[7])));
         }
         byArea.sort(Comparator.comparingDouble(AreaSales::netValue).reversed());
 
         List<ProductSales> top = new ArrayList<>();
         for (Object[] r : queries.topProducts(f, 15)) {
-            top.add(new ProductSales((Long) r[0], (String) r[1], lng(r[2]), num(r[3]), num(r[4])));
+            top.add(new ProductSales(SalesCockpitQueries.id(r[0]), (String) r[1], lng(r[2]), num(r[3]), num(r[4])));
         }
 
         return new SalesSection(LocalDateTime.now(clock), daily, bySegment, byAgent, byArea, top);
@@ -337,7 +339,7 @@ public class SalesCockpitService {
     public PageResponse<VoucherRow> vouchers(CockpitFilter f, Long productId, boolean noArea, int page, int size) {
         List<VoucherRow> rows = new ArrayList<>();
         for (Object[] r : queries.vouchers(f, productId, noArea, page, size)) {
-            rows.add(new VoucherRow((Long) r[0], (LocalDate) r[1], (LocalTime) r[2], (String) r[3], (String) r[4],
+            rows.add(new VoucherRow(SalesCockpitQueries.id(r[0]), (LocalDate) r[1], (LocalTime) r[2], (String) r[3], (String) r[4],
                     (String) r[5], (String) r[6], num(r[7]), num(r[8]), num(r[7]) - num(r[8]), lng(r[9]), lng(r[10])));
         }
         long total = queries.countVouchers(f, productId, noArea);
@@ -345,12 +347,12 @@ public class SalesCockpitService {
         return new PageResponse<>(rows, page, size, total, totalPages, page + 1 < totalPages);
     }
 
-    @Cacheable(cacheNames = CacheConfig.SALES_COCKPIT, key = KEY_PREFIX + "options'")
+    @Cacheable(cacheNames = CacheConfig.SALES_COCKPIT, sync = true, key = KEY_PREFIX + "options'")
     public FilterOptions filterOptions() {
         List<Option> areas = new ArrayList<>();
-        queries.activeAreas().forEach(r -> areas.add(new Option((Long) r[0], (String) r[1], null)));
+        queries.activeAreas().forEach(r -> areas.add(new Option(SalesCockpitQueries.id(r[0]), (String) r[1], null)));
         List<Option> salesmen = new ArrayList<>();
-        queries.activeSalesmen().forEach(r -> salesmen.add(new Option((Long) r[0], (String) r[1], segmentOf((String) r[2]))));
+        queries.activeSalesmen().forEach(r -> salesmen.add(new Option(SalesCockpitQueries.id(r[0]), (String) r[1], segmentOf((String) r[2]))));
         return new FilterOptions(areas, salesmen);
     }
 
@@ -391,11 +393,6 @@ public class SalesCockpitService {
         return String.format(Locale.ROOT, "%.1f%%", sale > 0 ? ret * 100.0 / sale : 0.0);
     }
 
-    private static LocalDate latest(LocalDate a, LocalDate b) {
-        if (a == null) return b;
-        if (b == null) return a;
-        return a.isAfter(b) ? a : b;
-    }
 
     private static LocalDate min(LocalDate a, LocalDate b) {
         return a.isBefore(b) ? a : b;

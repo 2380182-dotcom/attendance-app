@@ -24,5 +24,18 @@ COPY --from=build /app/target/attendance-0.0.1-SNAPSHOT.jar app.jar
 # Render injects PORT env variable, application binds to it
 EXPOSE 8080
 
+# Memory budget for Render Starter (512 MB for the WHOLE container). Measured
+# with Native Memory Tracking: ~200 MB lives outside the heap (class metadata
+# ~82 MB, symbols ~33, compiled code ~29, classes ~15, compiler/arenas ~15,
+# threads). Java's default heap (25% = 128 MB) was too small, and a bare
+# -Xmx512m would overflow the container. So:
+#   heap 45% (~230 MB) + capped metaspace / code cache / direct memory,
+#   small thread stacks, SerialGC (least overhead on a small container),
+#   and exit on OutOfMemoryError so Render restarts a clean process instead
+#   of leaving a half-dead one answering 502s.
+# JAVA_TOOL_OPTIONS is read by the JVM even if Render's "Docker Command"
+# overrides the ENTRYPOINT below.
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=20 -XX:MaxMetaspaceSize=150m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=32m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+
 # Run Spring Boot app
 ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
