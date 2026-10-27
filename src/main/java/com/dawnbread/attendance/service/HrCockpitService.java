@@ -554,9 +554,9 @@ public class HrCockpitService {
                 boolean far = false;
                 for (Object[] r : day) {
                     lastOut = later(lastOut, (LocalDateTime) r[1]);
-                    missed |= "MISSED_END_DUTY".equals(r[2]);
+                    missed |= lng(r[2]) == 1;
                     far |= lng(r[5]) == 1;
-                    if (r[1] != null && !"MISSED_END_DUTY".equals(r[2])) {
+                    if (r[1] != null && lng(r[2]) == 0) {
                         seconds += Duration.between((LocalDateTime) r[0], (LocalDateTime) r[1]).getSeconds();
                         closedShift = true;
                     }

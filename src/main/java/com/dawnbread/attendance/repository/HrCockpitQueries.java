@@ -52,13 +52,16 @@ public class HrCockpitQueries {
      * Pakistan time; negative or zero = on time. The cockpit does NOT trust
      * the saved status / late_minutes: check-in computes them from the UTC
      * clock (JVM pinned to UTC), so a 09:40 Pakistan check-in is saved as
-     * "IN", and the 11:59 PM job overwrites LATE with MISSED_END_DUTY. The
+     * "IN", and before V36 the 11:59 PM job overwrote LATE with MISSED_END_DUTY. The
      * shift start saved on the row wins over the agent's current one.
      */
     static final String LATE_MINUTES = "((" + pktSecs("t.check_in_time")
             + " - (EXTRACT(HOUR FROM COALESCE(t.shift_start_time, a.shift_start_time, TIME '09:00:00')) * 3600"
             + " + EXTRACT(MINUTE FROM COALESCE(t.shift_start_time, a.shift_start_time, TIME '09:00:00')) * 60)"
             + " - COALESCE(a.grace_period_minutes, 15) * 60) / 60)";
+
+    /** A shift closed by the 11:59 PM job: flagged since V36, the status MISSED_END_DUTY before. */
+    static final String MISSED = "(t.missed_end_duty = TRUE OR t.status = 'MISSED_END_DUTY')";
 
     /** A late check-in: after shift start + grace on a working day. */
     static final String IS_LATE = "(t.status <> 'NON_WORKING_DAY' AND " + LATE_MINUTES + " > 0)";
@@ -110,7 +113,7 @@ public class HrCockpitQueries {
         String day = pktDate("t.check_in_time");
         return rows(attendance("SELECT " + day + ", COUNT(DISTINCT t.agent_id), "
                 + "COUNT(DISTINCT CASE WHEN " + IS_LATE + " THEN t.agent_id END), "
-                + "COALESCE(SUM(CASE WHEN t.status = 'MISSED_END_DUTY' THEN 1 ELSE 0 END), 0), "
+                + "COALESCE(SUM(CASE WHEN " + MISSED + " THEN 1 ELSE 0 END), 0), "
                 + "AVG(" + pktSecs("t.check_in_time") + "), "
                 + "COALESCE(SUM(CASE WHEN m.radius IS NOT NULL AND t.distance_from_mart > m.radius THEN 1 ELSE 0 END), 0)",
                 f, from, to).add("GROUP BY " + day).build(em));
@@ -169,7 +172,7 @@ public class HrCockpitQueries {
 
     /** Missed end duty per agent in a range: name, count (most first). */
     public List<Object[]> missedEndDuty(HrFilter f, LocalDate from, LocalDate to) {
-        return rows(attendance("SELECT a.name, COUNT(*)", f, from, to).and("t.status = 'MISSED_END_DUTY'")
+        return rows(attendance("SELECT a.name, COUNT(*)", f, from, to).and(MISSED)
                 .add("GROUP BY a.id, a.name ORDER BY 2 DESC, a.name").build(em));
     }
 
@@ -217,9 +220,9 @@ public class HrCockpitQueries {
      * shifts, days with a closed shift, average check-in second (Pakistan).
      */
     public List<Object[]> agentTotals(HrFilter f, LocalDate from, LocalDate to) {
-        String closed = "t.check_out_time IS NOT NULL AND t.status <> 'MISSED_END_DUTY'";
+        String closed = "t.check_out_time IS NOT NULL AND NOT " + MISSED;
         return rows(attendance("SELECT t.agent_id, "
-                + "COALESCE(SUM(CASE WHEN t.status = 'MISSED_END_DUTY' THEN 1 ELSE 0 END), 0), "
+                + "COALESCE(SUM(CASE WHEN " + MISSED + " THEN 1 ELSE 0 END), 0), "
                 + "COALESCE(SUM(CASE WHEN " + closed + " THEN EXTRACT(EPOCH FROM t.check_out_time) - EXTRACT(EPOCH FROM t.check_in_time) END), 0), "
                 + "COUNT(DISTINCT CASE WHEN " + closed + " THEN " + pktDate("t.check_in_time") + " END), "
                 + "AVG(" + pktSecs("t.check_in_time") + ")", f, from, to)
@@ -228,10 +231,10 @@ public class HrCockpitQueries {
 
     /**
      * One agent's shifts in a range, oldest first: check-in (UTC), check-out
-     * (UTC), status, mart name, minutes late, beyond the radius (0/1).
+     * (UTC), missed End Duty (0/1), mart name, minutes late, beyond the radius (0/1).
      */
     public List<Object[]> agentShifts(HrFilter f, long agentId, LocalDate from, LocalDate to) {
-        return rows(attendance("SELECT t.check_in_time, t.check_out_time, t.status, m.name, "
+        return rows(attendance("SELECT t.check_in_time, t.check_out_time, CASE WHEN " + MISSED + " THEN 1 ELSE 0 END, m.name, "
                 + "CASE WHEN " + IS_LATE + " THEN " + LATE_MINUTES + " ELSE 0 END, "
                 + "CASE WHEN m.radius IS NOT NULL AND t.distance_from_mart > m.radius THEN 1 ELSE 0 END", f, from, to)
                 .and("t.agent_id = :agentId", "agentId", agentId).add("ORDER BY t.check_in_time").build(em));

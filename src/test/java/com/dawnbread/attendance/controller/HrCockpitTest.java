@@ -490,6 +490,36 @@ class HrCockpitTest {
     }
 
     @Test
+    void aLateShiftWithMissedEndDutyCountsAsBoth() throws Exception {
+        Tenant t = tenant("BOTH");
+        Mart m = mart(t, "Mart");
+        Agent a = agent(t, "Late And Forgot", "AGENT", "Bakery", EVERY_DAY);
+        // What the 11:59 PM job writes since V36: status LATE kept, flag set.
+        Attendance at = new Attendance();
+        at.setTenantId(t.getId());
+        at.setAgent(a);
+        at.setMart(m);
+        LocalDateTime in = KarachiTime.startOfDayUtc(today.minusDays(1)).plusHours(10);
+        at.setCheckInTime(in);
+        at.setCheckOutTime(KarachiTime.startOfDayUtc(today.minusDays(1)).plusHours(23).plusMinutes(59));
+        at.setShiftStartTime(LocalTime.of(9, 30));
+        at.setStatus("LATE");
+        at.setMissedEndDuty(true);
+        at.setDistanceFromMart(10.0);
+        attendanceRepository.save(at);
+        String range = "startDate=" + today.minusDays(1) + "&endDate=" + today.minusDays(1);
+
+        JsonNode row = byName(data(token(t, "HR"), "agents?" + range).get("rows"), "name", "Late And Forgot");
+        assertEquals(1, row.get("daysLate").asInt());
+        assertEquals(1, row.get("missedEndDuty").asInt());
+        assertTrue(row.get("avgHours").isNull(), "a missed End Duty shift has no real hours");
+        JsonNode day = data(token(t, "HR"), "agents/" + a.getId() + "/days?" + range).get(0);
+        assertEquals("LATE", day.get("state").asText());
+        assertTrue(day.get("missedEndDuty").asBoolean());
+        assertEquals(1, alert(data(token(t, "HR"), "attention"), "missed_end_duty").get("count").asInt());
+    }
+
+    @Test
     void locationsCountCheckInsPerMartAndListTheFarthestFirst() throws Exception {
         Tenant t = tenant("LOC");
         Mart near = mart(t, "Near Mart");
