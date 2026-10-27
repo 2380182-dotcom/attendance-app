@@ -668,6 +668,63 @@ class ShopVisitTest {
      * salesman for what is, from their side, one save) and resolve to the
      * SAME SalesRecord — never two vouchers for one visit.
      */
+    /**
+     * Stress version of the test below: many rounds of two identical
+     * submissions released at the same instant. Covers the narrow window
+     * where the twin commits AFTER the requestId check but BEFORE the
+     * per-product duplicate check (previously answered "Duplicate entry"
+     * instead of the same voucher - seen in CI on 2026-10-27).
+     */
+    @Test
+    void concurrentTwinsAlwaysGetTheSameVoucherAcrossManyRounds() throws Exception {
+        Agent salesman = seedAgent("SV_IDEMPOTENT_STRESS", "SALESMAN_LMT");
+        CustomerShop shop = seedShop("SV-SHOP-STRESS", null, null, null, false);
+        seedCompanyCheckIn(salesman);
+        Long testTenantId = tenantId();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            for (int round = 0; round < 40; round++) {
+                Product product = seedProduct();
+                String requestId = "stress-" + round + "-" + System.nanoTime();
+                CountDownLatch ready = new CountDownLatch(2);
+                CountDownLatch go = new CountDownLatch(1);
+                Callable<Long> task = () -> {
+                    TenantContext.setTenantId(testTenantId);
+                    try {
+                        ShopVisitRequest req = new ShopVisitRequest();
+                        req.setAgentId(salesman.getId());
+                        req.setShopCode(shop.getShopCode());
+                        req.setLatitude(0.0);
+                        req.setLongitude(0.0);
+                        req.setRequestId(requestId);
+                        ShopVisitItemRequest item = new ShopVisitItemRequest();
+                        item.setProductId(product.getId());
+                        item.setQuantity(3);
+                        item.setTransactionType("SALE");
+                        req.setItems(List.of(item));
+                        ready.countDown();
+                        go.await();
+                        try {
+                            return salesService.submitShopVisit(req).getId();
+                        } catch (com.dawnbread.attendance.exception.ShopVisitRequestIdRaceException race) {
+                            return shopVisitIdempotencyService.resolveAfterConflict(race.getRequestId(), req.getItems()).getId();
+                        }
+                    } finally {
+                        TenantContext.clear();
+                    }
+                };
+                Future<Long> a = executor.submit(task);
+                Future<Long> b = executor.submit(task);
+                ready.await(5, TimeUnit.SECONDS);
+                go.countDown();
+                assertEquals(a.get(15, TimeUnit.SECONDS), b.get(15, TimeUnit.SECONDS),
+                        "round " + round + ": both twins must get the same voucher");
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     @Test
     void concurrentSameRequestIdBothSucceedWithTheSameVoucher() throws Exception {
         Agent salesman = seedAgent("SV_IDEMPOTENT_CONCURRENT", "SALESMAN_LMT");

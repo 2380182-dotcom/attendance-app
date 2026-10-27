@@ -338,6 +338,27 @@ public class SalesService {
      * LMT submission accidentally landing on it would collide with legacy
      * rows under the widened V19 index.
      */
+    /**
+     * Idempotency lookup: the voucher already saved under this requestId when
+     * the items match (a retry/double-tap), null when there is none, and a
+     * ShopVisitConflictException when the requestId was reused for different
+     * items. No requestId (old app versions) -> always null.
+     */
+    private SalesRecord existingRetryOrNull(String requestId, ShopVisitRequest request) {
+        if (requestId == null || requestId.isBlank()) {
+            return null;
+        }
+        SalesRecord existing = shopVisitIdempotencyService.findByRequestIdOrNull(requestId);
+        if (existing == null) {
+            return null;
+        }
+        if (shopVisitIdempotencyService.itemsMatch(existing.getItems(), request.getItems())) {
+            return existing;
+        }
+        throw new ShopVisitConflictException(
+                "This requestId was already used for a different set of items — not a retry of the same visit.");
+    }
+
     public SalesRecord submitShopVisit(ShopVisitRequest request) {
         Agent agent = agentService.getAgentById(request.getAgentId())
                 .orElseThrow(() -> new IllegalArgumentException("Agent not found with ID: " + request.getAgentId()));
@@ -352,15 +373,9 @@ public class SalesService {
         // same-day window). Only a genuine item mismatch under a reused
         // requestId is treated as a real conflict.
         String requestId = request.getRequestId();
-        if (requestId != null && !requestId.isBlank()) {
-            SalesRecord existing = shopVisitIdempotencyService.findByRequestIdOrNull(requestId);
-            if (existing != null) {
-                if (shopVisitIdempotencyService.itemsMatch(existing.getItems(), request.getItems())) {
-                    return existing;
-                }
-                throw new ShopVisitConflictException(
-                        "This requestId was already used for a different set of items — not a retry of the same visit.");
-            }
+        SalesRecord retried = existingRetryOrNull(requestId, request);
+        if (retried != null) {
+            return retried;
         }
 
         // Company check-in gate: the LMT must currently be checked in
@@ -446,6 +461,16 @@ public class SalesService {
 
             String key = itemReq.getProductId() + ":" + shop.getId() + ":" + type;
             if (existingKeys.contains(key)) {
+                // Race window: a concurrent twin of THIS request (same
+                // requestId) may have committed after the requestId check at
+                // the top but before this duplicate check. Look again: if it
+                // is our own retry, hand back the same voucher instead of a
+                // "Duplicate entry" error. A genuinely different duplicate
+                // still gets the error below.
+                SalesRecord twin = existingRetryOrNull(requestId, request);
+                if (twin != null) {
+                    return twin;
+                }
                 Product p = productRepository.findById(itemReq.getProductId()).orElse(null);
                 String pName = p != null ? p.getName() : String.valueOf(itemReq.getProductId());
                 throw new IllegalArgumentException("Duplicate entry: a " + type + " of '" + pName
