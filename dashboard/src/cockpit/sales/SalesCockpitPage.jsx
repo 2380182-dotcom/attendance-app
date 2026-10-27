@@ -88,7 +88,9 @@ export default function SalesCockpitPage() {
 
   const options = useQuery({ queryKey: ['cockpit', 'sales', 'options'], queryFn: salesCockpitApi.filterOptions, staleTime: 5 * 60 * 1000 });
   const highlights = useQuery(sectionQuery('highlights'));
-  const attention = useQuery(sectionQuery('attention'));
+  // Load one heavy section at a time: Needs attention starts only after
+  // Highlights has answered (the server also caps concurrent cockpit work).
+  const attention = useQuery(sectionQuery('attention', highlights.isSuccess || highlights.isError));
   const fetching = useIsFetching({ queryKey: ['cockpit', 'sales'] }) > 0;
 
   const refresh = useCallback(() => {
@@ -173,7 +175,7 @@ export default function SalesCockpitPage() {
 
       <Section id="sales" title="Sales" hint={`${rangeLabel} · net = sales minus returns · click any bar, slice or row for its vouchers`}>
         <LazySection>
-          {(visible) => <SalesSectionLoader visible={visible} sectionQuery={sectionQuery} filters={filters} onDrill={setDrill} />}
+          {(visible) => <SalesSectionLoader visible={visible && (attention.isSuccess || attention.isError)} sectionQuery={sectionQuery} filters={filters} onDrill={setDrill} />}
         </LazySection>
       </Section>
 
