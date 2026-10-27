@@ -2,10 +2,13 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { attendanceApi, agentApi } from '../services/attendanceApi';
 import { karachiToday, karachiTodayDayCode } from '../utils/dateUtils';
+import { companySettingsApi } from '../services/holidayApi';
+import { buildTodayRows, countByStatus } from '../utils/todayBoard';
 
 /**
  * Today's per-agent attendance status, computed client-side from daily-report
- * + the full active-agent roster. Shared so every view built on "who's
+ * + the full active-agent roster (rules in utils/todayBoard.js; while the
+ * company's absence tracking is off, nobody is ABSENT — NO_CHECK_IN instead). Shared so every view built on "who's
  * IN/LATE/ABSENT/OFF today" (Today's Board, the HR Analytics summary cards,
  * Agent Status) agrees with each other by construction, rather than each
  * computing its own version of "today."
@@ -32,53 +35,24 @@ export function useTodayBoard() {
     [allAgents.data, allAgents.isLoading, allAgents.isError]
   );
 
+  // The company's absence tracking switch (Admin > Holidays). Unknown or
+  // unreadable = treated as off, so no absence numbers appear by mistake.
+  const settings = useQuery({ queryKey: ['company-settings'], queryFn: companySettingsApi.get });
+  const absenceTracking = settings.data?.absenceTracking === true;
+
   const rows = useMemo(() => {
     if (!dailyReport.data || !activeAgents.data) return [];
+    return buildTodayRows(dailyReport.data, activeAgents.data, karachiTodayDayCode(), absenceTracking);
+  }, [dailyReport.data, activeAgents.data, absenceTracking]);
 
-    const reportByAgentId = new Map(dailyReport.data.map((r) => [r.attendance.agentId, r]));
-    const todayCode = karachiTodayDayCode();
-
-    return activeAgents.data.map((agent) => {
-      const record = reportByAgentId.get(agent.id);
-      if (record) {
-        return {
-          agentId: agent.id,
-          employeeId: agent.agentId,
-          name: agent.name,
-          department: agent.department,
-          status: record.attendance.status === 'NON_WORKING_DAY' ? 'OFF' : record.attendance.status,
-          checkInTime: record.attendance.checkInTime,
-          lateMinutes: record.lateMinutes,
-          faceVerified: record.faceVerified,
-        };
-      }
-      // No record at all today — absent only if today is actually one of
-      // their working days; otherwise they're legitimately off, not absent.
-      const isWorkingDay = !agent.workingDays || agent.workingDays.length === 0 || agent.workingDays.includes(todayCode);
-      return {
-        agentId: agent.id,
-        employeeId: agent.agentId,
-        name: agent.name,
-        department: agent.department,
-        status: isWorkingDay ? 'ABSENT' : 'OFF',
-        checkInTime: null,
-        lateMinutes: null,
-        faceVerified: null,
-      };
-    });
-  }, [dailyReport.data, activeAgents.data]);
-
-  const counts = useMemo(() => {
-    const c = { IN: 0, LATE: 0, ABSENT: 0, OFF: 0 };
-    rows.forEach((r) => { c[r.status] = (c[r.status] || 0) + 1; });
-    return c;
-  }, [rows]);
+  const counts = useMemo(() => countByStatus(rows), [rows]);
 
   return {
     rows,
     counts,
     todayDate,
-    isLoading: dailyReport.isLoading || activeAgents.isLoading,
+    absenceTracking,
+    isLoading: dailyReport.isLoading || activeAgents.isLoading || settings.isLoading,
     isError: dailyReport.isError || activeAgents.isError,
   };
 }

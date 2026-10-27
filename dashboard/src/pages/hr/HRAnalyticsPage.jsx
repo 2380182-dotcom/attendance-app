@@ -11,6 +11,7 @@ import { hrApi } from '../../services/hrApi';
 import { attendanceApi, agentApi } from '../../services/attendanceApi';
 import { karachiStartOfDayIso, karachiEndOfDayIso } from '../../utils/dateUtils';
 import { computeChronicLateComers, computeMostAbsences, computeAttendanceTrend } from '../../utils/attendanceStats';
+import { absentTodayCard } from '../../utils/todayBoard';
 import { useTodayBoard } from '../../hooks/useTodayBoard';
 
 function StatCard({ label, value, sub, onClick }) {
@@ -54,9 +55,11 @@ export default function HRAnalyticsPage() {
     () => (rangeRecords.data ? computeChronicLateComers(rangeRecords.data) : []),
     [rangeRecords.data]
   );
+  // No absence numbers at all while the company's absence tracking is off.
   const absences = useMemo(
-    () => (rangeRecords.data && activeAgents.data ? computeMostAbsences(rangeRecords.data, activeAgents.data, rangeStart, rangeEnd) : []),
-    [rangeRecords.data, activeAgents.data, rangeStart, rangeEnd]
+    () => (today.absenceTracking && rangeRecords.data && activeAgents.data
+      ? computeMostAbsences(rangeRecords.data, activeAgents.data, rangeStart, rangeEnd) : []),
+    [today.absenceTracking, rangeRecords.data, activeAgents.data, rangeStart, rangeEnd]
   );
   const trend = useMemo(
     () => (rangeRecords.data ? computeAttendanceTrend(rangeRecords.data) : []),
@@ -95,12 +98,17 @@ export default function HRAnalyticsPage() {
             />
           </Grid>
           <Grid item xs={12} sm={3}>
-            <StatCard
-              label="Absent Today"
-              value={`${pct(today.counts.ABSENT).toFixed(0)}%`}
-              sub={`${today.counts.ABSENT} agents`}
-              onClick={() => navigate('/hr/status?status=ABSENT')}
-            />
+            {(() => {
+              const card = absentTodayCard(today.counts, totalToday, today.absenceTracking);
+              return (
+                <StatCard
+                  label="Absent Today"
+                  value={card.value}
+                  sub={card.sub}
+                  onClick={card.clickable ? () => navigate('/hr/status?status=ABSENT') : undefined}
+                />
+              );
+            })()}
           </Grid>
           <Grid item xs={12} sm={3}>
             <StatCard label="Full Mid-Shift Compliance" value={`${s.complianceAll3Percent?.toFixed(0) ?? 0}%`} sub={`${s.complianceAll3Count ?? 0} agents`} />
@@ -147,6 +155,11 @@ export default function HRAnalyticsPage() {
 
           <TableContainer component={Paper} sx={{ flex: 1 }}>
             <Typography variant="h6" sx={{ p: 2, pb: 0 }}>Most Absences — last 30 days</Typography>
+            {!today.absenceTracking ? (
+              <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+                <strong>Absence tracking is off</strong> · an administrator can turn it on in Admin &gt; Holidays.
+              </Typography>
+            ) : (
             <Table>
               <TableHead>
                 <TableRow><TableCell>Agent</TableCell><TableCell align="right">Absences</TableCell></TableRow>
@@ -163,6 +176,7 @@ export default function HRAnalyticsPage() {
                 ))}
               </TableBody>
             </Table>
+            )}
           </TableContainer>
         </Stack>
     </Box>
