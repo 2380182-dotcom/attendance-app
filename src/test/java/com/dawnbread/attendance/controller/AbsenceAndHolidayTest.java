@@ -196,6 +196,18 @@ class AbsenceAndHolidayTest {
     }
 
     @Test
+    void anAgentWithNoWorkingDaysSetWorksEveryDayLikeTheRestOfTheApp() {
+        Tenant t = tenant("NODAYS");
+        Agent noDays = agent(t, "AGENT", List.of());
+
+        absenceService.recordAbsences(MONDAY);
+        absenceService.recordAbsences(MONDAY.minusDays(1)); // a Sunday
+
+        assertTrue(absent(t, noDays, MONDAY));
+        assertTrue(absent(t, noDays, MONDAY.minusDays(1)), "empty working days = works every day (ShiftValidationService rule)");
+    }
+
+    @Test
     void localAndLmtSalesmenAreNeverMarkedAbsent() {
         Tenant t = tenant("SALES");
         Agent local = agent(t, "SALESMAN_LOCAL", EVERY_DAY);

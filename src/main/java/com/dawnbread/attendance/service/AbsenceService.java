@@ -73,7 +73,8 @@ public class AbsenceService {
         for (Agent agent : agentRepository.findAll()) {
             if (!MART_AGENT_ROLE.equals(agent.getRole()) || !Boolean.TRUE.equals(agent.getIsActive())) continue;
             List<String> workingDays = agent.getWorkingDays();
-            if (workingDays != null && !workingDays.contains(dayCode)) continue;
+            // Same rule as ShiftValidationService: no working days set (null or empty) = works every day.
+            if (workingDays != null && !workingDays.isEmpty() && !workingDays.contains(dayCode)) continue;
             if (agent.getCreatedAt() != null && agent.getCreatedAt().toLocalDate().isAfter(date)) continue;
             if (holidayRepository.existsByTenantIdAndHolidayDate(agent.getTenantId(), date)) continue;
             if (!attendanceRepository.findByAgentIdAndCheckInTimeBetween(agent.getId(), start, end).isEmpty()) continue;

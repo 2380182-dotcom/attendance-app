@@ -157,12 +157,14 @@ export default function CockpitHeader({
             </Box>
           )}
 
-          <ToggleButtonGroup
-            exclusive size="small" value={segment} aria-label="Salesman type"
-            onChange={(_, v) => v && setSegment(v)} sx={toggleSx}
-          >
-            {segmentOptions.map((o) => <ToggleButton key={o.value} value={o.value}>{o.label}</ToggleButton>)}
-          </ToggleButtonGroup>
+          {segmentOptions?.length > 0 && (
+            <ToggleButtonGroup
+              exclusive size="small" value={segment} aria-label="Salesman type"
+              onChange={(_, v) => v && setSegment(v)} sx={toggleSx}
+            >
+              {segmentOptions.map((o) => <ToggleButton key={o.value} value={o.value}>{o.label}</ToggleButton>)}
+            </ToggleButtonGroup>
+          )}
 
           {placeFilter && (
             <TextField

@@ -48,6 +48,9 @@ public class SalesCockpitController {
     private HttpServletRequest request;
 
     @Autowired
+    private com.dawnbread.attendance.config.CockpitBulkhead bulkhead;
+
+    @Autowired
     private Clock clock;
 
     @GetMapping("/highlights")
@@ -179,17 +182,6 @@ public class SalesCockpitController {
         return ResponseEntity.ok(ApiResponse.success("Filter options retrieved", service.filterOptions()));
     }
 
-    /**
-     * Bulkhead: at most MAX_CONCURRENT cockpit computations at once across
-     * all users (the server has 512 MB and a 10-connection DB pool). Extra
-     * requests wait up to WAIT_SECONDS, then get a clear 503 "busy, retry"
-     * instead of piling up threads, memory and pool connections. Cached
-     * answers return in milliseconds, so permits are released quickly.
-     */
-    static final int MAX_CONCURRENT = 2;
-    static final int WAIT_SECONDS = 25;
-    private static final java.util.concurrent.Semaphore BULKHEAD = new java.util.concurrent.Semaphore(MAX_CONCURRENT, true);
-
     private ResponseEntity<ApiResponse<Object>> run(String startDate, String endDate, String segment, Long areaId,
                                                     Long agentId, Function<CockpitFilter, Object> section) {
         if (!AccessControl.hasRole(request, ROLES)) {
@@ -201,20 +193,12 @@ public class SalesCockpitController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
-        boolean acquired = false;
         try {
-            acquired = BULKHEAD.tryAcquire(WAIT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
-            if (!acquired) {
-                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                        .header(org.springframework.http.HttpHeaders.RETRY_AFTER, "5")
-                        .body(ApiResponse.error("The cockpit is busy — retrying in a few seconds."));
-            }
-            return ResponseEntity.ok(ApiResponse.success("Cockpit data retrieved", section.apply(filter)));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ApiResponse.error("Request interrupted."));
-        } finally {
-            if (acquired) BULKHEAD.release();
+            return ResponseEntity.ok(ApiResponse.success("Cockpit data retrieved", bulkhead.run(() -> section.apply(filter))));
+        } catch (com.dawnbread.attendance.config.CockpitBulkhead.BusyException busy) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .header(org.springframework.http.HttpHeaders.RETRY_AFTER, "5")
+                    .body(ApiResponse.error(busy.getMessage()));
         }
     }
 

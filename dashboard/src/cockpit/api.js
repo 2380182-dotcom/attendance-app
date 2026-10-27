@@ -40,3 +40,20 @@ export const salesCockpitApi = {
     return unwrap(await api.get(`/cockpit/sales/salesmen/${salesmanId}/days`, { params: filterParams({ ...filters, agentId: '' }), timeout: 30000 }));
   },
 };
+
+/** HR cockpit. Filters: dates + department (name) + martId. */
+export function hrParams(filters) {
+  const params = { startDate: filters.startDate, endDate: filters.endDate };
+  if (filters.department) params.department = filters.department;
+  if (filters.martId) params.martId = filters.martId;
+  return params;
+}
+
+export const hrCockpitApi = {
+  async section(name, filters) {
+    return unwrap(await api.get(`/cockpit/hr/${name}`, { params: hrParams(filters), timeout: 30000 }));
+  },
+  async filterOptions() {
+    return unwrap(await api.get('/cockpit/hr/filter-options'));
+  },
+};

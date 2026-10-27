@@ -18,6 +18,7 @@ export const MEANING = {
   alert: '#C62828',    // missing / needs action
   ok: '#16A34A',       // healthy
   neutral: '#64748B',
+  late: '#B45309',     // HR: late (amber, distinct from the alert red)
 };
 
 export const SEGMENT = {
