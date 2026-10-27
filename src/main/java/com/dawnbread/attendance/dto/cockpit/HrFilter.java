@@ -10,6 +10,15 @@ import java.time.LocalDate;
  */
 public record HrFilter(LocalDate startDate, LocalDate endDate, String department, Long martId) {
 
+    /**
+     * The same filter without the mart. Roster-based numbers (present,
+     * absent) use it: an agent who usually works at the filtered mart but
+     * checked in somewhere else that day was present, not absent.
+     */
+    public HrFilter withoutMart() {
+        return martId == null ? this : new HrFilter(startDate, endDate, department, null);
+    }
+
     public String cacheKey() {
         return startDate + "|" + endDate + "|" + department + "|" + martId;
     }

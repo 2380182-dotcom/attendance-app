@@ -13,6 +13,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -21,14 +22,18 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * HR cockpit (step 3, part 1): highlights + needs attention. Each test seeds
- * its own tenant. Agents get shift start 00:00 with no grace so "absent
- * today" never depends on what time the test runs.
+ * HR cockpit (step 3): every section. Each test seeds its own tenant. Agents
+ * get shift start 00:00 with no grace so "absent today" never depends on
+ * what time the test runs; each check-in row carries shift start 09:30 (as
+ * check-in saves it), so "late" = after 09:30 Pakistan time whatever status
+ * was saved.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class HrCockpitTest {
 
     private static final String BASE = "/api/cockpit/hr/";
+    private static final List<String> PATHS = List.of("highlights", "attention", "filter-options",
+            "today", "trend", "punctuality", "agents", "locations");
     private static final List<String> EVERY_DAY = List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
 
     @LocalServerPort
@@ -98,15 +103,21 @@ class HrCockpitTest {
         return martRepository.save(m);
     }
 
-    /** A closed shift on a Pakistan day at a Pakistan time. */
+    /** A closed one-minute shift on a Pakistan day at a Pakistan time. */
     private void checkIn(Tenant t, Agent a, Mart m, LocalDate day, LocalTime pkTime, String status, double distance) {
+        shift(t, a, m, day, pkTime, status, distance, Duration.ofMinutes(1));
+    }
+
+    /** A shift of the given length (null = still on duty). Shift start on the row: 09:30. */
+    private void shift(Tenant t, Agent a, Mart m, LocalDate day, LocalTime pkTime, String status, double distance, Duration worked) {
         Attendance at = new Attendance();
         at.setTenantId(t.getId());
         at.setAgent(a);
         at.setMart(m);
         LocalDateTime utc = KarachiTime.startOfDayUtc(day).plusSeconds(pkTime.toSecondOfDay());
         at.setCheckInTime(utc);
-        at.setCheckOutTime(utc.plusMinutes(1));
+        at.setCheckOutTime(worked == null ? null : utc.plus(worked));
+        at.setShiftStartTime(LocalTime.of(9, 30));
         at.setStatus(status);
         at.setDistanceFromMart(distance);
         attendanceRepository.save(at);
@@ -167,12 +178,12 @@ class HrCockpitTest {
     void onlyAdminAndHrCanReadTheHrCockpit() {
         Tenant t = tenant("ROLE");
         for (String role : List.of("SALES", "SALESMAN_LOCAL", "SALESMAN_LMT", "AGENT")) {
-            for (String p : List.of("highlights", "attention", "filter-options")) {
+            for (String p : PATHS) {
                 assertEquals(HttpStatus.FORBIDDEN, get(token(t, role), p).getStatusCode(), role + " " + p);
             }
         }
         for (String role : List.of("ADMIN", "HR")) {
-            for (String p : List.of("highlights", "attention", "filter-options")) {
+            for (String p : PATHS) {
                 assertEquals(HttpStatus.OK, get(token(t, role), p).getStatusCode(), role + " " + p);
             }
         }
@@ -290,7 +301,7 @@ class HrCockpitTest {
         Tenant b = tenant("ISOB");
         Mart m = mart(a, "A Mart");
         Agent agentA = agent(a, "Tenant A Agent", "AGENT", "Bakery", EVERY_DAY);
-        checkIn(a, agentA, m, today, LocalTime.of(9, 0), "LATE", 10);
+        checkIn(a, agentA, m, today, LocalTime.of(10, 0), "IN", 10);   // saved as IN by the UTC clock, but late
 
         JsonNode hb = data(token(b, "HR"), "highlights");
         for (JsonNode c : hb.get("cards")) {
@@ -305,5 +316,200 @@ class HrCockpitTest {
         assertEquals(1, optsA.get("marts").size());
         assertEquals("Bakery", optsA.get("departments").get(0).get("name").asText());
         assertEquals(1, card(data(token(a, "HR"), "highlights"), "late").get("value").asLong());
+    }
+
+    // ------------------------------------------------------------------ part 2
+
+    private static JsonNode byName(JsonNode list, String field, String value) {
+        for (JsonNode x : list) if (value.equals(x.get(field).asText())) return x;
+        throw new AssertionError("no " + field + "=" + value + " in " + list);
+    }
+
+    @Test
+    void todayBoardShowsEachAgentOnceWithTheirStateAndGroupsThem() throws Exception {
+        Tenant t = tenant("TOD");
+        Mart main = mart(t, "Main Mart");
+        Mart second = mart(t, "Second Mart");
+        Agent onTime = agent(t, "On Time", "AGENT", "Bakery", EVERY_DAY);
+        Agent late = agent(t, "Late One", "AGENT", "Bakery", EVERY_DAY);
+        Agent missing = agent(t, "Missing", "AGENT", "Dairy", EVERY_DAY);
+        Agent dayOff = agent(t, "Day Off", "AGENT", "Dairy",
+                EVERY_DAY.stream().filter(d -> !d.equals(notToday(today))).toList());
+        Agent notDue = agent(t, "Not Due", "AGENT", "Bakery", EVERY_DAY);
+        notDue.setShiftStartTime(LocalTime.of(23, 59));
+        agentRepository.save(notDue);
+        Agent mover = agent(t, "Mover", "AGENT", "Bakery", EVERY_DAY);
+        agent(t, "A Salesman", "SALESMAN_LOCAL", "Sales", EVERY_DAY);
+
+        shift(t, onTime, main, today, LocalTime.of(9, 0), "IN", 10, null);       // still on duty
+        checkIn(t, late, main, today, LocalTime.of(10, 0), "IN", 10);            // 30 min after 09:30
+        checkIn(t, missing, second, today.minusDays(1), LocalTime.of(9, 0), "IN", 10);
+        checkIn(t, mover, main, today.minusDays(1), LocalTime.of(9, 0), "IN", 10);
+        checkIn(t, mover, second, today, LocalTime.of(9, 10), "IN", 10);         // usual mart: Main; today: Second
+
+        JsonNode d = data(token(t, "HR"), "today");
+        JsonNode agents = d.get("agents");
+        assertEquals(6, agents.size(), "salesmen are not on the HR board");
+        assertEquals("ABSENT", agents.get(0).get("state").asText(), "most urgent first");
+        JsonNode o = byName(agents, "name", "On Time");
+        assertEquals("ON_TIME", o.get("state").asText());
+        assertEquals("09:00", o.get("checkIn").asText());
+        assertTrue(o.get("onDuty").asBoolean());
+        assertTrue(o.get("checkOut").isNull());
+        JsonNode l = byName(agents, "name", "Late One");
+        assertEquals("LATE", l.get("state").asText());
+        assertEquals(30, l.get("minutesLate").asInt());
+        assertEquals("10:01", l.get("checkOut").asText());
+        JsonNode m = byName(agents, "name", "Missing");
+        assertEquals("ABSENT", m.get("state").asText());
+        assertEquals("Second Mart", m.get("mart").asText(), "absent agents show their usual mart");
+        assertEquals("OFF", byName(agents, "name", "Day Off").get("state").asText());
+        if (LocalTime.now(KarachiTime.ZONE).isBefore(LocalTime.of(23, 50))) {
+            assertEquals("NOT_DUE", byName(agents, "name", "Not Due").get("state").asText());
+        }
+        assertEquals("Second Mart", byName(agents, "name", "Mover").get("mart").asText(), "today's mart wins");
+
+        JsonNode dairy = byName(d.get("departments"), "name", "Dairy");
+        assertEquals(1, dairy.get("absent").asInt());
+        assertEquals(1, dairy.get("off").asInt());
+        JsonNode mainMart = byName(d.get("marts"), "name", "Main Mart");
+        assertEquals(1, mainMart.get("onTime").asInt());
+        assertEquals(1, mainMart.get("late").asInt());
+
+        // Mart filter: agents who worked at Main Mart in the last 30 days. Mover checked in
+        // elsewhere today: present, not absent.
+        JsonNode atMain = data(token(t, "HR"), "today?martId=" + main.getId()).get("agents");
+        assertEquals(3, atMain.size(), atMain.toString());
+        assertEquals("ON_TIME", byName(atMain, "name", "Mover").get("state").asText());
+    }
+
+    @Test
+    void trendCountsExpectedPresentLateAndAbsentPerDaySkippingHolidays() throws Exception {
+        Tenant t = tenant("TRD");
+        Mart m = mart(t, "Mart");
+        Agent a = agent(t, "Daily", "AGENT", "Bakery", EVERY_DAY);
+        CompanyHoliday h = new CompanyHoliday();
+        h.setTenantId(t.getId());
+        h.setHolidayDate(today.minusDays(4));
+        h.setName("Test Day");
+        h.setCreatedAt(LocalDateTime.now());
+        holidayRepository.save(h);
+        checkIn(t, a, m, today.minusDays(2), LocalTime.of(10, 0), "IN", 10);   // late
+        checkIn(t, a, m, today.minusDays(1), LocalTime.of(9, 0), "IN", 10);    // on time
+        // today-3 and today: no check-in -> absent
+
+        JsonNode tr = data(token(t, "HR"), "trend?startDate=" + today.minusDays(4) + "&endDate=" + today);
+        JsonNode days = tr.get("days");
+        assertEquals(5, days.size());
+        assertEquals("Test Day", days.get(0).get("holiday").asText());
+        assertEquals(0, days.get(0).get("expected").asInt());
+        assertTrue(days.get(0).get("attendancePct").isNull(), "nobody expected on a holiday");
+        assertEquals(1, days.get(1).get("absent").asInt());
+        assertEquals(100.0, days.get(1).get("absentPct").asDouble(), 0.01);
+        assertEquals(1, days.get(2).get("late").asInt());
+        assertEquals(100.0, days.get(2).get("latePct").asDouble(), 0.01);
+        assertEquals(0, days.get(3).get("late").asInt());
+        assertEquals(1, days.get(4).get("absent").asInt(), "today, past shift start");
+        assertEquals(50.0, tr.get("attendancePct").asDouble(), 0.01, "2 of 4 expected days");
+    }
+
+    @Test
+    void punctualityRanksLateAgentsAndBucketsCheckInTimes() throws Exception {
+        Tenant t = tenant("PUN");
+        Mart m = mart(t, "Mart");
+        Agent a = agent(t, "Often Late", "AGENT", "Bakery", EVERY_DAY);
+        Agent b = agent(t, "Sometimes", "AGENT", "Bakery", EVERY_DAY);
+        checkIn(t, a, m, today.minusDays(1), LocalTime.of(10, 0), "IN", 10);   // 30 late
+        checkIn(t, a, m, today.minusDays(2), LocalTime.of(10, 10), "IN", 10);  // 40 late
+        checkIn(t, b, m, today.minusDays(1), LocalTime.of(9, 0), "IN", 10);
+        checkIn(t, b, m, today.minusDays(2), LocalTime.of(9, 40), "MISSED_END_DUTY", 10);  // 10 late, status overwritten
+
+        JsonNode p = data(token(t, "HR"), "punctuality");
+        assertEquals(4, p.get("checkIns").asInt());
+        assertEquals(3, p.get("lateCheckIns").asInt());
+        assertEquals(25.0, p.get("onTimePct").asDouble(), 0.01);
+        assertEquals(26.7, p.get("avgMinutesLate").asDouble(), 0.05, "(30+40+10)/3");
+        JsonNode first = p.get("lateByAgent").get(0);
+        assertEquals("Often Late", first.get("name").asText());
+        assertEquals(2, first.get("lateCount").asInt());
+        assertEquals(35.0, first.get("avgMinutesLate").asDouble(), 0.01);
+        JsonNode slots = p.get("distribution");
+        assertEquals("09:00", slots.get(0).get("time").asText());
+        assertEquals("10:00", slots.get(slots.size() - 1).get("time").asText());
+        assertEquals(5, slots.size(), "09:00 to 10:00 in 15-minute slots, gaps included");
+        assertEquals(1, byName(slots, "time", "09:30").get("late").asInt());
+
+        // A night-shift check-in far from the rest: the empty hours fold into one marker.
+        checkIn(t, b, m, today.minusDays(3), LocalTime.of(0, 10), "IN", 10);
+        JsonNode folded = data(token(t, "HR"), "punctuality?startDate=" + today.minusDays(10) + "&endDate=" + today).get("distribution");
+        assertEquals("00:00", folded.get(0).get("time").asText());
+        assertEquals("00:15", folded.get(1).get("time").asText());
+        assertEquals("09:00", folded.get(1).get("until").asText(), "00:15 to 09:00 had no check-ins");
+        assertEquals("09:00", folded.get(2).get("time").asText());
+        assertTrue(folded.get(2).get("until").isNull());
+    }
+
+    @Test
+    void scorecardAndDayPanelPerAgent() throws Exception {
+        Tenant t = tenant("SCO");
+        Mart m = mart(t, "Mart");
+        Agent a = agent(t, "Worker", "AGENT", "Bakery", EVERY_DAY);
+        shift(t, a, m, today.minusDays(1), LocalTime.of(9, 0), "IN", 10, Duration.ofHours(8));
+        shift(t, a, m, today.minusDays(2), LocalTime.of(10, 0), "IN", 600, Duration.ofHours(6));
+        checkIn(t, a, m, today.minusDays(3), LocalTime.of(9, 0), "MISSED_END_DUTY", 10);
+        // today-4: absent; today: absent (due at midnight)
+        String range = "startDate=" + today.minusDays(4) + "&endDate=" + today;
+
+        JsonNode row = byName(data(token(t, "HR"), "agents?" + range).get("rows"), "name", "Worker");
+        assertEquals(5, row.get("daysExpected").asInt());
+        assertEquals(3, row.get("daysPresent").asInt());
+        assertEquals(1, row.get("daysLate").asInt());
+        assertEquals(2, row.get("daysAbsent").asInt());
+        assertEquals(1, row.get("missedEndDuty").asInt());
+        assertEquals(7.0, row.get("avgHours").asDouble(), 0.01, "(8 + 6) / 2 closed days; missed End Duty is not real hours");
+        assertEquals(60.0, row.get("attendancePct").asDouble(), 0.01);
+
+        JsonNode days = data(token(t, "HR"), "agents/" + a.getId() + "/days?" + range);
+        assertEquals(5, days.size());
+        assertEquals(today.toString(), days.get(0).get("date").asText(), "newest first");
+        assertEquals("ABSENT", days.get(0).get("state").asText());
+        assertEquals("PRESENT", days.get(1).get("state").asText());
+        assertEquals(8.0, days.get(1).get("hours").asDouble(), 0.01);
+        assertEquals("LATE", days.get(2).get("state").asText());
+        assertEquals(30, days.get(2).get("minutesLate").asInt());
+        assertTrue(days.get(2).get("farFromMart").asBoolean());
+        assertTrue(days.get(3).get("missedEndDuty").asBoolean());
+        assertTrue(days.get(3).get("hours").isNull());
+
+        // Another company's agent, or a salesman: not found.
+        Tenant other = tenant("SCO2");
+        assertEquals(HttpStatus.NOT_FOUND, get(token(other, "HR"), "agents/" + a.getId() + "/days").getStatusCode());
+        Agent salesman = agent(t, "Seller", "SALESMAN_LMT", "Sales", EVERY_DAY);
+        assertEquals(HttpStatus.NOT_FOUND, get(token(t, "HR"), "agents/" + salesman.getId() + "/days").getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, get(token(t, "SALES"), "agents/" + a.getId() + "/days").getStatusCode());
+    }
+
+    @Test
+    void locationsCountCheckInsPerMartAndListTheFarthestFirst() throws Exception {
+        Tenant t = tenant("LOC");
+        Mart near = mart(t, "Near Mart");
+        Mart open = mart(t, "Open Mart");
+        Agent a = agent(t, "Walker", "AGENT", "Bakery", EVERY_DAY);
+        checkIn(t, a, near, today.minusDays(1), LocalTime.of(9, 0), "IN", 20);
+        checkIn(t, a, open, today.minusDays(2), LocalTime.of(10, 0), "IN", 450);
+        checkIn(t, a, open, today.minusDays(3), LocalTime.of(9, 0), "IN", 1200);
+
+        JsonNode loc = data(token(t, "HR"), "locations");
+        JsonNode o = byName(loc.get("marts"), "name", "Open Mart");
+        assertEquals(2, o.get("checkIns").asInt());
+        assertEquals(2, o.get("farCheckIns").asInt());
+        assertEquals(1, o.get("lateCheckIns").asInt());
+        assertEquals(1200.0, o.get("maxDistance").asDouble(), 0.01);
+        assertEquals("Open Mart", loc.get("marts").get(0).get("name").asText(), "most check-ins first");
+        JsonNode out = loc.get("outliers");
+        assertEquals(2, out.size());
+        assertEquals(1200.0, out.get(0).get("distance").asDouble(), 0.01);
+        assertEquals("09:00", out.get(0).get("time").asText());
+        assertEquals(0, data(token(t, "HR"), "locations?martId=" + near.getId()).get("outliers").size());
     }
 }

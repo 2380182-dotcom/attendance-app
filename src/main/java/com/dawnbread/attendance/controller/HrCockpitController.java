@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -62,6 +63,58 @@ public class HrCockpitController {
                                                          @RequestParam(required = false) String department,
                                                          @RequestParam(required = false) Long martId) {
         return run(startDate, endDate, department, martId, service::attention);
+    }
+
+    @GetMapping("/today")
+    public ResponseEntity<ApiResponse<Object>> today(@RequestParam(required = false) String startDate,
+                                                     @RequestParam(required = false) String endDate,
+                                                     @RequestParam(required = false) String department,
+                                                     @RequestParam(required = false) Long martId) {
+        return run(startDate, endDate, department, martId, service::today);
+    }
+
+    @GetMapping("/trend")
+    public ResponseEntity<ApiResponse<Object>> trend(@RequestParam(required = false) String startDate,
+                                                     @RequestParam(required = false) String endDate,
+                                                     @RequestParam(required = false) String department,
+                                                     @RequestParam(required = false) Long martId) {
+        return run(startDate, endDate, department, martId, service::trend);
+    }
+
+    @GetMapping("/punctuality")
+    public ResponseEntity<ApiResponse<Object>> punctuality(@RequestParam(required = false) String startDate,
+                                                           @RequestParam(required = false) String endDate,
+                                                           @RequestParam(required = false) String department,
+                                                           @RequestParam(required = false) Long martId) {
+        return run(startDate, endDate, department, martId, service::punctuality);
+    }
+
+    @GetMapping("/agents")
+    public ResponseEntity<ApiResponse<Object>> agents(@RequestParam(required = false) String startDate,
+                                                      @RequestParam(required = false) String endDate,
+                                                      @RequestParam(required = false) String department,
+                                                      @RequestParam(required = false) Long martId) {
+        return run(startDate, endDate, department, martId, service::agents);
+    }
+
+    /** One agent's days for the scorecard's side panel; 404 for anyone who is not an active mart agent of this company. */
+    @GetMapping("/agents/{agentId}/days")
+    public ResponseEntity<ApiResponse<Object>> agentDays(@PathVariable long agentId,
+                                                         @RequestParam(required = false) String startDate,
+                                                         @RequestParam(required = false) String endDate) {
+        ResponseEntity<ApiResponse<Object>> response = run(startDate, endDate, null, null, f -> service.agentDays(f, agentId));
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null && response.getBody().getData() == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("Agent not found"));
+        }
+        return response;
+    }
+
+    @GetMapping("/locations")
+    public ResponseEntity<ApiResponse<Object>> locations(@RequestParam(required = false) String startDate,
+                                                         @RequestParam(required = false) String endDate,
+                                                         @RequestParam(required = false) String department,
+                                                         @RequestParam(required = false) Long martId) {
+        return run(startDate, endDate, department, martId, service::locations);
     }
 
     @GetMapping("/filter-options")

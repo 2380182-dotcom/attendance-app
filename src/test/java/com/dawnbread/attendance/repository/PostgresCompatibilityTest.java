@@ -481,6 +481,16 @@ class PostgresCompatibilityTest {
         assertDoesNotThrow(() -> hrQueries.farFromMart(f, today.minusDays(6), today));
         assertDoesNotThrow(() -> hrQueries.activeMarts());
         assertDoesNotThrow(() -> hrQueries.departments());
+        assertDoesNotThrow(() -> hrQueries.todayByAgent(f, today));
+        assertDoesNotThrow(() -> hrQueries.usualMarts(f, today));
+        assertDoesNotThrow(() -> hrQueries.agentDays(f, today.minusDays(29), today));
+        assertDoesNotThrow(() -> hrQueries.agentTotals(f, today.minusDays(29), today));
+        assertDoesNotThrow(() -> hrQueries.agentShifts(f, 1L, today.minusDays(29), today));
+        assertDoesNotThrow(() -> hrQueries.rosterAgent(f, 1L, today));
+        assertDoesNotThrow(() -> hrQueries.lateByAgent(f, today.minusDays(29), today));
+        assertDoesNotThrow(() -> hrQueries.checkInSlots(f, today.minusDays(29), today));
+        assertDoesNotThrow(() -> hrQueries.byMart(f, today.minusDays(29), today));
+        assertDoesNotThrow(() -> hrQueries.distanceOutliers(f, today.minusDays(29), today, 20));
     }
 
     @Test
@@ -508,7 +518,8 @@ class PostgresCompatibilityTest {
         at.setMart(mart);
         at.setCheckInTime(day.minusDays(1).atTime(20, 0));
         at.setCheckOutTime(day.minusDays(1).atTime(20, 5));
-        at.setStatus("LATE");
+        at.setShiftStartTime(java.time.LocalTime.MIDNIGHT);   // + 15 min grace: 01:00 is 45 min late
+        at.setStatus("IN");                                     // what the UTC clock would have saved
         at.setDistanceFromMart(250.0);
         attendanceRepository.save(at);
 
@@ -519,5 +530,15 @@ class PostgresCompatibilityTest {
         assertEquals(1L, ((Number) daily.get(0)[2]).longValue(), "late");
         assertEquals(3600.0, ((Number) daily.get(0)[4]).doubleValue(), 0.5, "01:00 Pakistan time");
         assertEquals(1L, ((Number) daily.get(0)[5]).longValue(), "beyond the 100 m radius");
+
+        java.util.List<Object[]> late = hrQueries.lateByAgent(none, day.minusDays(1), day);
+        assertEquals(45.0, ((Number) late.get(0)[5]).doubleValue(), 0.01, "minutes after shift start + grace, Pakistan time");
+        java.util.List<Object[]> slots = hrQueries.checkInSlots(none, day.minusDays(1), day);
+        assertEquals(4L, ((Number) slots.get(0)[0]).longValue(), "01:00 = 15-minute slot 4");
+        java.util.List<Object[]> totals = hrQueries.agentTotals(none, day.minusDays(1), day);
+        assertEquals(300.0, ((Number) totals.get(0)[2]).doubleValue(), 0.5, "5 minutes worked");
+        java.util.List<Object[]> days = hrQueries.agentDays(none, day.minusDays(1), day);
+        assertEquals(day, days.get(0)[1]);
+        assertEquals(1L, ((Number) days.get(0)[2]).longValue(), "late that day");
     }
 }

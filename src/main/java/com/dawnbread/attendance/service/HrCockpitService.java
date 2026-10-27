@@ -9,6 +9,7 @@ import com.dawnbread.attendance.dto.cockpit.SalesCockpitDTOs.DayValue;
 import com.dawnbread.attendance.dto.cockpit.SalesCockpitDTOs.Option;
 import com.dawnbread.attendance.repository.HrCockpitQueries;
 import com.dawnbread.attendance.repository.SalesCockpitQueries;
+import com.dawnbread.attendance.util.KarachiTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -54,11 +55,17 @@ public class HrCockpitService {
     @Autowired
     private Clock clock;
 
-    /** One roster agent with what the day rules need. */
-    record RosterAgent(Long id, String name, LocalTime shiftStart, int graceMinutes, List<String> workingDays) {
+    /** One roster agent with what the day rules need. joined = account creation day (null = unknown). */
+    record RosterAgent(Long id, String name, String department, LocalTime shiftStart, int graceMinutes,
+                       List<String> workingDays, LocalDate joined) {
         boolean worksOn(LocalDate d) {
             return workingDays == null || workingDays.isEmpty()
                     || workingDays.contains(d.getDayOfWeek().name().substring(0, 3));
+        }
+
+        /** Expected at work that day: a working day, not a holiday, and already joined. */
+        boolean expectedOn(LocalDate d, Map<LocalDate, String> holidays) {
+            return worksOn(d) && !holidays.containsKey(d) && (joined == null || !d.isBefore(joined));
         }
 
         LocalTime dueBy() {
@@ -67,13 +74,17 @@ public class HrCockpitService {
     }
 
     private List<RosterAgent> roster(HrFilter f, LocalDate today) {
-        List<Object[]> rows = q.roster(f, today);
+        return toRoster(q.roster(f, today));
+    }
+
+    private List<RosterAgent> toRoster(List<Object[]> rows) {
         Map<Long, List<String>> days = base.workingDays(rows.stream().map(r -> id(r[0])).toList());
         List<RosterAgent> out = new ArrayList<>();
         for (Object[] r : rows) {
             Long agentId = id(r[0]);
             int grace = r[4] == null ? DEFAULT_GRACE_MINUTES : (int) lng(r[4]);
-            out.add(new RosterAgent(agentId, (String) r[1], (LocalTime) r[3], grace, days.get(agentId)));
+            LocalDate joined = r[5] == null ? null : pk((LocalDateTime) r[5]).toLocalDate();
+            out.add(new RosterAgent(agentId, (String) r[1], (String) r[2], (LocalTime) r[3], grace, days.get(agentId), joined));
         }
         return out;
     }
@@ -118,10 +129,11 @@ public class HrCockpitService {
         Map<LocalDate, Double> absences = SalesCockpitQueries.byDate(q.dailyAbsences(f, sparkStart, today.minusDays(1), today), 1);
 
         Set<Long> inToday = checkedIn(f, today);
-        List<RosterAgent> absent = absentNow(roster, inToday, today, now, holiday);
+        Set<Long> inAnywhere = f.martId() == null ? inToday : checkedIn(f.withoutMart(), today);
+        List<RosterAgent> absent = absentNow(roster, inAnywhere, today, now, holiday);
         long expected = holiday ? 0 : roster.stream().filter(a -> a.worksOn(today)).count();
         long notYetDue = holiday ? 0 : roster.stream()
-                .filter(a -> a.worksOn(today) && !inToday.contains(a.id()) && now.isBefore(a.dueBy())).count();
+                .filter(a -> a.worksOn(today) && !inAnywhere.contains(a.id()) && now.isBefore(a.dueBy())).count();
         long off = holiday ? roster.size() : roster.stream().filter(a -> !a.worksOn(today)).count();
 
         List<HrCard> cards = new ArrayList<>();
@@ -204,7 +216,7 @@ public class HrCockpitService {
         Map<Long, Set<LocalDate>> absentDays = new HashMap<>();
         q.absencesSince(f, since, today).forEach(r -> absentDays.computeIfAbsent(id(r[0]), k -> new HashSet<>()).add((LocalDate) r[1]));
         Set<Long> absentToday = new HashSet<>();
-        absentNow(roster, checkedIn(f, today), today, now, holidays.containsKey(today)).forEach(a -> absentToday.add(a.id()));
+        absentNow(roster, checkedIn(f.withoutMart(), today), today, now, holidays.containsKey(today)).forEach(a -> absentToday.add(a.id()));
 
         List<AlertItem> streaks = new ArrayList<>();
         List<Integer> streakLengths = new ArrayList<>();
@@ -276,6 +288,315 @@ public class HrCockpitService {
         return new HrAttention(LocalDateTime.now(clock), alerts);
     }
 
+    // ================================================================ Today (live board)
+
+    private static final List<String> STATE_ORDER = List.of("ABSENT", "LATE", "NOT_DUE", "ON_TIME", "OFF");
+
+    @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "today:' + #f.cacheKey()")
+    public HrToday today(HrFilter f) {
+        LocalDate today = LocalDate.now(clock);
+        LocalTime now = LocalTime.now(clock);
+        List<RosterAgent> roster = roster(f, today);
+        String holiday = holidays(today, today).get(today);
+
+        // Check-ins at any mart decide the state; the mart filter only picks the roster.
+        Map<Long, Object[]> in = new HashMap<>();
+        q.todayByAgent(f.withoutMart(), today).forEach(r -> in.merge(id(r[0]), r, (first, more) -> new Object[] {
+                first[0], first[1], first[2], later((LocalDateTime) first[3], (LocalDateTime) more[3]),
+                Math.max(lng(first[4]), lng(more[4])), first[5] }));
+        Map<Long, String> usual = usualMarts(f.withoutMart(), today);
+
+        List<TodayAgent> agents = new ArrayList<>();
+        for (RosterAgent a : roster) {
+            Object[] r = in.get(a.id());
+            String state;
+            String checkIn = null;
+            String checkOut = null;
+            boolean onDuty = false;
+            Integer minutesLate = null;
+            String mart = usual.get(a.id());
+            if (r != null) {
+                long late = Math.round(num(r[5]));
+                state = late > 0 ? "LATE" : "ON_TIME";
+                minutesLate = late > 0 ? (int) late : null;
+                mart = (String) r[1];
+                checkIn = hhmm(pk((LocalDateTime) r[2]));
+                onDuty = lng(r[4]) == 1;
+                checkOut = onDuty || r[3] == null ? null : hhmm(pk((LocalDateTime) r[3]));
+            } else if (holiday != null || !a.worksOn(today)) {
+                state = "OFF";
+            } else if (now.isBefore(a.dueBy())) {
+                state = "NOT_DUE";
+            } else {
+                state = "ABSENT";
+            }
+            agents.add(new TodayAgent(a.id(), a.name(), blankAs(a.department(), "No department"), mart, state,
+                    checkIn, checkOut, onDuty, minutesLate, hhmm(a.dueBy())));
+        }
+        agents.sort(Comparator.comparingInt((TodayAgent t) -> STATE_ORDER.indexOf(t.state()))
+                .thenComparing(TodayAgent::name, String.CASE_INSENSITIVE_ORDER));
+
+        return new HrToday(LocalDateTime.now(clock), today, holiday,
+                groups(agents, TodayAgent::department), groups(agents, t -> t.mart() == null ? "No mart yet" : t.mart()), agents);
+    }
+
+    /** The mart each agent checked in at most in the last 30 days. */
+    private Map<Long, String> usualMarts(HrFilter f, LocalDate today) {
+        Map<Long, String> mart = new HashMap<>();
+        Map<Long, Long> best = new HashMap<>();
+        for (Object[] r : q.usualMarts(f, today)) {
+            Long agentId = id(r[0]);
+            long n = lng(r[2]);
+            if (n > best.getOrDefault(agentId, 0L)) {
+                best.put(agentId, n);
+                mart.put(agentId, (String) r[1]);
+            }
+        }
+        return mart;
+    }
+
+    private static List<TodayGroup> groups(List<TodayAgent> agents, java.util.function.Function<TodayAgent, String> key) {
+        Map<String, int[]> counts = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (TodayAgent a : agents) {
+            counts.computeIfAbsent(key.apply(a), k -> new int[5])[STATE_INDEX.get(a.state())]++;
+        }
+        List<TodayGroup> out = new ArrayList<>();
+        counts.forEach((name, c) -> out.add(new TodayGroup(name, c[0], c[1], c[2], c[3], c[4])));
+        return out;
+    }
+
+    private static final Map<String, Integer> STATE_INDEX = Map.of("ON_TIME", 0, "LATE", 1, "ABSENT", 2, "NOT_DUE", 3, "OFF", 4);
+
+    // ================================================================ Trend
+
+    @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "trend:' + #f.cacheKey()")
+    public HrTrend trend(HrFilter f) {
+        LocalDate today = LocalDate.now(clock);
+        LocalTime now = LocalTime.now(clock);
+        LocalDate to = f.endDate().isAfter(today) ? today : f.endDate();
+        List<RosterAgent> roster = roster(f, today);
+        Map<LocalDate, String> holidays = holidays(f.startDate(), to);
+        Map<LocalDate, Map<Long, Boolean>> byDay = presence(f, roster, f.startDate(), to);
+
+        List<TrendDay> days = new ArrayList<>();
+        int sumExpected = 0, sumPresent = 0, sumLate = 0, sumAbsent = 0;
+        for (LocalDate d = f.startDate(); !d.isAfter(to); d = d.plusDays(1)) {
+            Map<Long, Boolean> seen = byDay.getOrDefault(d, Map.of());
+            int expected = 0, present = 0, late = 0, absent = 0;
+            for (RosterAgent a : roster) {
+                if (!a.expectedOn(d, holidays)) continue;
+                Boolean wasLate = seen.get(a.id());
+                if (wasLate != null) {
+                    expected++;
+                    present++;
+                    if (wasLate) late++;
+                } else if (!d.equals(today) || !now.isBefore(a.dueBy())) {
+                    expected++;   // today: only agents already past shift start + grace
+                    absent++;
+                }
+            }
+            days.add(new TrendDay(d, expected, present, late, absent, share(present, expected), share(late, present),
+                    share(absent, expected), holidays.get(d)));
+            sumExpected += expected;
+            sumPresent += present;
+            sumLate += late;
+            sumAbsent += absent;
+        }
+        return new HrTrend(days, share(sumPresent, sumExpected), share(sumLate, sumPresent), share(sumAbsent, sumExpected));
+    }
+
+    /**
+     * Per day, the roster agents who checked in (at any mart) and whether
+     * they were late. Bounded by roster x days of the range.
+     */
+    private Map<LocalDate, Map<Long, Boolean>> presence(HrFilter f, List<RosterAgent> roster, LocalDate from, LocalDate to) {
+        Set<Long> ids = new HashSet<>();
+        roster.forEach(a -> ids.add(a.id()));
+        Map<LocalDate, Map<Long, Boolean>> byDay = new HashMap<>();
+        for (Object[] r : q.agentDays(f.withoutMart(), from, to)) {
+            Long agentId = id(r[0]);
+            if (ids.contains(agentId)) {
+                byDay.computeIfAbsent((LocalDate) r[1], k -> new HashMap<>()).put(agentId, lng(r[2]) == 1);
+            }
+        }
+        return byDay;
+    }
+
+    // ================================================================ Punctuality
+
+    static final int LATE_AGENTS = 15;
+    /** Up to an hour of empty 15-minute slots is shown as is; longer stretches fold into one marker. */
+    static final int MAX_EMPTY_SLOTS = 4;
+
+    private static String slotTime(int slot) {
+        return String.format("%02d:%02d", slot / 4, (slot % 4) * 15);
+    }
+
+    @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "punctuality:' + #f.cacheKey()")
+    public HrPunctuality punctuality(HrFilter f) {
+        List<LateAgent> lateAgents = new ArrayList<>();
+        for (Object[] r : q.lateByAgent(f, f.startDate(), f.endDate())) {
+            int late = (int) lng(r[3]);
+            if (late > 0) {
+                lateAgents.add(new LateAgent(id(r[0]), (String) r[1], blankAs((String) r[2], "No department"), late,
+                        (int) lng(r[4]), r[5] == null ? null : round1(num(r[5]))));
+            }
+        }
+        double lateMinutes = lateAgents.stream().mapToDouble(a -> a.avgMinutesLate() == null ? 0 : a.avgMinutesLate() * a.lateCount()).sum();
+        lateAgents.sort(Comparator.comparingInt(LateAgent::lateCount).reversed()
+                .thenComparing(Comparator.comparing((LateAgent a) -> a.avgMinutesLate() == null ? 0 : a.avgMinutesLate()).reversed())
+                .thenComparing(LateAgent::name, String.CASE_INSENSITIVE_ORDER));
+
+        List<Object[]> slots = q.checkInSlots(f, f.startDate(), f.endDate());
+        Map<Integer, Object[]> bySlot = new HashMap<>();
+        slots.forEach(r -> bySlot.put((int) lng(r[0]), r));
+        List<CheckInSlot> distribution = new ArrayList<>();
+        int checkIns = 0, late = 0;
+        if (!slots.isEmpty()) {
+            int first = (int) lng(slots.get(0)[0]);
+            int last = (int) lng(slots.get(slots.size() - 1)[0]);
+            for (int i = first; i <= last; i++) {
+                Object[] r = bySlot.get(i);
+                if (r == null) {
+                    int end = i;
+                    while (end <= last && !bySlot.containsKey(end)) end++;
+                    if (end - i > MAX_EMPTY_SLOTS) {   // a long empty stretch folds into one marker
+                        distribution.add(new CheckInSlot(slotTime(i), slotTime(end), 0, 0));
+                        i = end - 1;
+                        continue;
+                    }
+                }
+                int onTime = r == null ? 0 : (int) lng(r[1]);   // short gaps stay visible as empty slots
+                int lateHere = r == null ? 0 : (int) lng(r[2]);
+                distribution.add(new CheckInSlot(slotTime(i), null, onTime, lateHere));
+                checkIns += onTime + lateHere;
+                late += lateHere;
+            }
+        }
+        int lateTotal = late;
+        return new HrPunctuality(checkIns, late, checkIns == 0 ? null : share(checkIns - late, checkIns),
+                lateTotal == 0 ? null : round1(lateMinutes / lateTotal),
+                lateAgents.size() > LATE_AGENTS ? new ArrayList<>(lateAgents.subList(0, LATE_AGENTS)) : lateAgents,
+                distribution);
+    }
+
+    // ================================================================ Agent scorecard
+
+    @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "agents:' + #f.cacheKey()")
+    public HrAgents agents(HrFilter f) {
+        LocalDate today = LocalDate.now(clock);
+        LocalTime now = LocalTime.now(clock);
+        LocalDate to = f.endDate().isAfter(today) ? today : f.endDate();
+        List<RosterAgent> roster = roster(f, today);
+        Map<LocalDate, String> holidays = holidays(f.startDate(), to);
+        Map<LocalDate, Map<Long, Boolean>> byDay = presence(f, roster, f.startDate(), to);
+        Map<Long, Object[]> totals = new HashMap<>();
+        q.agentTotals(f.withoutMart(), f.startDate(), to).forEach(r -> totals.put(id(r[0]), r));
+
+        List<AgentScore> rows = new ArrayList<>();
+        for (RosterAgent a : roster) {
+            int expected = 0, present = 0, late = 0, absent = 0;
+            for (LocalDate d = f.startDate(); !d.isAfter(to); d = d.plusDays(1)) {
+                Boolean wasLate = byDay.getOrDefault(d, Map.of()).get(a.id());
+                if (wasLate != null) {
+                    present++;
+                    if (wasLate) late++;
+                }
+                if (!a.expectedOn(d, holidays)) continue;
+                if (wasLate != null) expected++;
+                else if (!d.equals(today) || !now.isBefore(a.dueBy())) {
+                    expected++;
+                    absent++;
+                }
+            }
+            Object[] t = totals.get(a.id());
+            int closedDays = t == null ? 0 : (int) lng(t[3]);
+            Double avgHours = closedDays == 0 ? null : round1(num(t[2]) / 3600.0 / closedDays);
+            Double avgCheckIn = t == null || t[4] == null ? null : num(t[4]);
+            rows.add(new AgentScore(a.id(), a.name(), blankAs(a.department(), "No department"), expected, present, late, absent,
+                    t == null ? 0 : (int) lng(t[1]), avgHours, avgCheckIn, share(expected - absent, expected)));
+        }
+        return new HrAgents(rows);
+    }
+
+    /**
+     * One agent, day by day (newest first). Only active mart agents of the
+     * caller's company (null = not found). The mart filter is ignored: the
+     * panel shows every shift of that agent.
+     */
+    @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "agent-days:' + #agentId + ':' + #f.cacheKey()")
+    public List<AgentDay> agentDays(HrFilter f, long agentId) {
+        LocalDate today = LocalDate.now(clock);
+        LocalTime now = LocalTime.now(clock);
+        HrFilter any = new HrFilter(f.startDate(), f.endDate(), "", null);
+        List<RosterAgent> found = toRoster(q.rosterAgent(any, agentId, today));
+        if (found.isEmpty()) return null;
+        RosterAgent a = found.get(0);
+        LocalDate to = f.endDate().isAfter(today) ? today : f.endDate();
+        Map<LocalDate, String> holidays = holidays(f.startDate(), to);
+
+        Map<LocalDate, List<Object[]>> shifts = new HashMap<>();
+        for (Object[] r : q.agentShifts(any, agentId, f.startDate(), to)) {
+            shifts.computeIfAbsent(pk((LocalDateTime) r[0]).toLocalDate(), k -> new ArrayList<>()).add(r);
+        }
+        List<AgentDay> out = new ArrayList<>();
+        for (LocalDate d = to; !d.isBefore(f.startDate()); d = d.minusDays(1)) {
+            List<Object[]> day = shifts.get(d);
+            String holiday = holidays.get(d);
+            if (day != null) {
+                Object[] first = day.get(0);
+                long late = Math.round(num(first[4]));
+                boolean open = day.stream().anyMatch(r -> r[1] == null);
+                LocalDateTime lastOut = null;
+                double seconds = 0;
+                boolean closedShift = false;
+                boolean missed = false;
+                boolean far = false;
+                for (Object[] r : day) {
+                    lastOut = later(lastOut, (LocalDateTime) r[1]);
+                    missed |= "MISSED_END_DUTY".equals(r[2]);
+                    far |= lng(r[5]) == 1;
+                    if (r[1] != null && !"MISSED_END_DUTY".equals(r[2])) {
+                        seconds += Duration.between((LocalDateTime) r[0], (LocalDateTime) r[1]).getSeconds();
+                        closedShift = true;
+                    }
+                }
+                out.add(new AgentDay(d, late > 0 ? "LATE" : "PRESENT", hhmm(pk((LocalDateTime) first[0])),
+                        open || lastOut == null ? null : hhmm(pk(lastOut)), closedShift ? round1(seconds / 3600.0) : null,
+                        late > 0 ? (int) late : null, (String) first[3], missed, far, holiday));
+                continue;
+            }
+            String state;
+            if (holiday != null) state = "HOLIDAY";
+            else if (!a.worksOn(d)) state = "OFF";
+            else if (a.joined() != null && d.isBefore(a.joined())) state = "NOT_JOINED";
+            else if (d.equals(today) && now.isBefore(a.dueBy())) state = "NOT_DUE";
+            else state = "ABSENT";
+            out.add(new AgentDay(d, state, null, null, null, null, null, false, false, holiday));
+        }
+        return out;
+    }
+
+    // ================================================================ Locations
+
+    static final int OUTLIERS = 20;
+
+    @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "locations:' + #f.cacheKey()")
+    public HrLocations locations(HrFilter f) {
+        List<MartLocation> marts = new ArrayList<>();
+        for (Object[] r : q.byMart(f, f.startDate(), f.endDate())) {
+            marts.add(new MartLocation(id(r[0]), (String) r[1], Boolean.TRUE.equals(r[2]), r[3] == null ? null : num(r[3]),
+                    (int) lng(r[4]), (int) lng(r[5]), (int) lng(r[6]), (int) lng(r[7]), r[8] == null ? null : round1(num(r[8]))));
+        }
+        List<DistanceOutlier> outliers = new ArrayList<>();
+        for (Object[] r : q.distanceOutliers(f, f.startDate(), f.endDate(), OUTLIERS)) {
+            LocalDateTime at = pk((LocalDateTime) r[0]);
+            outliers.add(new DistanceOutlier(at.toLocalDate(), hhmm(at.toLocalTime()), (String) r[1], (String) r[2],
+                    round1(num(r[3])), r[4] == null ? null : num(r[4]), Boolean.TRUE.equals(r[5])));
+        }
+        return new HrLocations(marts, outliers);
+    }
+
     // ================================================================ Filter options
 
     @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "options'")
@@ -288,6 +609,36 @@ public class HrCockpitService {
     }
 
     // ================================================================ helpers
+
+    /** A UTC timestamp from the database as Pakistan local time. */
+    private static LocalDateTime pk(LocalDateTime utc) {
+        return utc.atOffset(ZoneOffset.UTC).atZoneSameInstant(KarachiTime.ZONE).toLocalDateTime();
+    }
+
+    private static String hhmm(LocalDateTime t) {
+        return hhmm(t.toLocalTime());
+    }
+
+    private static String hhmm(LocalTime t) {
+        return String.format("%02d:%02d", t.getHour(), t.getMinute());
+    }
+
+    private static LocalDateTime later(LocalDateTime a, LocalDateTime b) {
+        return a == null ? b : b == null ? a : (b.isAfter(a) ? b : a);
+    }
+
+    private static String blankAs(String s, String fallback) {
+        return s == null || s.isBlank() ? fallback : s;
+    }
+
+    /** part / whole as a % with one decimal; null when whole is 0. */
+    static Double share(int part, int whole) {
+        return whole == 0 ? null : round1(part * 100.0 / whole);
+    }
+
+    private static double round1(double v) {
+        return Math.round(v * 10) / 10.0;
+    }
 
     private static double col(Map<LocalDate, Object[]> daily, LocalDate d, int i) {
         Object[] r = daily.get(d);

@@ -56,4 +56,9 @@ export const hrCockpitApi = {
   async filterOptions() {
     return unwrap(await api.get('/cockpit/hr/filter-options'));
   },
+  /** One agent's days for the scorecard panel (only the dates are sent; the panel shows every mart). */
+  async agentDays(filters, agentId) {
+    const params = { startDate: filters.startDate, endDate: filters.endDate };
+    return unwrap(await api.get(`/cockpit/hr/agents/${agentId}/days`, { params, timeout: 30000 }));
+  },
 };

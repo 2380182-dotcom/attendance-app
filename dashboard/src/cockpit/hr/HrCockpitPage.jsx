@@ -8,15 +8,21 @@ import '@fontsource/ibm-plex-mono/600.css';
 import '@fontsource/ibm-plex-mono/700.css';
 import '../cockpit.css';
 import CockpitHeader from '../components/CockpitHeader';
-import { Section, SectionNav } from '../components/Sections';
+import { LazySection, Section, SectionNav } from '../components/Sections';
 import KpiCard, { KpiGrid, KpiSkeleton } from '../components/KpiCard';
 import AlertsPanel from '../components/AlertsPanel';
-import Card from '../components/Card';
 import { ErrorState } from '../components/States';
 import { hrCockpitApi } from '../api';
 import { useCockpitFilters } from '../useCockpitFilters';
 import { INK, MEANING } from '../tokens';
 import { int, shortDate } from '../format';
+import Card from '../components/Card';
+import { clock } from './hrFormat';
+import TodaySection from './TodaySection';
+import TrendSection from './TrendSection';
+import PunctualitySection from './PunctualitySection';
+import AgentsSection from './AgentsSection';
+import LocationsSection from './LocationsSection';
 
 const SECTIONS = [
   { id: 'overview', label: 'Overview' },
@@ -28,15 +34,6 @@ const SECTIONS = [
 ];
 
 const n = (v, one, many) => (Math.round(v) === 1 ? one : many);
-
-/** Seconds since midnight (Pakistan time) -> "9:42 AM". */
-function clock(seconds) {
-  if (seconds == null) return '—';
-  const s = Math.round(seconds);
-  const h = Math.floor(s / 3600) % 24;
-  const m = Math.floor((s % 3600) / 60);
-  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-}
 
 /** How each HR card shows its number. */
 const CARD_VALUE = {
@@ -57,17 +54,6 @@ function jumpTo(id) {
   if (!el) return;
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-}
-
-/** Placeholder for sections built in the next part — honest, never a fake chart. */
-function ComingNext({ what }) {
-  return (
-    <Card sx={{ bgcolor: '#FAFBFD', border: `1px dashed ${INK.border}`, boxShadow: 'none' }}>
-      <Box sx={{ fontSize: 13.5, color: INK.secondary }}>
-        <strong style={{ color: INK.primary }}>Coming in the next part:</strong> {what}
-      </Box>
-    </Card>
-  );
 }
 
 export default function HrCockpitPage() {
@@ -92,6 +78,8 @@ export default function HrCockpitPage() {
   const highlights = useQuery(sectionQuery('highlights'));
   // One heavy request at a time: Needs attention waits for Highlights.
   const attention = useQuery(sectionQuery('attention', highlights.isSuccess || highlights.isError));
+  // Lower sections load one by one as they come near the screen, after the top is done.
+  const ready = attention.isSuccess || attention.isError;
   const fetching = useIsFetching({ queryKey: ['cockpit', 'hr'] }) > 0;
 
   const refresh = useCallback(() => {
@@ -112,6 +100,7 @@ export default function HrCockpitPage() {
   const departments = (options.data?.departments || []).map((d) => ({ id: d.name, name: d.name }));
   const holiday = highlights.data?.holiday;
   const today = highlights.data?.today;
+  const rangeLabel = `${shortDate(filters.startDate)} – ${shortDate(filters.endDate)}`;
 
   return (
     <Box className="cockpit-root" sx={{ bgcolor: INK.page, mx: { xs: -2, sm: -3 }, mt: { xs: -2, sm: -3 }, px: { xs: 2, sm: 3 }, pt: { xs: 2, sm: 3 }, pb: 6, minHeight: '100%' }}>
@@ -172,21 +161,42 @@ export default function HrCockpitPage() {
         </Box>
       </Section>
 
-      <Section id="today" title="Today" hint="Live board: in / late / absent, by department and mart">
-        <ComingNext what="the live board of who is in, late or absent, grouped by department and mart." />
+      <Section id="today" title="Today" hint={`Live board${today ? ` · ${shortDate(today)}` : ''} · Pakistan time · click a state or a bar to filter the list`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="today" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(q) => <TodaySection query={q} />} />}
+        </LazySection>
       </Section>
-      <Section id="trend" title="Trend" hint="Attendance %, late % and absent % by day">
-        <ComingNext what="attendance %, late % and absent % per day for the selected period." />
+      <Section id="trend" title="Trend" hint={`${rangeLabel} · attendance %, late % and absent % by day`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="trend" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(q) => <TrendSection query={q} />} />}
+        </LazySection>
       </Section>
-      <Section id="punctuality" title="Punctuality" hint="Late count by agent · check-in time distribution">
-        <ComingNext what="late count by agent and the distribution of check-in times." />
+      <Section id="punctuality" title="Punctuality" hint={`${rangeLabel} · late = after shift start + grace, Pakistan time`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="punctuality" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(q) => <PunctualitySection query={q} />} />}
+        </LazySection>
       </Section>
-      <Section id="agents" title="Agent scorecard" hint="Days present, late, absent, missed end duty, average hours">
-        <ComingNext what="the sortable agent scorecard with a day-by-day panel per agent." />
+      <Section id="agents" title="Agent scorecard" hint={`${rangeLabel} · sortable · search · click a name for day-by-day detail`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="agents" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(q) => <AgentsSection query={q} filters={filters} />} />}
+        </LazySection>
       </Section>
-      <Section id="locations" title="Locations" hint="Check-ins by mart · distance-from-mart outliers">
-        <ComingNext what="check-ins by mart and the distance-from-mart outliers." />
+      <Section id="locations" title="Locations" hint={`${rangeLabel} · check-ins by mart · distance-from-mart outliers`}>
+        <LazySection>
+          {(visible) => <SectionLoader name="locations" visible={visible && ready} sectionQuery={sectionQuery}
+            render={(q) => <LocationsSection query={q} />} />}
+        </LazySection>
       </Section>
     </Box>
   );
+}
+
+/** Lazy section: its query runs only once the section is near the screen and the page is ready. */
+function SectionLoader({ name, visible, sectionQuery, render }) {
+  const query = useQuery(sectionQuery(name, visible));
+  return render({ ...query, isLoading: !visible || query.isLoading });
 }
