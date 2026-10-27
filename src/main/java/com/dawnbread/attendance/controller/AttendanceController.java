@@ -428,7 +428,7 @@ public class AttendanceController {
 
     // ===== Helper Methods =====
     private AttendanceDTO convertToDTO(Attendance attendance) {
-        return new AttendanceDTO(
+        AttendanceDTO dto = new AttendanceDTO(
                 attendance.getId(),
                 attendance.getAgent().getId(),
                 attendance.getAgent().getName(),
@@ -444,5 +444,8 @@ public class AttendanceController {
                 attendance.getDistanceFromMart(),
                 attendance.getMidDayVerificationTime()
         );
+        dto.setMissedEndDuty(Boolean.TRUE.equals(attendance.getMissedEndDuty())
+                || "MISSED_END_DUTY".equals(attendance.getStatus()));
+        return dto;
     }
 }

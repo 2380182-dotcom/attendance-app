@@ -286,8 +286,10 @@ public class AttendanceService {
         List<AttendanceWithShiftDTO> report = new ArrayList<>();
 
         for (Attendance att : records) {
-            AttendanceWithShiftDTO dto = shiftValidationService.validateAttendanceWithShift(
-                    att.getAgent().getId(), att.getCheckInTime());
+            // checkInTime is stored in UTC; the shift rules are Pakistan times.
+            // Same rule as the HR cockpit: the shift start saved on the row.
+            AttendanceWithShiftDTO dto = shiftValidationService.validateSavedCheckIn(
+                    att.getAgent().getId(), KarachiTime.fromUtc(att.getCheckInTime()), att.getShiftStartTime());
 
             AttendanceWithShiftDTO.AttendanceDTO attDto = new AttendanceWithShiftDTO.AttendanceDTO();
             attDto.setId(att.getId());

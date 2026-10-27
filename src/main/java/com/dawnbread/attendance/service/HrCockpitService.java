@@ -612,7 +612,7 @@ public class HrCockpitService {
 
     /** A UTC timestamp from the database as Pakistan local time. */
     private static LocalDateTime pk(LocalDateTime utc) {
-        return utc.atOffset(ZoneOffset.UTC).atZoneSameInstant(KarachiTime.ZONE).toLocalDateTime();
+        return KarachiTime.fromUtc(utc);
     }
 
     private static String hhmm(LocalDateTime t) {

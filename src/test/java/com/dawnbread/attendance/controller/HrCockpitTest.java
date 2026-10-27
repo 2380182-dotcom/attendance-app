@@ -520,6 +520,45 @@ class HrCockpitTest {
     }
 
     @Test
+    void theDailyReportAndTheCockpitAgreeOnWhoWasLate() throws Exception {
+        Tenant t = tenant("DRPT");
+        Mart m = mart(t, "Mart");
+        // Agents' CURRENT shift start is 00:00; the rows carry 09:30 (saved at check-in). Grace 0.
+        Agent onTime = agent(t, "On Time", "AGENT", "Bakery", EVERY_DAY);
+        Agent late = agent(t, "Half Hour", "AGENT", "Bakery", EVERY_DAY);
+        Agent seconds = agent(t, "Thirty Seconds", "AGENT", "Bakery", EVERY_DAY);
+        Agent savedIn = agent(t, "Saved As In", "AGENT", "Bakery", EVERY_DAY);
+        LocalDate day = today.minusDays(1);
+        checkIn(t, onTime, m, day, LocalTime.of(9, 0), "IN", 10);
+        checkIn(t, late, m, day, LocalTime.of(10, 0), "LATE", 10);
+        checkIn(t, seconds, m, day, LocalTime.of(9, 30, 30), "IN", 10);   // under a whole minute: on time
+        checkIn(t, savedIn, m, day, LocalTime.of(10, 45), "IN", 10);       // the old UTC check saved it as IN
+
+        HttpHeaders h = new HttpHeaders();
+        h.setBearerAuth(token(t, "HR"));
+        ResponseEntity<String> r = restTemplate.exchange("http://localhost:" + port + "/api/attendance/daily-report?date=" + day,
+                HttpMethod.GET, new HttpEntity<>(h), String.class);
+        assertEquals(HttpStatus.OK, r.getStatusCode(), r.getBody());
+        java.util.Map<String, JsonNode> report = new java.util.HashMap<>();
+        for (JsonNode row : mapper.readTree(r.getBody()).get("data")) {
+            report.put(row.get("attendance").get("agentName").asText(), row);
+        }
+        assertEquals("ON_TIME", report.get("On Time").get("shiftCompliance").asText());
+        assertEquals("LATE", report.get("Half Hour").get("shiftCompliance").asText());
+        assertEquals(30, report.get("Half Hour").get("lateMinutes").asInt());
+        assertEquals("ON_TIME", report.get("Thirty Seconds").get("shiftCompliance").asText());
+        assertEquals("LATE", report.get("Saved As In").get("shiftCompliance").asText());
+        assertEquals(75, report.get("Saved As In").get("lateMinutes").asInt());
+
+        String range = "startDate=" + day + "&endDate=" + day;
+        JsonNode p = data(token(t, "HR"), "punctuality?" + range);
+        assertEquals(2, p.get("lateCheckIns").asInt(), "same late count as the daily report");
+        JsonNode lateRows = p.get("lateByAgent");
+        assertEquals(30.0, byName(lateRows, "name", "Half Hour").get("avgMinutesLate").asDouble(), 0.01);
+        assertEquals(75.0, byName(lateRows, "name", "Saved As In").get("avgMinutesLate").asDouble(), 0.01);
+    }
+
+    @Test
     void locationsCountCheckInsPerMartAndListTheFarthestFirst() throws Exception {
         Tenant t = tenant("LOC");
         Mart near = mart(t, "Near Mart");

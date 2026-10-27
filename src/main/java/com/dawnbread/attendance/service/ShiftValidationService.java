@@ -91,7 +91,12 @@ public class ShiftValidationService {
     }
 
     public int calculateLateMinutes(Agent agent, LocalDateTime checkInTime) {
-        LocalTime shiftStart = agent.getShiftStartTime() != null ? agent.getShiftStartTime() : LocalTime.of(9, 0);
+        return calculateLateMinutes(agent, checkInTime, agent.getShiftStartTime());
+    }
+
+    /** shiftStart null = 09:00; grace is always the agent's. */
+    private int calculateLateMinutes(Agent agent, LocalDateTime checkInTime, LocalTime shiftStartOrNull) {
+        LocalTime shiftStart = shiftStartOrNull != null ? shiftStartOrNull : LocalTime.of(9, 0);
         int grace = agent.getGracePeriodMinutes() != null ? agent.getGracePeriodMinutes() : 15;
         LocalTime allowedUntil = shiftStart.plusMinutes(grace);
         LocalTime actual = checkInTime.toLocalTime();
@@ -111,18 +116,35 @@ public class ShiftValidationService {
         );
     }
 
+    /** checkInTime must be Pakistan wall-clock time (shift start, grace and working days are Pakistan times). */
     public AttendanceWithShiftDTO validateAttendanceWithShift(Long agentId, LocalDateTime checkInTime) {
         Agent agent = getAgent(agentId);
+        return validate(agent, checkInTime, agent.getShiftStartTime());
+    }
+
+    /**
+     * A check-in that is already saved, for reports: karachiCheckIn in
+     * Pakistan time, savedShiftStart = the shift start saved on the row at
+     * check-in (null = the agent's current one). Same rule as the HR
+     * cockpit, so a later change to the agent's shift does not re-judge
+     * old days.
+     */
+    public AttendanceWithShiftDTO validateSavedCheckIn(Long agentId, LocalDateTime karachiCheckIn, LocalTime savedShiftStart) {
+        Agent agent = getAgent(agentId);
+        return validate(agent, karachiCheckIn, savedShiftStart != null ? savedShiftStart : agent.getShiftStartTime());
+    }
+
+    private AttendanceWithShiftDTO validate(Agent agent, LocalDateTime checkInTime, LocalTime shiftStart) {
         LocalDate date = checkInTime.toLocalDate();
         LocalTime time = checkInTime.toLocalTime();
 
         boolean workingDay = isWorkingDay(agent, date);
         boolean withinShift = isWithinShift(agent, time);
-        int lateMinutes = calculateLateMinutes(agent, checkInTime);
+        int lateMinutes = calculateLateMinutes(agent, checkInTime, shiftStart);
         boolean lateArrival = lateMinutes > 0;
 
         AttendanceWithShiftDTO dto = new AttendanceWithShiftDTO();
-        dto.setShiftSchedule(getShiftSchedule(agentId, date));
+        dto.setShiftSchedule(getShiftSchedule(agent.getId(), date));
         dto.setWorkingDay(workingDay);
         dto.setWithinShift(withinShift);
         dto.setLateArrival(lateArrival);

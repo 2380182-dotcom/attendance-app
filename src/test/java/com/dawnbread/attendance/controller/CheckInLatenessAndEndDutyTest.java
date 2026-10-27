@@ -154,9 +154,10 @@ class CheckInLatenessAndEndDutyTest {
     }
 
     @Test
-    void theElevenFiftyNineJobKeepsLateAndFlagsTheMissedEndDuty() {
+    void theElevenFiftyNineJobKeepsLateAndFlagsTheMissedEndDuty() throws Exception {
         Mart mart = seedMart();
-        Attendance late = openShift(seedAgent("JOB_LATE", LocalTime.of(9, 0)), mart, "LATE");
+        Agent lateAgent = seedAgent("JOB_LATE", LocalTime.of(9, 0));
+        Attendance late = openShift(lateAgent, mart, "LATE");
         Attendance onTime = openShift(seedAgent("JOB_ON_TIME", LocalTime.of(9, 0)), mart, "IN");
 
         schedulerConfig.autoCheckoutAllAgents();
@@ -172,5 +173,31 @@ class CheckInLatenessAndEndDutyTest {
         assertEquals("MISSED_END_DUTY", onTimeAfter.getStatus(), "unchanged for screens that only read the status");
         assertTrue(onTimeAfter.getMissedEndDuty());
         assertNotNull(onTimeAfter.getCheckOutTime());
+
+        // History screens get both: status LATE and missedEndDuty.
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(tokenProvider.generateToken(lateAgent.getId(), lateAgent.getAgentId(), "AGENT", tenantId()));
+        ResponseEntity<String> r = restTemplate.exchange("http://localhost:" + port + "/api/attendance/agent/" + lateAgent.getId(),
+                HttpMethod.GET, new HttpEntity<>(headers), String.class);
+        assertEquals(HttpStatus.OK, r.getStatusCode(), r.getBody());
+        JsonNode row = objectMapper.readTree(r.getBody()).get("data").get(0);
+        assertEquals("LATE", row.get("status").asText());
+        assertTrue(row.get("missedEndDuty").asBoolean(), row.toString());
+    }
+
+    @Test
+    void historyShowsMissedEndDutyForRowsClosedBeforeTheFlagExisted() throws Exception {
+        Agent agent = seedAgent("OLD_ROW", LocalTime.of(9, 0));
+        Attendance old = openShift(agent, seedMart(), "MISSED_END_DUTY");   // how the job saved it before V36
+        old.setCheckOutTime(LocalDateTime.now().minusHours(1));
+        attendanceRepository.save(old);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(tokenProvider.generateToken(agent.getId(), agent.getAgentId(), "AGENT", tenantId()));
+        ResponseEntity<String> r = restTemplate.exchange("http://localhost:" + port + "/api/attendance/agent/" + agent.getId(),
+                HttpMethod.GET, new HttpEntity<>(headers), String.class);
+        JsonNode row = objectMapper.readTree(r.getBody()).get("data").get(0);
+        assertEquals("MISSED_END_DUTY", row.get("status").asText());
+        assertTrue(row.get("missedEndDuty").asBoolean(), "old rows count too");
     }
 }

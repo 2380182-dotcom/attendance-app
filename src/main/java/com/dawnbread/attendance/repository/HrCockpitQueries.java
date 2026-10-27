@@ -54,8 +54,10 @@ public class HrCockpitQueries {
      * clock (JVM pinned to UTC), so a 09:40 Pakistan check-in is saved as
      * "IN", and before V36 the 11:59 PM job overwrote LATE with MISSED_END_DUTY. The
      * shift start saved on the row wins over the agent's current one.
+     * Whole minutes, rounded down — the same as check-in and the daily
+     * report (ShiftValidationService): 30 seconds over is not late.
      */
-    static final String LATE_MINUTES = "((" + pktSecs("t.check_in_time")
+    static final String LATE_MINUTES = "FLOOR((" + pktSecs("t.check_in_time")
             + " - (EXTRACT(HOUR FROM COALESCE(t.shift_start_time, a.shift_start_time, TIME '09:00:00')) * 3600"
             + " + EXTRACT(MINUTE FROM COALESCE(t.shift_start_time, a.shift_start_time, TIME '09:00:00')) * 60)"
             + " - COALESCE(a.grace_period_minutes, 15) * 60) / 60)";
