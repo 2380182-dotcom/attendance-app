@@ -1,7 +1,24 @@
 import React from 'react';
 import { Box } from '@mui/material';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { INK, MEANING } from '../tokens';
 import { STATE } from './hrFormat';
+
+/** Shown wherever absence numbers would be while the company's absence tracking is off. */
+export function TrackingOffNote({ children }) {
+  return (
+    <Box role="note" sx={{
+      display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderRadius: '10px',
+      bgcolor: '#F1F4F9', border: `1px solid ${INK.border}`, fontSize: 13, color: INK.secondary,
+    }}>
+      <InfoOutlinedIcon sx={{ fontSize: 18, color: INK.muted }} />
+      <span>
+        <strong style={{ color: INK.primary }}>Absence tracking is off</strong>
+        {children ? <> · {children}</> : <> · an administrator can turn it on in Admin &gt; Holidays</>}
+      </span>
+    </Box>
+  );
+}
 
 /** A state pill: coloured dot + label in text colour (never colour alone). */
 export function StatePill({ state, children }) {

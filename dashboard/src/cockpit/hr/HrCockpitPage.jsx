@@ -41,7 +41,7 @@ const CARD_VALUE = {
     ? [int(c.value), n(c.value, 'agent', 'agents')]
     : [`${int(c.value)} / ${int(c.secondaryValue)}`, n(c.secondaryValue, 'agent', 'agents')]),
   late: (c) => [int(c.value), n(c.value, 'agent', 'agents')],
-  absent: (c) => [int(c.value), n(c.value, 'agent', 'agents')],
+  absent: (c) => (c.value == null ? ['Off'] : [int(c.value), n(c.value, 'agent', 'agents')]),
   off: (c) => [int(c.value), n(c.value, 'agent', 'agents')],
   missed_end_duty: (c) => [int(c.value), n(c.value, 'shift', 'shifts')],
   avg_check_in: (c) => [clock(c.value)],
@@ -140,6 +140,7 @@ export default function HrCockpitPage() {
                 return (
                   <KpiCard
                     key={c.key} card={card} value={value} unit={unit}
+                    disabled={c.key === 'absent' && c.value == null}
                     sparkFormat={c.kind === 'time' ? clock : int}
                     sparkFromZero={c.kind !== 'time'}
                     onClick={() => jumpTo(c.section)}
@@ -153,7 +154,11 @@ export default function HrCockpitPage() {
         <Box sx={{ mt: 3 }}>
           <Box className="cockpit-attention-head" sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
             <Box component="h2" sx={{ m: 0, fontSize: 17, fontWeight: 800, color: INK.primary }}>Needs attention</Box>
-            <Box sx={{ fontSize: 13, color: INK.muted }}>Most urgent first · absences use saved records + today's live status</Box>
+            <Box sx={{ fontSize: 13, color: INK.muted }}>
+              {highlights.data?.absenceTracking === false
+                ? 'Most urgent first · absence streaks are not shown while absence tracking is off'
+                : "Most urgent first · absences use saved records + today's live status"}
+            </Box>
           </Box>
           {attention.isError && !attention.data
             ? <ErrorState onRetry={() => attention.refetch()} height={140} />
@@ -167,7 +172,7 @@ export default function HrCockpitPage() {
             render={(q) => <TodaySection query={q} />} />}
         </LazySection>
       </Section>
-      <Section id="trend" title="Trend" hint={`${rangeLabel} · attendance %, late % and absent % by day`}>
+      <Section id="trend" title="Trend" hint={`${rangeLabel} · ${highlights.data?.absenceTracking === false ? 'late % by day' : 'attendance %, late % and absent % by day'}`}>
         <LazySection>
           {(visible) => <SectionLoader name="trend" visible={visible && ready} sectionQuery={sectionQuery}
             render={(q) => <TrendSection query={q} />} />}

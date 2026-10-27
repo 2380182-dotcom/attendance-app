@@ -54,6 +54,10 @@ public class HrCockpitService {
     private SalesCockpitQueries base;
     @Autowired
     private Clock clock;
+    @Autowired
+    private CompanySettingsService companySettings;
+
+    static final String TRACKING_OFF = "Absence tracking is off";
 
     /** One roster agent with what the day rules need. joined = account creation day (null = unknown). */
     record RosterAgent(Long id, String name, String department, LocalTime shiftStart, int graceMinutes,
@@ -114,6 +118,7 @@ public class HrCockpitService {
 
     @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "highlights:' + #f.cacheKey()")
     public HrHighlights highlights(HrFilter f) {
+        boolean tracking = companySettings.absenceTracking();
         LocalDate today = LocalDate.now(clock);
         LocalTime now = LocalTime.now(clock);
         LocalDate sparkStart = today.minusDays(SPARK_DAYS - 1);
@@ -153,11 +158,17 @@ public class HrCockpitService {
                 "of " + (long) inNow + " checked in · after shift start + grace",
                 lateSpark, pct(lateNow, weekAgo(lateSpark)), "%", "vs same day last week", false, "late", "punctuality"));
 
-        List<DayValue> absentSpark = spark(sparkStart, today, d -> d.equals(today) ? absent.size() : absences.getOrDefault(d, 0.0));
-        cards.add(new HrCard("absent", "Absent today", "count", (double) absent.size(), null,
-                holiday ? "Company holiday — nobody is absent"
-                        : "Working today, no check-in after shift start + grace",
-                absentSpark, pct(absent.size(), weekAgo(absentSpark)), "%", "vs same day last week", false, "alert", "today"));
+        if (tracking) {
+            List<DayValue> absentSpark = spark(sparkStart, today, d -> d.equals(today) ? absent.size() : absences.getOrDefault(d, 0.0));
+            cards.add(new HrCard("absent", "Absent today", "count", (double) absent.size(), null,
+                    holiday ? "Company holiday — nobody is absent"
+                            : "Working today, no check-in after shift start + grace",
+                    absentSpark, pct(absent.size(), weekAgo(absentSpark)), "%", "vs same day last week", false, "alert", "today"));
+        } else {
+            cards.add(new HrCard("absent", "Absent today", "count", null, null,
+                    TRACKING_OFF + " · an administrator can turn it on in Admin > Holidays",
+                    List.of(), null, "%", "", null, "neutral", "today"));
+        }
 
         cards.add(new HrCard("off", "Off today", "count", (double) off, (double) roster.size(),
                 holiday ? "Company holiday: " + todayHoliday : "Not a working day for them · of " + roster.size() + " agents",
@@ -198,7 +209,7 @@ public class HrCockpitService {
                 "Today · beyond the mart's radius (only possible where geofencing is off)",
                 farSpark, pct(farNow, weekAgo(farSpark)), "%", "vs same day last week", false, "alert", "locations"));
 
-        return new HrHighlights(LocalDateTime.now(clock), today, todayHoliday, cards);
+        return new HrHighlights(LocalDateTime.now(clock), today, todayHoliday, tracking, cards);
     }
 
     // ================================================================ Needs attention
@@ -208,9 +219,10 @@ public class HrCockpitService {
         LocalDate today = LocalDate.now(clock);
         LocalTime now = LocalTime.now(clock);
         List<Alert> alerts = new ArrayList<>();
+        boolean tracking = companySettings.absenceTracking();
 
-        // Absent 2+ working days in a row (saved absences + today's live absence).
-        List<RosterAgent> roster = roster(f, today);
+        // Absent 2+ working days in a row (saved absences + today's live absence) — only with absence tracking on.
+        List<RosterAgent> roster = tracking ? roster(f, today) : List.of();
         LocalDate since = today.minusDays(21);
         Map<LocalDate, String> holidays = holidays(since, today);
         Map<Long, Set<LocalDate>> absentDays = new HashMap<>();
@@ -285,15 +297,16 @@ public class HrCockpitService {
 
         alerts.sort(Comparator.comparingInt((Alert a) -> "CRITICAL".equals(a.severity()) ? 0 : 1)
                 .thenComparing(Comparator.comparingInt(Alert::count).reversed()));
-        return new HrAttention(LocalDateTime.now(clock), alerts);
+        return new HrAttention(LocalDateTime.now(clock), tracking, alerts);
     }
 
     // ================================================================ Today (live board)
 
-    private static final List<String> STATE_ORDER = List.of("ABSENT", "LATE", "NOT_DUE", "ON_TIME", "OFF");
+    private static final List<String> STATE_ORDER = List.of("ABSENT", "LATE", "NO_CHECK_IN", "NOT_DUE", "ON_TIME", "OFF");
 
     @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "today:' + #f.cacheKey()")
     public HrToday today(HrFilter f) {
+        boolean tracking = companySettings.absenceTracking();
         LocalDate today = LocalDate.now(clock);
         LocalTime now = LocalTime.now(clock);
         List<RosterAgent> roster = roster(f, today);
@@ -328,7 +341,7 @@ public class HrCockpitService {
             } else if (now.isBefore(a.dueBy())) {
                 state = "NOT_DUE";
             } else {
-                state = "ABSENT";
+                state = tracking ? "ABSENT" : "NO_CHECK_IN";
             }
             agents.add(new TodayAgent(a.id(), a.name(), blankAs(a.department(), "No department"), mart, state,
                     checkIn, checkOut, onDuty, minutesLate, hhmm(a.dueBy())));
@@ -336,7 +349,7 @@ public class HrCockpitService {
         agents.sort(Comparator.comparingInt((TodayAgent t) -> STATE_ORDER.indexOf(t.state()))
                 .thenComparing(TodayAgent::name, String.CASE_INSENSITIVE_ORDER));
 
-        return new HrToday(LocalDateTime.now(clock), today, holiday,
+        return new HrToday(LocalDateTime.now(clock), today, holiday, tracking,
                 groups(agents, TodayAgent::department), groups(agents, t -> t.mart() == null ? "No mart yet" : t.mart()), agents);
     }
 
@@ -358,19 +371,20 @@ public class HrCockpitService {
     private static List<TodayGroup> groups(List<TodayAgent> agents, java.util.function.Function<TodayAgent, String> key) {
         Map<String, int[]> counts = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         for (TodayAgent a : agents) {
-            counts.computeIfAbsent(key.apply(a), k -> new int[5])[STATE_INDEX.get(a.state())]++;
+            counts.computeIfAbsent(key.apply(a), k -> new int[6])[STATE_INDEX.get(a.state())]++;
         }
         List<TodayGroup> out = new ArrayList<>();
-        counts.forEach((name, c) -> out.add(new TodayGroup(name, c[0], c[1], c[2], c[3], c[4])));
+        counts.forEach((name, c) -> out.add(new TodayGroup(name, c[0], c[1], c[2], c[3], c[4], c[5])));
         return out;
     }
 
-    private static final Map<String, Integer> STATE_INDEX = Map.of("ON_TIME", 0, "LATE", 1, "ABSENT", 2, "NOT_DUE", 3, "OFF", 4);
+    private static final Map<String, Integer> STATE_INDEX = Map.of("ON_TIME", 0, "LATE", 1, "ABSENT", 2, "NOT_DUE", 3, "OFF", 4, "NO_CHECK_IN", 5);
 
     // ================================================================ Trend
 
     @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "trend:' + #f.cacheKey()")
     public HrTrend trend(HrFilter f) {
+        boolean tracking = companySettings.absenceTracking();
         LocalDate today = LocalDate.now(clock);
         LocalTime now = LocalTime.now(clock);
         LocalDate to = f.endDate().isAfter(today) ? today : f.endDate();
@@ -383,6 +397,17 @@ public class HrCockpitService {
         for (LocalDate d = f.startDate(); !d.isAfter(to); d = d.plusDays(1)) {
             Map<Long, Boolean> seen = byDay.getOrDefault(d, Map.of());
             int expected = 0, present = 0, late = 0, absent = 0;
+            if (!tracking) {
+                // Nobody is "expected" or "absent": only who checked in, and who was late.
+                for (Boolean wasLate : seen.values()) {
+                    present++;
+                    if (wasLate) late++;
+                }
+                days.add(new TrendDay(d, null, present, late, null, null, share(late, present), null, holidays.get(d)));
+                sumPresent += present;
+                sumLate += late;
+                continue;
+            }
             for (RosterAgent a : roster) {
                 if (!a.expectedOn(d, holidays)) continue;
                 Boolean wasLate = seen.get(a.id());
@@ -402,7 +427,9 @@ public class HrCockpitService {
             sumLate += late;
             sumAbsent += absent;
         }
-        return new HrTrend(days, share(sumPresent, sumExpected), share(sumLate, sumPresent), share(sumAbsent, sumExpected));
+        return tracking
+                ? new HrTrend(true, days, share(sumPresent, sumExpected), share(sumLate, sumPresent), share(sumAbsent, sumExpected))
+                : new HrTrend(false, days, null, share(sumLate, sumPresent), null);
     }
 
     /**
@@ -484,6 +511,7 @@ public class HrCockpitService {
 
     @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "agents:' + #f.cacheKey()")
     public HrAgents agents(HrFilter f) {
+        boolean tracking = companySettings.absenceTracking();
         LocalDate today = LocalDate.now(clock);
         LocalTime now = LocalTime.now(clock);
         LocalDate to = f.endDate().isAfter(today) ? today : f.endDate();
@@ -513,10 +541,11 @@ public class HrCockpitService {
             int closedDays = t == null ? 0 : (int) lng(t[3]);
             Double avgHours = closedDays == 0 ? null : round1(num(t[2]) / 3600.0 / closedDays);
             Double avgCheckIn = t == null || t[4] == null ? null : num(t[4]);
-            rows.add(new AgentScore(a.id(), a.name(), blankAs(a.department(), "No department"), expected, present, late, absent,
-                    t == null ? 0 : (int) lng(t[1]), avgHours, avgCheckIn, share(expected - absent, expected)));
+            rows.add(new AgentScore(a.id(), a.name(), blankAs(a.department(), "No department"),
+                    tracking ? expected : null, present, late, tracking ? absent : null,
+                    t == null ? 0 : (int) lng(t[1]), avgHours, avgCheckIn, tracking ? share(expected - absent, expected) : null));
         }
-        return new HrAgents(rows);
+        return new HrAgents(tracking, rows);
     }
 
     /**
@@ -526,6 +555,7 @@ public class HrCockpitService {
      */
     @Cacheable(cacheNames = CacheConfig.HR_COCKPIT, sync = true, key = KEY_PREFIX + "agent-days:' + #agentId + ':' + #f.cacheKey()")
     public List<AgentDay> agentDays(HrFilter f, long agentId) {
+        boolean tracking = companySettings.absenceTracking();
         LocalDate today = LocalDate.now(clock);
         LocalTime now = LocalTime.now(clock);
         HrFilter any = new HrFilter(f.startDate(), f.endDate(), "", null);
@@ -571,7 +601,7 @@ public class HrCockpitService {
             else if (!a.worksOn(d)) state = "OFF";
             else if (a.joined() != null && d.isBefore(a.joined())) state = "NOT_JOINED";
             else if (d.equals(today) && now.isBefore(a.dueBy())) state = "NOT_DUE";
-            else state = "ABSENT";
+            else state = tracking ? "ABSENT" : "NO_CHECK_IN";
             out.add(new AgentDay(d, state, null, null, null, null, null, false, false, holiday));
         }
         return out;

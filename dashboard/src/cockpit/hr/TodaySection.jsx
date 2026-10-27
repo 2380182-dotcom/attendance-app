@@ -7,24 +7,26 @@ import { Grid } from '../components/Sections';
 import { EmptyState, ErrorState } from '../components/States';
 import { INK, MEANING } from '../tokens';
 import { STATE, hhmm } from './hrFormat';
-import { StatePill, StackRow } from './hrUi';
+import { StatePill, StackRow, TrackingOffNote } from './hrUi';
 
-const ORDER = ['ON_TIME', 'LATE', 'ABSENT', 'NOT_DUE', 'OFF'];
-const KEY = { ON_TIME: 'onTime', LATE: 'late', ABSENT: 'absent', NOT_DUE: 'notDue', OFF: 'off' };
+// With absence tracking off, agents due but not in are "Not checked in", never "Absent".
+const ORDER_TRACKING = ['ON_TIME', 'LATE', 'ABSENT', 'NOT_DUE', 'OFF'];
+const ORDER_NO_TRACKING = ['ON_TIME', 'LATE', 'NO_CHECK_IN', 'NOT_DUE', 'OFF'];
+const KEY = { ON_TIME: 'onTime', LATE: 'late', ABSENT: 'absent', NOT_DUE: 'notDue', OFF: 'off', NO_CHECK_IN: 'noCheckIn' };
 
-function counts(group) {
-  return Object.fromEntries(ORDER.map((s) => [s, group[KEY[s]]]));
+function counts(group, order) {
+  return Object.fromEntries(order.map((s) => [s, group[KEY[s]]]));
 }
 
 /** Department / mart bars. Clicking a bar narrows the list below to that group. */
-function GroupChart({ title, hint, groups, pick, picked }) {
-  const max = Math.max(1, ...groups.map((g) => ORDER.reduce((n, s) => n + g[KEY[s]], 0)));
+function GroupChart({ title, hint, groups, pick, picked, order }) {
+  const max = Math.max(1, ...groups.map((g) => order.reduce((n, s) => n + g[KEY[s]], 0)));
   return (
     <ChartCard title={title} hint={hint} empty={groups.length === 0} emptyTitle="Nobody on the roster" height={160}
-      legend={<Legend items={ORDER.map((s) => ({ label: STATE[s].label, color: STATE[s].color }))} />}>
+      legend={<Legend items={order.map((s) => ({ label: STATE[s].label, color: STATE[s].color }))} />}>
       <Box sx={{ display: 'flex', flexDirection: 'column', maxHeight: 340, overflowY: 'auto' }}>
         {groups.map((g) => (
-          <StackRow key={g.name} name={g.name} counts={counts(g)} order={ORDER} max={max}
+          <StackRow key={g.name} name={g.name} counts={counts(g, order)} order={order} max={max}
             selected={picked === g.name} onClick={() => pick(picked === g.name ? null : g.name)} />
         ))}
       </Box>
@@ -38,8 +40,9 @@ export default function TodaySection({ query }) {
   const [group, setGroup] = useState(null);   // { by: 'department' | 'mart', name }
   const [search, setSearch] = useState('');
 
+  const ORDER = d?.absenceTracking === false ? ORDER_NO_TRACKING : ORDER_TRACKING;
   const totals = useMemo(() => {
-    const t = Object.fromEntries(ORDER.map((s) => [s, 0]));
+    const t = Object.fromEntries(Object.keys(KEY).map((s) => [s, 0]));
     (d?.agents || []).forEach((a) => { t[a.state] += 1; });
     return t;
   }, [d]);
@@ -59,6 +62,7 @@ export default function TodaySection({ query }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {d.absenceTracking === false && <TrackingOffNote>agents who have not checked in are not called absent</TrackingOffNote>}
       {/* State chips double as the list filter. */}
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }} role="group" aria-label="Filter by state">
         {ORDER.map((s) => {
@@ -81,10 +85,10 @@ export default function TodaySection({ query }) {
       </Box>
 
       <Grid cols={2} from="md" className="cockpit-grid-print-2">
-        <GroupChart title="By department" hint="Click a department to list its agents" groups={d.departments}
+        <GroupChart title="By department" hint="Click a department to list its agents" groups={d.departments} order={ORDER}
           picked={group?.by === 'department' ? group.name : null}
           pick={(name) => setGroup(name ? { by: 'department', name } : null)} />
-        <GroupChart title="By mart" hint="Today's mart, or the usual one for agents not in yet" groups={d.marts}
+        <GroupChart title="By mart" hint="Today's mart, or the usual one for agents not in yet" groups={d.marts} order={ORDER}
           picked={group?.by === 'mart' ? group.name : null}
           pick={(name) => setGroup(name ? { by: 'mart', name } : null)} />
       </Grid>

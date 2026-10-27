@@ -4,14 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   CircularProgress, Alert, Stack, TextField, Button, Dialog, DialogTitle, DialogContent,
-  DialogActions, IconButton, Tooltip,
+  DialogActions, IconButton, Tooltip, Switch, FormControlLabel,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineRounded';
-import { holidayApi } from '../../services/holidayApi';
+import { holidayApi, companySettingsApi } from '../../services/holidayApi';
 
 const emptyForm = { holidayDate: '', name: '' };
 
@@ -19,6 +19,71 @@ const emptyForm = { holidayDate: '', name: '' };
  * Company holidays. The 10 PM job never marks a mart agent absent on these
  * dates, and adding a holiday removes any absences already saved for it.
  */
+/**
+ * Company switch: Absence tracking (off by default). Turning it on asks
+ * first, because from the next 10 PM run HR starts getting absence alerts.
+ */
+function AbsenceTrackingCard() {
+  const queryClient = useQueryClient();
+  const settings = useQuery({ queryKey: ['company-settings'], queryFn: companySettingsApi.get });
+  const [confirmOn, setConfirmOn] = useState(false);
+  const change = useMutation({
+    mutationFn: companySettingsApi.setAbsenceTracking,
+    onSuccess: () => {
+      setConfirmOn(false);
+      queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['cockpit', 'hr'] });
+    },
+  });
+  const on = settings.data?.absenceTracking === true;
+
+  return (
+    <Paper sx={{ maxWidth: 720, p: 2.5, mb: 3 }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Absence tracking</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {on
+              ? 'On: every night at 10 PM, active mart agents with no check-in on one of their working days are marked absent, and HR is notified.'
+              : 'Off: nobody is marked absent and HR gets no absence alerts. The HR cockpit shows "Absence tracking is off" instead of absence numbers.'}
+          </Typography>
+        </Box>
+        {settings.isLoading ? <CircularProgress size={24} /> : (
+          <FormControlLabel
+            sx={{ m: 0 }}
+            labelPlacement="start"
+            label={on ? 'On' : 'Off'}
+            control={(
+              <Switch
+                checked={on}
+                disabled={settings.isError || change.isPending}
+                onChange={(e) => (e.target.checked ? setConfirmOn(true) : change.mutate(false))}
+                slotProps={{ input: { 'aria-label': 'Absence tracking' } }}
+              />
+            )}
+          />
+        )}
+      </Stack>
+      {settings.isError && <Alert severity="error" sx={{ mt: 2 }}>Could not load this setting. Try refreshing.</Alert>}
+      {change.isError && <Alert severity="error" sx={{ mt: 2 }}>Could not save. Try again.</Alert>}
+
+      <Dialog open={confirmOn} onClose={() => setConfirmOn(false)}>
+        <DialogTitle>Turn on absence tracking?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            From tonight at 10 PM, every active mart agent who has not checked in on one of their working days
+            (holidays excepted) is marked absent, and HR is notified. Deactivate agents who no longer work here first.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOn(false)}>Cancel</Button>
+          <Button variant="contained" onClick={() => change.mutate(true)} disabled={change.isPending}>Turn on</Button>
+        </DialogActions>
+      </Dialog>
+    </Paper>
+  );
+}
+
 export default function HolidaysPage() {
   const theme = useTheme();
   const fullScreenDialog = useMediaQuery(theme.breakpoints.down('sm'));
@@ -67,6 +132,8 @@ export default function HolidaysPage() {
         Mart agents are never marked absent on these dates. Adding a holiday for a date that has already passed
         removes the absences saved for that date. Deleting a holiday does not add absences back.
       </Typography>
+
+      <AbsenceTrackingCard />
 
       {actionError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setActionError('')}>{actionError}</Alert>}
       {holidays.isLoading && <CircularProgress />}

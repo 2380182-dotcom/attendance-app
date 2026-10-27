@@ -7,6 +7,7 @@ import com.dawnbread.attendance.repository.AgentAbsenceRepository;
 import com.dawnbread.attendance.repository.AgentRepository;
 import com.dawnbread.attendance.repository.AttendanceRepository;
 import com.dawnbread.attendance.repository.CompanyHolidayRepository;
+import com.dawnbread.attendance.repository.TenantRepository;
 import com.dawnbread.attendance.util.KarachiTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +23,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Saved ABSENT records (V34) for mart agents only (role AGENT). Local and
@@ -50,6 +53,8 @@ public class AbsenceService {
     @Autowired
     private CompanyHolidayRepository holidayRepository;
     @Autowired
+    private TenantRepository tenantRepository;
+    @Autowired
     private Clock clock;
 
     /** Self-reference so the after-commit removal goes through the transactional proxy. */
@@ -62,15 +67,20 @@ public class AbsenceService {
      * the saved records and the 10 PM notification, so they never disagree:
      * active mart agents (role AGENT) only, on one of their working days, not
      * on their company's holiday, not created after that date, and with no
-     * check-in that day. Runs outside any request (no tenant filter), so it
-     * covers every company and reads tenantId from each agent.
+     * check-in that day — and only in companies with Absence tracking on
+     * (V37, off by default). Runs outside any request (no tenant filter), so
+     * it covers every company and reads tenantId from each agent.
      */
     public List<Agent> absentMartAgents(LocalDate date) {
         String dayCode = date.getDayOfWeek().name().substring(0, 3);
         LocalDateTime start = KarachiTime.startOfDayUtc(date);
         LocalDateTime end = KarachiTime.endOfDayUtc(date);
+        Set<Long> tracking = new HashSet<>();
+        tenantRepository.findAll().forEach(t -> { if (Boolean.TRUE.equals(t.getAbsenceTrackingEnabled())) tracking.add(t.getId()); });
         List<Agent> absent = new java.util.ArrayList<>();
+        if (tracking.isEmpty()) return absent;
         for (Agent agent : agentRepository.findAll()) {
+            if (!tracking.contains(agent.getTenantId())) continue;
             if (!MART_AGENT_ROLE.equals(agent.getRole()) || !Boolean.TRUE.equals(agent.getIsActive())) continue;
             List<String> workingDays = agent.getWorkingDays();
             // Same rule as ShiftValidationService: no working days set (null or empty) = works every day.

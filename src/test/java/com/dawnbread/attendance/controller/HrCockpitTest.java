@@ -66,6 +66,7 @@ class HrCockpitTest {
         Tenant t = new Tenant();
         t.setCompanyCode("HR" + label + (System.nanoTime() % 1_000_000));
         t.setName("HR " + label);
+        t.setAbsenceTrackingEnabled(true);   // most tests are about absence numbers; see the "off" test
         t.setIsActive(true);
         t.setCreatedAt(LocalDateTime.now());
         t.setCreatedBy("TEST");
@@ -556,6 +557,72 @@ class HrCockpitTest {
         JsonNode lateRows = p.get("lateByAgent");
         assertEquals(30.0, byName(lateRows, "name", "Half Hour").get("avgMinutesLate").asDouble(), 0.01);
         assertEquals(75.0, byName(lateRows, "name", "Saved As In").get("avgMinutesLate").asDouble(), 0.01);
+    }
+
+    @Test
+    void withAbsenceTrackingOffTheCockpitShowsNoAbsenceNumbers() throws Exception {
+        Tenant t = tenant("TOFF");
+        t.setAbsenceTrackingEnabled(false);
+        tenantRepository.save(t);
+        Mart m = mart(t, "Mart");
+        Agent in = agent(t, "Came In", "AGENT", "Bakery", EVERY_DAY);
+        Agent missing = agent(t, "Not In", "AGENT", "Bakery", EVERY_DAY);
+        checkIn(t, in, m, today, LocalTime.of(10, 0), "LATE", 10);
+        absence(t, missing, today.minusDays(1));
+        absence(t, missing, today.minusDays(2));   // would be a 3-day streak with tracking on
+        String range = "startDate=" + today.minusDays(3) + "&endDate=" + today;
+
+        JsonNode h = data(token(t, "HR"), "highlights");
+        assertFalse(h.get("absenceTracking").asBoolean());
+        JsonNode absentCard = card(h, "absent");
+        assertTrue(absentCard.get("value").isNull(), "no absence number");
+        assertTrue(absentCard.get("context").asText().startsWith("Absence tracking is off"));
+        assertEquals(1, card(h, "late").get("value").asLong(), "everything else still works");
+
+        JsonNode a = data(token(t, "HR"), "attention");
+        assertNull(alert(a, "absent_streak"));
+
+        JsonNode board = data(token(t, "HR"), "today");
+        assertEquals("NO_CHECK_IN", byName(board.get("agents"), "name", "Not In").get("state").asText());
+        for (JsonNode x : board.get("agents")) assertNotEquals("ABSENT", x.get("state").asText());
+
+        JsonNode tr = data(token(t, "HR"), "trend?" + range);
+        assertTrue(tr.get("absentPct").isNull());
+        assertTrue(tr.get("attendancePct").isNull());
+        JsonNode lastDay = tr.get("days").get(tr.get("days").size() - 1);
+        assertTrue(lastDay.get("absent").isNull());
+        assertEquals(1, lastDay.get("present").asInt());
+
+        JsonNode row = byName(data(token(t, "HR"), "agents?" + range).get("rows"), "name", "Not In");
+        assertTrue(row.get("daysAbsent").isNull());
+        assertTrue(row.get("attendancePct").isNull());
+        JsonNode days = data(token(t, "HR"), "agents/" + missing.getId() + "/days?" + range);
+        assertEquals("NO_CHECK_IN", days.get(1).get("state").asText());
+    }
+
+    @Test
+    void deactivatedAgentsAreNeverCountedInTheCockpit() throws Exception {
+        Tenant t = tenant("GONE");
+        Mart m = mart(t, "Mart");
+        Agent active = agent(t, "Still Here", "AGENT", "Bakery", EVERY_DAY);
+        Agent gone = agent(t, "Left Company", "AGENT", "Bakery", EVERY_DAY);
+        checkIn(t, gone, m, today.minusDays(1), LocalTime.of(10, 0), "LATE", 10);   // worked here before leaving
+        absence(t, gone, today.minusDays(2));
+        gone.setIsActive(false);
+        agentRepository.save(gone);
+        String range = "startDate=" + today.minusDays(3) + "&endDate=" + today;
+
+        JsonNode h = data(token(t, "HR"), "highlights");
+        assertEquals(1, card(h, "checked_in").get("secondaryValue").asLong(), "only the active agent is expected");
+        assertEquals(1, card(h, "absent").get("value").asLong(), "only the active agent can be absent");
+        for (String section : List.of("today", "agents?" + range)) {
+            JsonNode list = data(token(t, "HR"), section).get(section.startsWith("today") ? "agents" : "rows");
+            for (JsonNode x : list) assertNotEquals("Left Company", x.get("name").asText(), section);
+        }
+        assertEquals(HttpStatus.NOT_FOUND, get(token(t, "HR"), "agents/" + gone.getId() + "/days").getStatusCode());
+        JsonNode trend = data(token(t, "HR"), "trend?" + range);
+        for (JsonNode d : trend.get("days")) assertTrue(d.get("expected").asInt() <= 1, d.toString());
+        assertNull(alert(data(token(t, "HR"), "attention"), "absent_streak"));
     }
 
     @Test

@@ -23,11 +23,17 @@ public final class HrCockpitDTOs {
                          Boolean higherIsBetter, String meaning, String section) {
     }
 
-    /** holiday = today's company holiday name, null on a normal day. */
-    public record HrHighlights(LocalDateTime generatedAt, LocalDate today, String holiday, List<HrCard> cards) {
+    /**
+     * holiday = today's company holiday name, null on a normal day.
+     * absenceTracking = the company's "Absence tracking" switch (V37); when
+     * false every HR section leaves absence numbers out (null) and the page
+     * shows "Absence tracking is off" instead.
+     */
+    public record HrHighlights(LocalDateTime generatedAt, LocalDate today, String holiday, boolean absenceTracking,
+                               List<HrCard> cards) {
     }
 
-    public record HrAttention(LocalDateTime generatedAt, List<Alert> alerts) {
+    public record HrAttention(LocalDateTime generatedAt, boolean absenceTracking, List<Alert> alerts) {
     }
 
     public record HrFilterOptions(List<SalesCockpitDTOs.Option> marts, List<SalesCockpitDTOs.Option> departments) {
@@ -37,7 +43,8 @@ public final class HrCockpitDTOs {
 
     /**
      * One agent on today's live board. state: ON_TIME, LATE, ABSENT,
-     * NOT_DUE (shift start + grace not reached yet), OFF (day off / holiday).
+     * NOT_DUE (shift start + grace not reached yet), OFF (day off / holiday),
+     * NO_CHECK_IN (instead of ABSENT while absence tracking is off).
      * mart = where they checked in today, else where they usually check in
      * (last 30 days), else null. Times are Pakistan time (HH:mm).
      */
@@ -46,11 +53,11 @@ public final class HrCockpitDTOs {
     }
 
     /** Counts per department or mart. */
-    public record TodayGroup(String name, int onTime, int late, int absent, int notDue, int off) {
+    public record TodayGroup(String name, int onTime, int late, int absent, int notDue, int off, int noCheckIn) {
     }
 
-    public record HrToday(LocalDateTime generatedAt, LocalDate today, String holiday, List<TodayGroup> departments,
-                          List<TodayGroup> marts, List<TodayAgent> agents) {
+    public record HrToday(LocalDateTime generatedAt, LocalDate today, String holiday, boolean absenceTracking,
+                          List<TodayGroup> departments, List<TodayGroup> marts, List<TodayAgent> agents) {
     }
 
     // ------------------------------------------------------------------ Trend
@@ -60,13 +67,14 @@ public final class HrCockpitDTOs {
      * a holiday); present = expected agents who checked in; absent = expected
      * minus present (today: only those already past shift start + grace);
      * late = present agents with a late check-in. Percentages are null when
-     * nobody was expected.
+     * nobody was expected. With absence tracking off, expected / absent and
+     * their percentages are null, and present = roster agents who checked in.
      */
-    public record TrendDay(LocalDate date, int expected, int present, int late, int absent, Double attendancePct,
+    public record TrendDay(LocalDate date, Integer expected, int present, int late, Integer absent, Double attendancePct,
                            Double latePct, Double absentPct, String holiday) {
     }
 
-    public record HrTrend(List<TrendDay> days, Double attendancePct, Double latePct, Double absentPct) {
+    public record HrTrend(boolean absenceTracking, List<TrendDay> days, Double attendancePct, Double latePct, Double absentPct) {
     }
 
     // ------------------------------------------------------------------ Punctuality
@@ -91,18 +99,23 @@ public final class HrCockpitDTOs {
 
     // ------------------------------------------------------------------ Agent scorecard
 
-    /** avgCheckIn in seconds since midnight (Pakistan); avgHours over days with a closed shift. */
-    public record AgentScore(Long agentId, String name, String department, int daysExpected, int daysPresent,
-                             int daysLate, int daysAbsent, int missedEndDuty, Double avgHours, Double avgCheckIn,
+    /**
+     * avgCheckIn in seconds since midnight (Pakistan); avgHours over days
+     * with a closed shift. daysExpected / daysAbsent / attendancePct are
+     * null while absence tracking is off.
+     */
+    public record AgentScore(Long agentId, String name, String department, Integer daysExpected, int daysPresent,
+                             int daysLate, Integer daysAbsent, int missedEndDuty, Double avgHours, Double avgCheckIn,
                              Double attendancePct) {
     }
 
-    public record HrAgents(List<AgentScore> rows) {
+    public record HrAgents(boolean absenceTracking, List<AgentScore> rows) {
     }
 
     /**
      * One day of one agent. state: PRESENT, LATE, ABSENT, OFF, HOLIDAY,
-     * NOT_DUE, NOT_JOINED. hours = closed shifts only (missed End Duty
+     * NOT_DUE, NOT_JOINED, NO_CHECK_IN (instead of ABSENT while absence
+     * tracking is off). hours = closed shifts only (missed End Duty
      * shifts are not real hours).
      */
     public record AgentDay(LocalDate date, String state, String checkIn, String checkOut, Double hours,

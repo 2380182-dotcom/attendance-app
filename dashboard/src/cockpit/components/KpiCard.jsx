@@ -83,8 +83,21 @@ const MEANING_COLOR = {
  * Highlight card: big number, one context line, 14-day sparkline and a
  * coloured "vs last week / previous period" badge.
  */
-export default function KpiCard({ card, value, unit, onClick, sparkFormat, sparkFromZero = true }) {
+export default function KpiCard({ card, value, unit, onClick, sparkFormat, sparkFromZero = true, disabled = false }) {
   const color = MEANING_COLOR[card.meaning] || MEANING.neutral;
+  if (disabled) {
+    // A switched-off measure: no number, no trend, just why.
+    return (
+      <Card accent={INK.border} sx={{ display: 'flex', flexDirection: 'column', gap: 1, minHeight: 186, bgcolor: '#FAFBFD' }}
+        aria-label={`${card.label}: ${card.context}`}>
+        <Eyebrow>{card.label}</Eyebrow>
+        <Box className="cockpit-kpi-value" sx={{ fontSize: { xs: 22, sm: 24 }, fontWeight: 700, color: INK.muted, lineHeight: 1.1 }}>
+          {value}
+        </Box>
+        <Box className="cockpit-kpi-context" sx={{ fontSize: 12.5, color: INK.secondary, lineHeight: 1.4 }}>{card.context}</Box>
+      </Card>
+    );
+  }
   return (
     <Card accent={color} onClick={onClick} sx={{ display: 'flex', flexDirection: 'column', gap: 1, minHeight: 186 }}
       aria-label={`${card.label}: ${value}${unit ? ` ${unit}` : ''}. ${card.context}`}>

@@ -40,6 +40,14 @@ public class Tenant {
     @Column(name = "updated_by")
     private String updatedBy;
 
+    // Off by default (V37): no saved absences, no absence notifications, no
+    // absence numbers in the HR cockpit until an administrator turns it on.
+    @Column(name = "absence_tracking_enabled", nullable = false)
+    private Boolean absenceTrackingEnabled = false;
+
+    public Boolean getAbsenceTrackingEnabled() { return absenceTrackingEnabled; }
+    public void setAbsenceTrackingEnabled(Boolean absenceTrackingEnabled) { this.absenceTrackingEnabled = absenceTrackingEnabled; }
+
     public Tenant() {}
 
     public Long getId() { return id; }

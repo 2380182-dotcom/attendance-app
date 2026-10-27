@@ -14,6 +14,8 @@ export const STATE = {
   OFF: { label: 'Off', color: '#CBD5E1' },
   HOLIDAY: { label: 'Holiday', color: '#CBD5E1' },
   NOT_JOINED: { label: 'Not joined yet', color: '#E2E8F0' },
+  // Instead of ABSENT while the company's absence tracking is off: a fact, not a judgement.
+  NO_CHECK_IN: { label: 'Not checked in', color: '#64748B' },
 };
 
 /** Seconds since midnight (Pakistan time) -> "9:42 AM". */

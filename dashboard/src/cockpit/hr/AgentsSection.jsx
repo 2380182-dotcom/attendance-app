@@ -13,7 +13,7 @@ import { hrCockpitApi } from '../api';
 import { INK, MEANING } from '../tokens';
 import { int, pct, shortDate } from '../format';
 import { clock, hhmm } from './hrFormat';
-import { StatePill } from './hrUi';
+import { StatePill, TrackingOffNote } from './hrUi';
 
 const COLUMNS = [
   { key: 'attendancePct', label: 'Attendance', fmt: (v) => (v == null ? '—' : pct(v)), strong: true },
@@ -25,6 +25,9 @@ const COLUMNS = [
   { key: 'avgHours', label: 'Avg hours', fmt: (v) => (v == null ? '—' : `${v.toFixed(1)} h`) },
   { key: 'avgCheckIn', label: 'Avg check-in', fmt: clock },
 ];
+
+/** Columns that need absence tracking (who was expected). */
+const TRACKING_ONLY = ['attendancePct', 'daysExpected', 'daysAbsent'];
 
 const WEEKDAY = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
 const weekday = (iso) => {
@@ -53,8 +56,10 @@ function AgentPanel({ agent, filters, onClose }) {
                 </Box>
                 <Box component="h2" sx={{ m: 0, mt: 0.5, fontSize: 20, fontWeight: 800, color: INK.primary }}>{agent.name}</Box>
                 <Box sx={{ fontSize: 13, color: INK.secondary, mt: 0.25 }}>
-                  {agent.attendancePct == null ? 'Not expected in this period' : `${pct(agent.attendancePct)} attendance`}
-                  {' · '}{agent.daysLate} late · {agent.daysAbsent} absent · {agent.missedEndDuty} missed End Duty
+                  {agent.daysAbsent == null
+                    ? `${agent.daysPresent} days present · ${agent.daysLate} late · ${agent.missedEndDuty} missed End Duty`
+                    : <>{agent.attendancePct == null ? 'Not expected in this period' : `${pct(agent.attendancePct)} attendance`}
+                      {' · '}{agent.daysLate} late · {agent.daysAbsent} absent · {agent.missedEndDuty} missed End Duty</>}
                 </Box>
               </Box>
               <IconButton onClick={onClose} aria-label="Close panel"><CloseRoundedIcon /></IconButton>
@@ -113,23 +118,30 @@ export default function AgentsSection({ query, filters }) {
   const [sort, onSort] = useSort('attendancePct', 'asc');
   const [selected, setSelected] = useState(null);
   const d = query.data;
+  const tracking = d?.absenceTracking !== false;
+  const columns = tracking ? COLUMNS : COLUMNS.filter((c) => !TRACKING_ONLY.includes(c.key));
+  // Sorted by a hidden column (the default "lowest attendance first")? Fall back to most late days.
+  const effective = !tracking && TRACKING_ONLY.includes(sort.key) ? { key: 'daysLate', direction: 'desc' } : sort;
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = (d?.rows || []).filter((r) => !q || r.name.toLowerCase().includes(q) || r.department.toLowerCase().includes(q));
-    return sortRows(filtered, sort.key, sort.direction);
-  }, [d, search, sort]);
+    return sortRows(filtered, effective.key, effective.direction);
+  }, [d, search, effective.key, effective.direction]);
 
   return (
     <Card sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
         <Box sx={{ fontSize: 12.5, color: INK.muted, maxWidth: 720 }}>
-          Attendance = expected days with a check-in · avg hours = closed shifts only (missed End Duty shifts are not real hours) · lowest attendance first
+          {tracking
+            ? 'Attendance = expected days with a check-in · avg hours = closed shifts only (missed End Duty shifts are not real hours) · lowest attendance first'
+            : 'Avg hours = closed shifts only (missed End Duty shifts are not real hours) · most late days first'}
         </Box>
         <TextField size="small" placeholder="Search agent or department" value={search} onChange={(e) => setSearch(e.target.value)}
           className="cockpit-no-print" sx={{ minWidth: 240 }}
           slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> } }} />
       </Box>
 
+      {!tracking && <TrackingOffNote>expected, absent and attendance % are not shown</TrackingOffNote>}
       {(query.isLoading || (!d && query.isFetching)) && <Skeleton animation="wave" variant="rounded" height={300} sx={{ borderRadius: 3 }} />}
       {query.isError && !d && <ErrorState onRetry={() => query.refetch()} />}
       {d && d.rows.length === 0 && <EmptyState title="No agents" message="No active mart agents for these filters." />}
@@ -138,14 +150,14 @@ export default function AgentsSection({ query, filters }) {
           <Table size="small" stickyHeader sx={{ minWidth: 980, '& td, & th': { borderColor: INK.grid, fontSize: 12.5, whiteSpace: 'nowrap' } }}>
             <TableHead>
               <TableRow>
-                <SortableHeader label="Agent" sortKey="name" sort={sort} onSort={onSort} />
-                <SortableHeader label="Department" sortKey="department" sort={sort} onSort={onSort} />
-                {COLUMNS.map((c) => <SortableHeader key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} align="right" />)}
+                <SortableHeader label="Agent" sortKey="name" sort={effective} onSort={onSort} />
+                <SortableHeader label="Department" sortKey="department" sort={effective} onSort={onSort} />
+                {columns.map((c) => <SortableHeader key={c.key} label={c.label} sortKey={c.key} sort={effective} onSort={onSort} align="right" />)}
               </TableRow>
             </TableHead>
             <TableBody>
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={COLUMNS.length + 2} align="center" sx={{ color: INK.secondary, py: 3 }}>No agent matches “{search}”.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={columns.length + 2} align="center" sx={{ color: INK.secondary, py: 3 }}>No agent matches “{search}”.</TableCell></TableRow>
               )}
               {rows.map((r) => (
                 <TableRow key={r.agentId} hover>
@@ -159,7 +171,7 @@ export default function AgentsSection({ query, filters }) {
                     </Box>
                   </TableCell>
                   <TableCell sx={{ color: INK.secondary }}>{r.department}</TableCell>
-                  {COLUMNS.map((c) => (
+                  {columns.map((c) => (
                     <TableCell key={c.key} align="right" className="cockpit-num" sx={{
                       fontWeight: c.strong ? 700 : 400,
                       color: c.tone && r[c.key] > 0 ? c.tone : INK.primary,
