@@ -45,6 +45,23 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success("Product pricing retrieved", productService.getAllForPricing()));
     }
 
+    /** Body: {"active": true|false}. Switching on needs both main prices entered. */
+    @PutMapping("/{id}/active")
+    public ResponseEntity<ApiResponse<ProductPricingDTO>> setActive(@PathVariable Long id, @RequestBody java.util.Map<String, Object> body) {
+        if (!AccessControl.hasRole(request, PRICING_ROLES)) {
+            return forbidden();
+        }
+        if (!(body.get("active") instanceof Boolean active)) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("active must be true or false"));
+        }
+        try {
+            return ResponseEntity.ok(ApiResponse.success(active ? "Product switched on" : "Product hidden",
+                    productService.setActive(id, active)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
     @PutMapping("/{id}/pricing")
     public ResponseEntity<ApiResponse<ProductPricingDTO>> updatePricing(
             @PathVariable Long id, @Valid @RequestBody ProductPricingUpdateDTO dto) {

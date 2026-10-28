@@ -32,10 +32,13 @@ public class Product implements TenantAware {
     // is what the LMT shop-visit flow charges (before any per-shop
     // discount — see ShopProductDiscount/CustomerShop.discountPercent).
     // Both started out equal to the old price via the migration's backfill.
-    @Column(name = "agent_price", nullable = false)
+    // NULL = "Not set" (V38): only hidden products can have no price — a
+    // product is switched on only once both are entered, and a saved price
+    // can be changed but never cleared. 0 is a real price.
+    @Column(name = "agent_price")
     private Double agentPrice;
 
-    @Column(name = "salesman_price", nullable = false)
+    @Column(name = "salesman_price")
     private Double salesmanPrice;
 
     @Column(name = "image_url", length = 500)

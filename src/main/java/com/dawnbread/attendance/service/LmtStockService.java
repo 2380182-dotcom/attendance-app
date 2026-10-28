@@ -152,8 +152,8 @@ public class LmtStockService {
         stock = lmtDailyStockRepository.save(stock);
 
         for (LmtStockItemRequest itemReq : request.getItems()) {
-            Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
+            Product product = ProductService.requireActive(productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId())));
             LmtDailyStockItem item = new LmtDailyStockItem();
             item.setLmtDailyStock(stock);
             item.setProduct(product);

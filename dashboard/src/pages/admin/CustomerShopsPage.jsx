@@ -86,6 +86,8 @@ export default function CustomerShopsPage() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
+  // Shop prices of 0 are allowed (= free at this shop) but asked about first.
+  const [zeroWarning, setZeroWarning] = useState('');
   const [actionError, setActionError] = useState('');
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
@@ -258,7 +260,7 @@ export default function CustomerShopsPage() {
     return Number.isNaN(n) || n < 0;
   };
 
-  const handleSave = async () => {
+  const handleSave = async (zeroConfirmed = false) => {
     if (!form.shopCode.trim()) { setFormError('Shop Code is required.'); return; }
     if (!form.shopName.trim()) { setFormError('Shop Name is required.'); return; }
     if (!form.areaId) { setFormError('Area is required.'); return; }
@@ -301,6 +303,14 @@ export default function CustomerShopsPage() {
         return { productId: p.id, price: t === '' ? null : Number(t) };
       });
 
+    const zeroNames = (products.data || [])
+      .filter((p) => entries.some((e) => e.productId === p.id && e.price === 0))
+      .map((p) => p.name);
+    if (zeroNames.length > 0 && !zeroConfirmed) {
+      setZeroWarning(`${zeroNames.join(', ')} will cost Rs 0 at this shop — sold for free.`);
+      return;
+    }
+    setZeroWarning('');
     setFormError('');
     let savedShop;
     try {
@@ -637,13 +647,16 @@ export default function CustomerShopsPage() {
                       .filter((p) => p.name.toLowerCase().includes(priceSearch.trim().toLowerCase()))
                       .map((p) => (
                         <TableRow key={p.id} hover>
-                          <TableCell>{p.name}</TableCell>
-                          <TableCell align="right">{p.salesmanPrice}</TableCell>
+                          <TableCell>
+                            {p.name}
+                            {p.active === false && <Chip size="small" label="Hidden" sx={{ ml: 1, height: 20 }} />}
+                          </TableCell>
+                          <TableCell align="right">{p.salesmanPrice ?? 'Not set'}</TableCell>
                           <TableCell align="right">
                             <TextField
                               size="small"
                               type="number"
-                              placeholder={String(p.salesmanPrice)}
+                              placeholder={p.salesmanPrice == null ? 'Not set' : String(p.salesmanPrice)}
                               value={priceEdits[p.id] ?? ''}
                               onChange={(e) => setPriceEdits((prev) => ({ ...prev, [p.id]: e.target.value }))}
                               error={isInvalidPrice(priceEdits[p.id])}
@@ -748,10 +761,22 @@ export default function CustomerShopsPage() {
               )}
             </>
           )}
+          {/* Next to Save, so it's seen without scrolling back up. */}
+          {zeroWarning && (
+            <Alert severity="warning" sx={{ mb: 2, mt: 1 }}
+              action={(
+                <Stack direction="row" spacing={1}>
+                  <Button color="inherit" size="small" onClick={() => setZeroWarning('')}>Change</Button>
+                  <Button color="warning" variant="contained" size="small" onClick={() => handleSave(true)}>Save Rs 0</Button>
+                </Stack>
+              )}>
+              {zeroWarning}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={closeDialog}>Cancel</Button>
-          <Button variant="contained" onClick={handleSave} disabled={saving}>
+          <Button variant="contained" onClick={() => handleSave()} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
           </Button>
         </DialogActions>

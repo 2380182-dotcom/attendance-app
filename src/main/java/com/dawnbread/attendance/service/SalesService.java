@@ -142,8 +142,8 @@ public class SalesService {
                 throw new IllegalArgumentException("Duplicate entry: product already recorded for this date.");
             }
 
-            Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
+            Product product = ProductService.requireActive(productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId())));
 
             double itemTotal = product.getAgentPrice() * itemReq.getQuantity();
             totalAmount += itemTotal;
@@ -268,8 +268,8 @@ public class SalesService {
             }
 
             // Fetch product
-            Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
+            Product product = ProductService.requireActive(productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId())));
 
             double itemTotal = product.getAgentPrice() * itemReq.getQuantity();
             totalAmount += itemTotal;
@@ -477,8 +477,8 @@ public class SalesService {
                         + "' for this shop has already been recorded today.");
             }
 
-            Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
+            Product product = ProductService.requireActive(productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId())));
 
             // P2: the LMT flow charges salesmanPrice, not agentPrice — the
             // one intentional behavioral divergence in this feature.
@@ -929,8 +929,8 @@ public class SalesService {
 
         double totalAmount = 0.0;
         for (SaleItemRequest itemReq : request.getItems()) {
-            Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId()));
+            Product product = ProductService.requireActive(productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + itemReq.getProductId())));
             
             double itemTotal = product.getAgentPrice() * itemReq.getQuantity();
             totalAmount += itemTotal;

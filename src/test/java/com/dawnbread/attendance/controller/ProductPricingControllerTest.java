@@ -14,9 +14,12 @@ import org.springframework.http.*;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Role-based pricing (P3): ADMIN and SALES may manage product pricing;
@@ -74,6 +77,74 @@ class ProductPricingControllerTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(token);
         return new HttpEntity<>(body, headers);
+    }
+
+    private ResponseEntity<String> call(HttpMethod method, String path, Map<String, Object> body, String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(token);
+        return restTemplate.exchange(url(path), method, new HttpEntity<>(body, headers), String.class);
+    }
+
+    @Test
+    void aNewProductStaysHiddenUntilBothPricesAreEnteredAndItIsSwitchedOn() {
+        // As V38 adds new products: hidden, prices "Not set" (null).
+        Product product = new Product();
+        product.setTenantId(tenantId());
+        product.setName("Hidden Official List Product " + System.nanoTime());
+        product.setCategory("BISCUIT");
+        product.setUnit("pack");
+        product.setIsActive(false);
+        product.setCreatedAt(LocalDateTime.now());
+        product = productRepository.save(product);
+        String sales = tokenProvider.generateToken(2L, "PRICE_SALES", "SALES");
+        String admin = tokenProvider.generateToken(1L, "PRICE_ADMIN", "ADMIN");
+        String salesman = tokenProvider.generateToken(5L, "PRICE_LOCAL", "SALESMAN_LOCAL");
+        String name = product.getName();
+
+        // Listed on the Pricing page, prices "Not set", not active.
+        String list = call(HttpMethod.GET, "/api/products/pricing", null, admin).getBody();
+        int at = list.indexOf(name);
+        assertTrue(at > 0, list);
+        String row = list.substring(list.lastIndexOf("{", at), list.indexOf("}", at) + 1);
+        assertTrue(row.contains("\"agentPrice\":null") && row.contains("\"salesmanPrice\":null"), row);
+        assertTrue(row.contains("\"active\":false"), row);
+        // Never offered to salesmen or agents.
+        assertFalse(call(HttpMethod.GET, "/api/sales/products", null, salesman).getBody().contains(name));
+        assertFalse(call(HttpMethod.GET, "/api/sales/products-with-images", null, salesman).getBody().contains(name));
+
+        // Switching on is refused while the prices are not set.
+        ResponseEntity<String> refused = call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", true), sales);
+        assertEquals(HttpStatus.BAD_REQUEST, refused.getStatusCode(), refused.getBody());
+        assertTrue(refused.getBody().contains("Enter both the agent price and the salesman price"), refused.getBody());
+
+        // Only Admin and Sales may switch.
+        for (String role : List.of("AGENT", "SALESMAN_LOCAL", "SALESMAN_LMT", "HR")) {
+            String t = tokenProvider.generateToken(9L, "PRICE_" + role, role);
+            assertEquals(HttpStatus.FORBIDDEN,
+                    call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", true), t).getStatusCode(), role);
+        }
+
+        // 0 is a real price: entered as 0 and 0, the product can be switched on.
+        assertEquals(HttpStatus.OK, call(HttpMethod.PUT, "/api/products/" + product.getId() + "/pricing",
+                Map.of("agentPrice", 0.0, "salesmanPrice", 0.0), sales).getStatusCode());
+        ResponseEntity<String> on = call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", true), sales);
+        assertEquals(HttpStatus.OK, on.getStatusCode(), on.getBody());
+        assertTrue(call(HttpMethod.GET, "/api/sales/products", null, salesman).getBody().contains(name), "now offered");
+
+        // A saved price cannot be cleared back to "Not set".
+        Map<String, Object> clear = new HashMap<>();
+        clear.put("agentPrice", null);
+        clear.put("salesmanPrice", 10.0);
+        assertEquals(HttpStatus.BAD_REQUEST,
+                call(HttpMethod.PUT, "/api/products/" + product.getId() + "/pricing", clear, admin).getStatusCode());
+
+        // Switched off again: hidden again.
+        assertEquals(HttpStatus.OK,
+                call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", false), admin).getStatusCode());
+        assertFalse(call(HttpMethod.GET, "/api/sales/products", null, salesman).getBody().contains(name));
+        assertEquals(HttpStatus.BAD_REQUEST,
+                call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", "yes"), admin).getStatusCode());
     }
 
     @Test

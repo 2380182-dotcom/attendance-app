@@ -378,6 +378,41 @@ class ShopVisitTest {
      * (which is now SALE-only, also fixed by this feature).
      */
     @Test
+    void aHiddenProductCannotBeSoldReturnedOrReplacedUntilItIsSwitchedOn() {
+        Agent salesman = seedAgent("SV_HIDDEN_1", "SALESMAN_LOCAL");
+        CustomerShop shop = seedShop("SV-SHOP-HIDDEN-1", 0.0, 0.0, 100.0, true);
+        seedCompanyCheckIn(salesman);
+        String token = tokenProvider.generateToken(salesman.getId(), salesman.getAgentId(), "SALESMAN_LOCAL");
+        // A new product as V38 adds it: hidden, prices "Not set".
+        Product hidden = new Product();
+        hidden.setTenantId(tenantId());
+        hidden.setName("Hidden New Product " + System.nanoTime());
+        hidden.setIsActive(false);
+        hidden.setCreatedAt(LocalDateTime.now());
+        hidden = productRepository.save(hidden);
+
+        for (String type : List.of("SALE", "RETURN", "RETURN_BEFORE_EXPIRY")) {
+            Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0.0, 0.0,
+                    List.of(item(hidden.getId(), 2, type)));
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+            assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode(), type + ": " + response.getBody());
+            assertTrue(response.getBody().contains("is not available yet"), response.getBody());
+        }
+
+        // Prices entered and switched on: the same visit goes through.
+        hidden.setAgentPrice(60.0);
+        hidden.setSalesmanPrice(55.0);
+        hidden.setIsActive(true);
+        productRepository.save(hidden);
+        Map<String, Object> body = shopVisitBody(salesman.getId(), shop.getShopCode(), 0.0, 0.0,
+                List.of(item(hidden.getId(), 2, "SALE")));
+        ResponseEntity<String> ok = restTemplate.exchange(
+                url("/api/sales/shop-visit"), HttpMethod.POST, entityWithToken(body, token), String.class);
+        assertEquals(HttpStatus.OK, ok.getStatusCode(), ok.getBody());
+    }
+
+    @Test
     void returnBeforeExpiryDoesNotAffectMoneyButIsTrackedSeparately() {
         Agent salesman = seedAgent("SV_RBE_1", "SALESMAN_LMT");
         Product saleProduct = seedProduct();

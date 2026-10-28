@@ -9,9 +9,8 @@
  *
  * Source photos: pics/products/products/, resized to 256×256 thumbnails in
  * mobile/assets/products/ (filename prefix = the photo's catalog number).
- * Adding a product: add its line here — some catalog photos (Paratha,
- * biscuits, 1x12 muffins, ...) are already bundled but unused because
- * production has no matching product yet.
+ * Adding a product: add its line here. A "b" file (p15b_...) is a newer
+ * photo of the same catalog item, from the WhatsApp batch of 2026-10-28.
  *
  * A product id missing from this map falls back to the placeholder icon in
  * ProductThumbnail.
@@ -25,10 +24,10 @@ const PRODUCT_IMAGES = {
   6: require('../../assets/products/p08_sandwich_bread.jpg'), // S/W Bread
   7: require('../../assets/products/p09_pitta_4_pec.jpg'),
   8: require('../../assets/products/p11_tortilla_1x8_10_inch.jpg'),
-  9: require('../../assets/products/p12_tortilla_8_inch.jpg'),
-  10: require('../../assets/products/p14_qp_bun_1x2.jpg'),
-  11: require('../../assets/products/p15_qp_bun_1x4.jpg'),
-  12: require('../../assets/products/p16_mac_royal_burger_bun_white_seeded.jpg'),
+  9: require('../../assets/products/p12b_tortilla_8_inch.jpg'), // newer, closer photo (2026-10)
+  10: require('../../assets/products/p14b_qp_bun_1x2.jpg'), // newer, larger photo (2026-10)
+  11: require('../../assets/products/p15b_qp_bun_1x4.jpg'), // newer photo, all 4 buns visible (2026-10)
+  12: require('../../assets/products/p16b_mac_royal_burger_bun_white_seeded.jpg'), // newer, sharper photo (2026-10)
   13: require('../../assets/products/p18_hot_dog_burger_bun.jpg'),
   14: require('../../assets/products/p19_sheermall.jpg'),
   15: require('../../assets/products/p20_fruit_bun.jpg'), // not p21 "Fruity Bun"
@@ -58,6 +57,26 @@ const PRODUCT_IMAGES = {
   38: require('../../assets/products/p13_bakar_khani_1x2.jpg'),
   39: require('../../assets/products/p51_round_rusk.jpg'),
   40: require('../../assets/products/p56_roll_patti_1x28.jpg'), // pack reads "Spring Roll Pastry, 24 sheets"
+  // Official product list (V38, 2026-10). Products 58-68 (S/W Bran Bread, the
+  // MAC Royal 4in buns, Brioche, Corn Meal, Potato, Hot Dog 1*4, Jumbo bun,
+  // Boat Cakes) have no photo yet and show the bakery icon.
+  41: require('../../assets/products/p05_medium_bread.jpg'),
+  42: require('../../assets/products/p02_milky_large.jpg'),
+  43: require('../../assets/products/p10_pitta_5_pec.jpg'),
+  44: require('../../assets/products/p17_mac_royal_black_bun_1x2.jpg'),
+  45: require('../../assets/products/p21_fruity_bun.jpg'), // blue pack, not p20 "Fruit Bun"
+  46: require('../../assets/products/p30b_almond_biscuits.jpg'),
+  47: require('../../assets/products/p31_choco_drop_biscuit.jpg'),
+  48: require('../../assets/products/p32_pistachio_biscuits.jpg'),
+  49: require('../../assets/products/p33b_choclate_puzzle_biscuit.jpg'), // plain-background photo
+  50: require('../../assets/products/p38_butter_muffin_1x4.jpg'),
+  51: require('../../assets/products/p41_muffin_vanilla_1x12.jpg'),
+  52: require('../../assets/products/p42_muffin_mango_1x12.jpg'),
+  53: require('../../assets/products/p43_muffin_choclate_1x12.jpg'),
+  54: require('../../assets/products/p55_samosa_patti_1x30.jpg'),
+  55: require('../../assets/products/p57_paratha_5_pec.jpg'),
+  56: require('../../assets/products/p58_paratha_20_pec.jpg'),
+  57: require('../../assets/products/p59_paratha_30_pec.jpg'),
 };
 
 export function getProductImage(productId) {
