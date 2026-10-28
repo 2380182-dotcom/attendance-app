@@ -33,9 +33,15 @@ EXPOSE 8080
 #   small thread stacks, SerialGC (least overhead on a small container),
 #   and exit on OutOfMemoryError so Render restarts a clean process instead
 #   of leaving a half-dead one answering 502s.
+# Heap that is not in use is handed back (measured 2026-10-28 on the
+# production backup: only ~60 MB of the heap is live after a full GC, but
+# SerialGC kept 180-206 MB committed, decided at random during startup, so
+# the container idled anywhere from 398 to 478 MB). A 10% initial heap and
+# Min/MaxHeapFreeRatio 15/40 let the heap shrink after each full GC; the
+# 45% ceiling is unchanged, so spikes still have the same room.
 # JAVA_TOOL_OPTIONS is read by the JVM even if Render's "Docker Command"
 # overrides the ENTRYPOINT below.
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=20 -XX:MaxMetaspaceSize=150m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=32m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=10 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=40 -XX:MaxMetaspaceSize=150m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=32m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
 
 # Run Spring Boot app
 ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]

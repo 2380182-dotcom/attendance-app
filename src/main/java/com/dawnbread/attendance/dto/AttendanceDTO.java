@@ -17,6 +17,10 @@ public class AttendanceDTO {
     private Double checkOutLongitude;
     private Double distanceFromMart;
     private LocalDateTime midDayVerificationTime;
+    // End Duty was never pressed (the 11:59 PM job closed the shift): the V36
+    // flag, or the status MISSED_END_DUTY on rows closed before V36. Shown
+    // next to the status, so a LATE shift can show both.
+    private boolean missedEndDuty;
     
     // Constructors
     public AttendanceDTO() {}
@@ -75,6 +79,8 @@ public class AttendanceDTO {
     public Double getCheckOutLongitude() { return checkOutLongitude; }
     public Double getDistanceFromMart() { return distanceFromMart; }
     public LocalDateTime getMidDayVerificationTime() { return midDayVerificationTime; }
+    public boolean isMissedEndDuty() { return missedEndDuty; }
+    public void setMissedEndDuty(boolean missedEndDuty) { this.missedEndDuty = missedEndDuty; }
     
     // Setters
     public void setId(Long id) { this.id = id; }

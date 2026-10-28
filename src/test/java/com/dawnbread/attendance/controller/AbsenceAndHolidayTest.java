@@ -71,10 +71,16 @@ class AbsenceAndHolidayTest {
 
     // ------------------------------------------------------------------ seeding
 
+    /** Absence tracking ON — these tests are about the absence rules themselves (the default is off, V37). */
     private Tenant tenant(String label) {
+        return tenant(label, true);
+    }
+
+    private Tenant tenant(String label, boolean absenceTracking) {
         Tenant t = new Tenant();
         t.setCompanyCode("AB" + label + (System.nanoTime() % 1_000_000));
         t.setName("Absence " + label);
+        t.setAbsenceTrackingEnabled(absenceTracking);
         t.setIsActive(true);
         t.setCreatedAt(LocalDateTime.now());
         t.setCreatedBy("TEST");
@@ -193,6 +199,18 @@ class AbsenceAndHolidayTest {
         assertFalse(absent(t, monToSat, sunday), "Sunday is not one of his working days");
         assertFalse(absent(t, offOnMondays, MONDAY), "Monday is his day off");
         assertTrue(absent(t, monToSat, MONDAY));
+    }
+
+    @Test
+    void anAgentWithNoWorkingDaysSetWorksEveryDayLikeTheRestOfTheApp() {
+        Tenant t = tenant("NODAYS");
+        Agent noDays = agent(t, "AGENT", List.of());
+
+        absenceService.recordAbsences(MONDAY);
+        absenceService.recordAbsences(MONDAY.minusDays(1)); // a Sunday
+
+        assertTrue(absent(t, noDays, MONDAY));
+        assertTrue(absent(t, noDays, MONDAY.minusDays(1)), "empty working days = works every day (ShiftValidationService rule)");
     }
 
     @Test
@@ -348,6 +366,57 @@ class AbsenceAndHolidayTest {
         }
         assertFalse(absent(t, dayOff, today));
         assertFalse(absent(onHoliday, holidayAgent, today));
+    }
+
+    @Test
+    void withAbsenceTrackingOffNothingIsSavedAndNobodyIsNotified() {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Karachi"));
+        Tenant off = tenant("TRACKOFF", false);
+        Agent missingOff = agent(off, "AGENT", EVERY_DAY);
+        Tenant on = tenant("TRACKON", true);
+        Agent missingOn = agent(on, "AGENT", EVERY_DAY);
+
+        schedulerConfig.markAbsentAgents();
+
+        assertFalse(absent(off, missingOff, today), "tracking off: no absence saved");
+        assertEquals(0, absentNotifications(missingOff), "tracking off: no absence notification");
+        assertTrue(absent(on, missingOn, today), "another company with tracking on is unaffected");
+        assertEquals(1, absentNotifications(missingOn));
+
+        // Turned on later: the next run records it.
+        off.setAbsenceTrackingEnabled(true);
+        tenantRepository.save(off);
+        absenceService.recordAbsences(today);
+        assertTrue(absent(off, missingOff, today));
+    }
+
+    @Test
+    void absenceTrackingIsOffByDefaultAndOnlyAnAdminCanChangeIt() throws Exception {
+        Tenant t = new Tenant();
+        t.setCompanyCode("ABDEF" + (System.nanoTime() % 1_000_000));
+        t.setName("Absence default");
+        t.setIsActive(true);
+        t.setCreatedAt(LocalDateTime.now());
+        t.setCreatedBy("TEST");
+        t = tenantRepository.save(t);
+        String admin = token(t, 1L, "ADMIN");
+        String hr = token(t, 2L, "HR");
+
+        ResponseEntity<String> get = call(HttpMethod.GET, hr, "/api/company-settings", null);
+        assertEquals(HttpStatus.OK, get.getStatusCode(), get.getBody());
+        assertFalse(mapper.readTree(get.getBody()).get("data").get("absenceTracking").asBoolean(), "OFF by default");
+
+        assertEquals(HttpStatus.FORBIDDEN, call(HttpMethod.PUT, hr, "/api/company-settings", Map.of("absenceTracking", true)).getStatusCode());
+        for (String role : List.of("SALES", "AGENT", "SALESMAN_LOCAL", "SALESMAN_LMT")) {
+            assertEquals(HttpStatus.FORBIDDEN, call(HttpMethod.GET, token(t, 3L, role), "/api/company-settings", null).getStatusCode(), role);
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, call(HttpMethod.PUT, admin, "/api/company-settings", Map.of("absenceTracking", "yes")).getStatusCode());
+
+        ResponseEntity<String> put = call(HttpMethod.PUT, admin, "/api/company-settings", Map.of("absenceTracking", true));
+        assertEquals(HttpStatus.OK, put.getStatusCode(), put.getBody());
+        assertTrue(tenantRepository.findById(t.getId()).orElseThrow().getAbsenceTrackingEnabled());
+        Tenant other = tenant("OTHERCO", false);
+        assertFalse(tenantRepository.findById(other.getId()).orElseThrow().getAbsenceTrackingEnabled(), "only the admin's own company changes");
     }
 
     // ------------------------------------------------------------------ endpoints

@@ -5,11 +5,12 @@ import {
 } from '@mui/material';
 import { useTodayBoard } from '../../hooks/useTodayBoard';
 import { karachiToday, formatUtcToKarachi } from '../../utils/dateUtils';
+import { STATUS_LABEL } from '../../utils/todayBoard';
 
-const STATUS_COLOR = { IN: 'success', LATE: 'warning', ABSENT: 'error', OFF: 'default' };
+const STATUS_COLOR = { IN: 'success', LATE: 'warning', ABSENT: 'error', NO_CHECK_IN: 'default', OFF: 'default' };
 
 export default function TodayBoardPage() {
-  const { rows, counts, isLoading, isError } = useTodayBoard();
+  const { rows, counts, absenceTracking, isLoading, isError } = useTodayBoard();
 
   if (isLoading) {
     return <CircularProgress />;
@@ -24,10 +25,18 @@ export default function TodayBoardPage() {
         Today's Attendance — {karachiToday().format('dddd, MMMM D')} (Pakistan time)
       </Typography>
 
+      {!absenceTracking && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <strong>Absence tracking is off</strong> · agents who have not checked in are not called absent. An administrator can turn it on in Admin &gt; Holidays.
+        </Alert>
+      )}
+
       <Stack direction="row" spacing={2} sx={{ mb: 3 }} flexWrap="wrap" useFlexGap>
         <Chip label={`In: ${counts.IN}`} color="success" />
         <Chip label={`Late: ${counts.LATE}`} color="warning" />
-        <Chip label={`Absent: ${counts.ABSENT}`} color="error" />
+        {absenceTracking
+          ? <Chip label={`Absent: ${counts.ABSENT}`} color="error" />
+          : <Chip label={`Not checked in: ${counts.NO_CHECK_IN}`} />}
         <Chip label={`Off today: ${counts.OFF}`} variant="outlined" />
       </Stack>
 
@@ -49,7 +58,7 @@ export default function TodayBoardPage() {
                 <TableCell>{row.name}</TableCell>
                 <TableCell>{row.department}</TableCell>
                 <TableCell>
-                  <Chip size="small" label={row.status} color={STATUS_COLOR[row.status]} />
+                  <Chip size="small" label={STATUS_LABEL[row.status] || row.status} color={STATUS_COLOR[row.status] || 'default'} />
                 </TableCell>
                 <TableCell>{formatUtcToKarachi(row.checkInTime, 'h:mm A') || '—'}</TableCell>
                 <TableCell>{row.lateMinutes ? `${row.lateMinutes} min` : '—'}</TableCell>

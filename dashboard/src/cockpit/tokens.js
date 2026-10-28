@@ -18,6 +18,7 @@ export const MEANING = {
   alert: '#C62828',    // missing / needs action
   ok: '#16A34A',       // healthy
   neutral: '#64748B',
+  late: '#D97706',     // HR: late (amber; validated vs alert red and ok green, ΔE ≥ 16 normal vision)
 };
 
 export const SEGMENT = {
@@ -50,3 +51,34 @@ export const CARD = {
 
 /** Sticky offsets: the app bar is 64px (56px on phones). */
 export const APPBAR = { xs: 56, sm: 64 };
+
+/** Feedback reasons (categorical — always shown with a labelled legend and counts). */
+export const REASON = {
+  SHOP_CLOSED: '#475569',
+  STOCK_FULL: '#0891B2',
+  OWNER_NOT_AVAILABLE: '#D97706',
+  OTHER: '#DB2777',
+};
+export const REASON_LABEL = {
+  SHOP_CLOSED: 'Shop closed',
+  STOCK_FULL: 'Stock full',
+  OWNER_NOT_AVAILABLE: 'Owner not available',
+  OTHER: 'Other',
+};
+
+/** LMT stock outcomes — same meaning colours as everywhere; unsold is neutral. */
+export const STOCK = {
+  sold: '#0057B8',
+  returned: '#E8710A',
+  unsold: '#94A3B8',
+  replaced: '#7C3AED',
+  missing: '#C62828',
+};
+
+/** Heatmap cell states. */
+export const CELL = {
+  SCAN: '#16A34A',
+  FEEDBACK: '#86EFAC',
+  NONE: '#FBEAEA',
+  FUTURE: '#F1F5F9',
+};

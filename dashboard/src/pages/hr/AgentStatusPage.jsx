@@ -10,17 +10,22 @@ import { useTodayBoard } from '../../hooks/useTodayBoard';
 import { karachiToday, formatUtcToKarachi } from '../../utils/dateUtils';
 import { sortRows, useSort } from '../../utils/sorting';
 import SortableHeader from '../../components/SortableHeader';
+import { STATUS_LABEL, statusOptions } from '../../utils/todayBoard';
 
-const STATUS_COLOR = { IN: 'success', LATE: 'warning', ABSENT: 'error', OFF: 'default' };
-const STATUSES = ['ALL', 'IN', 'LATE', 'ABSENT', 'OFF'];
+const STATUS_COLOR = { IN: 'success', LATE: 'warning', ABSENT: 'error', NO_CHECK_IN: 'default', OFF: 'default' };
+const ALL_STATUSES = ['ALL', 'IN', 'LATE', 'ABSENT', 'NO_CHECK_IN', 'OFF'];
 
 export default function AgentStatusPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialStatus = STATUSES.includes(searchParams.get('status')) ? searchParams.get('status') : 'ALL';
+  const initialStatus = ALL_STATUSES.includes(searchParams.get('status')) ? searchParams.get('status') : 'ALL';
 
-  const { rows, counts, isLoading, isError } = useTodayBoard();
-  const [statusFilter, setStatusFilter] = useState(initialStatus);
+  const { rows, counts, absenceTracking, isLoading, isError } = useTodayBoard();
+  const [requestedStatus, setStatusFilter] = useState(initialStatus);
+  // A link to ?status=ABSENT while tracking is off (or the reverse) shows the matching group.
+  const statusFilter = statusOptions(absenceTracking).includes(requestedStatus)
+    ? requestedStatus
+    : (requestedStatus === 'ABSENT' || requestedStatus === 'NO_CHECK_IN') ? statusOptions(absenceTracking)[3] : 'ALL';
   const [search, setSearch] = useState('');
   const [sort, onSort] = useSort('name', 'asc');
 
@@ -52,7 +57,9 @@ export default function AgentStatusPage() {
           <ToggleButton value="ALL">All ({rows.length})</ToggleButton>
           <ToggleButton value="IN">In ({counts.IN})</ToggleButton>
           <ToggleButton value="LATE">Late ({counts.LATE})</ToggleButton>
-          <ToggleButton value="ABSENT">Absent ({counts.ABSENT})</ToggleButton>
+          {absenceTracking
+            ? <ToggleButton value="ABSENT">Absent ({counts.ABSENT})</ToggleButton>
+            : <ToggleButton value="NO_CHECK_IN">Not checked in ({counts.NO_CHECK_IN})</ToggleButton>}
           <ToggleButton value="OFF">Off ({counts.OFF})</ToggleButton>
         </ToggleButtonGroup>
 
@@ -88,7 +95,7 @@ export default function AgentStatusPage() {
                 <TableCell>{row.employeeId || '—'}</TableCell>
                 <TableCell>{row.department}</TableCell>
                 <TableCell>
-                  <Chip size="small" label={row.status} color={STATUS_COLOR[row.status]} />
+                  <Chip size="small" label={STATUS_LABEL[row.status] || row.status} color={STATUS_COLOR[row.status] || 'default'} />
                 </TableCell>
                 <TableCell>{formatUtcToKarachi(row.checkInTime, 'h:mm A') || '—'}</TableCell>
                 <TableCell align="right">{row.lateMinutes ? `${row.lateMinutes} min` : '—'}</TableCell>

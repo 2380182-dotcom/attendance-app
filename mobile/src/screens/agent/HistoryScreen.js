@@ -206,12 +206,15 @@ export default function HistoryScreen() {
         renderItem={({ item }) => (
           <AttendanceCard
             title={item.martName || 'Mart Location'}
-            subtitle={item.status === 'LATE' ? 'Late check-in recorded' : 'Checked-in on duty'}
+            subtitle={item.missedEndDuty
+              ? `${item.status === 'LATE' ? 'Late check-in · ' : ''}End Duty not pressed, closed at 11:59 PM`
+              : item.status === 'LATE' ? 'Late check-in recorded' : 'Checked-in on duty'}
             checkInTime={item.checkInTime}
             checkOutTime={item.checkOutTime}
             status={item.status}
             distance={item.distanceFromMart}
             date={item.checkInTime}
+            missedEndDuty={item.missedEndDuty}
           />
         )}
         refreshControl={

@@ -11,7 +11,8 @@ import { attendanceApi, agentApi } from '../../services/attendanceApi';
 import { absenceApi } from '../../services/holidayApi';
 import { karachiStartOfDayIso, karachiEndOfDayIso, formatUtcToKarachi, karachiDateOf } from '../../utils/dateUtils';
 
-const STATUS_COLOR = { IN: 'success', LATE: 'warning', NON_WORKING_DAY: 'default', ABSENT: 'error' };
+const STATUS_COLOR = { IN: 'success', LATE: 'warning', NON_WORKING_DAY: 'default', ABSENT: 'error', MISSED_END_DUTY: 'error' };
+const STATUS_LABEL = { MISSED_END_DUTY: 'Missed End Duty', NON_WORKING_DAY: 'Non-working day' };
 const ALL_AGENTS = 'ALL';
 /** People who can have attendance history: mart agents, plus salesmen (older check-ins). Not Admin/HR/Sales staff. */
 const FIELD_ROLES = { AGENT: 'Mart agent', SALESMAN_LOCAL: 'Local salesman', SALESMAN_LMT: 'LMT salesman' };
@@ -163,7 +164,13 @@ export default function AttendanceHistoryPage() {
                     </TableCell>
                     <TableCell>{formatUtcToKarachi(record.checkOutTime) || '—'}</TableCell>
                     <TableCell>
-                      <Chip size="small" label={record.status} color={STATUS_COLOR[record.status] || 'default'} />
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                        <Chip size="small" label={STATUS_LABEL[record.status] || record.status} color={STATUS_COLOR[record.status] || 'default'} />
+                        {/* A shift can be LATE and also closed at 11:59 PM because End Duty was never pressed. */}
+                        {record.missedEndDuty && record.status !== 'MISSED_END_DUTY' && (
+                          <Chip size="small" variant="outlined" color="error" label="Missed End Duty" />
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell>{record.distanceFromMart != null ? `${Math.round(record.distanceFromMart)}m` : '—'}</TableCell>
                   </TableRow>

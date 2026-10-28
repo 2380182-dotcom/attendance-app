@@ -25,6 +25,40 @@ export const salesCockpitApi = {
     const params = { ...filterParams({ ...filters, ...extra }), page: extra.page || 0, size: extra.size || 25 };
     if (extra.productId) params.productId = extra.productId;
     if (extra.noArea) params.noArea = true;
+    if (extra.shopId) params.shopId = extra.shopId;
     return unwrap(await api.get('/cockpit/sales/vouchers', { params, timeout: 30000 }));
+  },
+  /** One page (20 shops) of the shop x day grid for the week containing weekOf (YYYY-MM-DD, optional). */
+  async heatmap(filters, weekOf, page = 0) {
+    const params = { ...filterParams(filters), page };
+    if (weekOf) params.weekOf = weekOf;
+    return unwrap(await api.get('/cockpit/sales/coverage/heatmap', { params, timeout: 30000 }));
+  },
+  /** One salesman's day-by-day detail for the side panel. */
+  async salesmanDays(filters, salesmanId) {
+    // The salesman is in the path; the page's salesman filter is not sent.
+    return unwrap(await api.get(`/cockpit/sales/salesmen/${salesmanId}/days`, { params: filterParams({ ...filters, agentId: '' }), timeout: 30000 }));
+  },
+};
+
+/** HR cockpit. Filters: dates + department (name) + martId. */
+export function hrParams(filters) {
+  const params = { startDate: filters.startDate, endDate: filters.endDate };
+  if (filters.department) params.department = filters.department;
+  if (filters.martId) params.martId = filters.martId;
+  return params;
+}
+
+export const hrCockpitApi = {
+  async section(name, filters) {
+    return unwrap(await api.get(`/cockpit/hr/${name}`, { params: hrParams(filters), timeout: 30000 }));
+  },
+  async filterOptions() {
+    return unwrap(await api.get('/cockpit/hr/filter-options'));
+  },
+  /** One agent's days for the scorecard panel (only the dates are sent; the panel shows every mart). */
+  async agentDays(filters, agentId) {
+    const params = { startDate: filters.startDate, endDate: filters.endDate };
+    return unwrap(await api.get(`/cockpit/hr/agents/${agentId}/days`, { params, timeout: 30000 }));
   },
 };

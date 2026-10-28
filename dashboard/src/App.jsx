@@ -23,6 +23,7 @@ const QrShopVisitsPage = lazy(() => import('./pages/sales/QrShopVisitsPage'));
 const SalesmanVisitHistoryPage = lazy(() => import('./pages/sales/SalesmanVisitHistoryPage'));
 const HierarchyPeoplePage = lazy(() => import('./pages/admin/HierarchyPeoplePage'));
 const SalesCockpitPage = lazy(() => import('./cockpit/sales/SalesCockpitPage'));
+const HrCockpitPage = lazy(() => import('./cockpit/hr/HrCockpitPage'));
 const AreasPage = lazy(() => import('./pages/admin/AreasPage'));
 const CustomerShopsPage = lazy(() => import('./pages/admin/CustomerShopsPage'));
 const LmtSettingsPage = lazy(() => import('./pages/admin/LmtSettingsPage'));
@@ -42,7 +43,10 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<TodayBoardPage />} />
+          {/* Cockpit is the HR landing page; Today's Board moved to /hr/today. */}
+          <Route index element={<HrCockpitPage />} />
+          <Route path="cockpit" element={<Navigate to="/hr" replace />} />
+          <Route path="today" element={<TodayBoardPage />} />
           <Route path="status" element={<AgentStatusPage />} />
           <Route path="history" element={<AttendanceHistoryPage />} />
           <Route path="analytics" element={<HRAnalyticsPage />} />

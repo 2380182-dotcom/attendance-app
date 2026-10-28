@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -163,7 +164,12 @@ public class AttendanceService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        AttendanceWithShiftDTO shiftResult = shiftValidationService.validateAttendanceWithShift(request.getAgentId(), now);
+        // Shift start, grace and working days are Pakistan times, so the shift
+        // check gets this same moment in Asia/Karachi. Comparing the server's
+        // UTC clock with a Pakistan shift start saved a 09:40 check-in for a
+        // 09:00 shift as on time. Storage stays UTC (now), as everywhere else.
+        LocalDateTime karachiNow = now.atZone(ZoneId.systemDefault()).withZoneSameInstant(KarachiTime.ZONE).toLocalDateTime();
+        AttendanceWithShiftDTO shiftResult = shiftValidationService.validateAttendanceWithShift(request.getAgentId(), karachiNow);
 
         // mart.getRadius() is stored in meters (see AdminMartScreen.js: "Radius
         // (meters)"), and calculateDistance() already returns meters — no unit
@@ -280,8 +286,10 @@ public class AttendanceService {
         List<AttendanceWithShiftDTO> report = new ArrayList<>();
 
         for (Attendance att : records) {
-            AttendanceWithShiftDTO dto = shiftValidationService.validateAttendanceWithShift(
-                    att.getAgent().getId(), att.getCheckInTime());
+            // checkInTime is stored in UTC; the shift rules are Pakistan times.
+            // Same rule as the HR cockpit: the shift start saved on the row.
+            AttendanceWithShiftDTO dto = shiftValidationService.validateSavedCheckIn(
+                    att.getAgent().getId(), KarachiTime.fromUtc(att.getCheckInTime()), att.getShiftStartTime());
 
             AttendanceWithShiftDTO.AttendanceDTO attDto = new AttendanceWithShiftDTO.AttendanceDTO();
             attDto.setId(att.getId());

@@ -13,6 +13,7 @@ export default function AttendanceCard({
   status,
   distance,
   date,
+  missedEndDuty = false,
 }) {
   const { colors } = useTheme();
 
@@ -54,7 +55,13 @@ export default function AttendanceCard({
             </Text>
           ) : null}
         </View>
-        <StatusChip status={status} size="sm" />
+        <View style={styles.chips}>
+          <StatusChip status={status} size="sm" />
+          {/* A LATE shift can also have been closed at 11:59 PM without End Duty. */}
+          {missedEndDuty && String(status).toUpperCase() !== 'MISSED_END_DUTY' ? (
+            <StatusChip status="MISSED_END_DUTY" size="sm" />
+          ) : null}
+        </View>
       </View>
 
       <View style={[styles.divider, { backgroundColor: colors.divider }]} />
@@ -99,6 +106,10 @@ export default function AttendanceCard({
 }
 
 const styles = StyleSheet.create({
+  chips: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
   card: {
     marginVertical: 6,
     marginHorizontal: spacing.lg,

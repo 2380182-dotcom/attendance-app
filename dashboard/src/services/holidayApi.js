@@ -20,6 +20,16 @@ export const holidayApi = {
   },
 };
 
+/** Company-wide switches for the caller's company (Admin changes; HR can read). */
+export const companySettingsApi = {
+  async get() {
+    return unwrap(await api.get('/company-settings'));
+  },
+  async setAbsenceTracking(on) {
+    return unwrap(await api.put('/company-settings', { absenceTracking: on }));
+  },
+};
+
 /** Saved absences (mart agents) for HR history. */
 export const absenceApi = {
   async getRange(startDate, endDate, agentId) {

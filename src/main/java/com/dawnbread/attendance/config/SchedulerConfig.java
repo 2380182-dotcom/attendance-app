@@ -57,9 +57,13 @@ public class SchedulerConfig {
      * called exclusively from the dashboard's End Duty flow). If an agent
      * simply forgets to press it, this closes the row at midnight so
      * tomorrow's reports aren't corrupted by a permanently-open attendance
-     * record — but it's explicitly labeled MISSED_END_DUTY (not a normal
-     * checkout status) and never marked face-verified, so HR can tell the
+     * record — but it's explicitly flagged missedEndDuty (not a normal
+     * checkout) and never marked face-verified, so HR can tell the
      * difference between a real End-Duty close-out and a forgotten one.
+     *
+     * A LATE status is kept: late and missed End Duty are both facts about
+     * the shift. Other statuses still become MISSED_END_DUTY, as before, so
+     * screens that only read the status keep showing it.
      */
     @Scheduled(cron = "0 59 23 * * *", zone = "Asia/Karachi") // Runs at 11:59 PM Pakistan time daily
     public void autoCheckoutAllAgents() {
@@ -67,7 +71,10 @@ public class SchedulerConfig {
         List<Attendance> openAttendances = attendanceRepository.findOpenAttendance();
         for (Attendance attendance : openAttendances) {
             attendance.setCheckOutTime(LocalDateTime.now());
-            attendance.setStatus("MISSED_END_DUTY");
+            if (!"LATE".equals(attendance.getStatus())) {
+                attendance.setStatus("MISSED_END_DUTY");
+            }
+            attendance.setMissedEndDuty(true);
             attendance.setFaceVerifiedCheckout(false);
             attendanceRepository.save(attendance);
             logger.info("Closed out agent id: {} at midnight — End Duty was never pressed.", attendance.getAgent().getId());

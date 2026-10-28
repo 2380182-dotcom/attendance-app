@@ -6,7 +6,7 @@ import { INK, MEANING } from '../tokens';
 import { shortDate } from '../format';
 import usePrintMode from './usePrintMode';
 
-function DeltaBadge({ delta, higherIsBetter, label }) {
+function DeltaBadge({ delta, higherIsBetter, label, unit = '%' }) {
   if (delta === null || delta === undefined || !Number.isFinite(delta)) {
     return (
       <Box sx={badgeSx('#EEF1F6', INK.secondary)}>No comparison yet</Box>
@@ -27,7 +27,7 @@ function DeltaBadge({ delta, higherIsBetter, label }) {
   return (
     <Box className="cockpit-delta" sx={badgeSx(colors[0], colors[1])} title={label}>
       <span aria-hidden>{arrow}</span>
-      <span className="cockpit-num">{Math.abs(delta).toFixed(0)}%</span>
+      <span className="cockpit-num">{Math.abs(delta).toFixed(0)}{unit}</span>
       <Box component="span" sx={{ fontWeight: 600, opacity: 0.85 }}>{label}</Box>
     </Box>
   );
@@ -41,7 +41,7 @@ function badgeSx(bg, fg) {
   };
 }
 
-function Sparkline({ data, color, format }) {
+function Sparkline({ data, color, format, fromZero = true }) {
   const id = useId().replace(/:/g, '');
   const printing = usePrintMode();
   if (!data?.length) return <Box sx={{ height: 44 }} />;
@@ -55,7 +55,7 @@ function Sparkline({ data, color, format }) {
               <stop offset="100%" stopColor={color} stopOpacity={0.02} />
             </linearGradient>
           </defs>
-          <YAxis hide domain={[0, 'dataMax']} />
+          <YAxis hide domain={fromZero ? [0, 'dataMax'] : ['dataMin', 'dataMax']} />
           <Tooltip
             cursor={{ stroke: INK.grid, strokeWidth: 1 }}
             content={({ active, payload }) => (active && payload?.length ? (
@@ -76,15 +76,28 @@ function Sparkline({ data, color, format }) {
 
 const MEANING_COLOR = {
   sales: MEANING.sales, returns: MEANING.returns, rbe: MEANING.rbe,
-  alert: MEANING.alert, ok: MEANING.ok, neutral: MEANING.neutral,
+  alert: MEANING.alert, ok: MEANING.ok, neutral: MEANING.neutral, late: MEANING.late,
 };
 
 /**
  * Highlight card: big number, one context line, 14-day sparkline and a
  * coloured "vs last week / previous period" badge.
  */
-export default function KpiCard({ card, value, unit, onClick, sparkFormat }) {
+export default function KpiCard({ card, value, unit, onClick, sparkFormat, sparkFromZero = true, disabled = false }) {
   const color = MEANING_COLOR[card.meaning] || MEANING.neutral;
+  if (disabled) {
+    // A switched-off measure: no number, no trend, just why.
+    return (
+      <Card accent={INK.border} sx={{ display: 'flex', flexDirection: 'column', gap: 1, minHeight: 186, bgcolor: '#FAFBFD' }}
+        aria-label={`${card.label}: ${card.context}`}>
+        <Eyebrow>{card.label}</Eyebrow>
+        <Box className="cockpit-kpi-value" sx={{ fontSize: { xs: 22, sm: 24 }, fontWeight: 700, color: INK.muted, lineHeight: 1.1 }}>
+          {value}
+        </Box>
+        <Box className="cockpit-kpi-context" sx={{ fontSize: 12.5, color: INK.secondary, lineHeight: 1.4 }}>{card.context}</Box>
+      </Card>
+    );
+  }
   return (
     <Card accent={color} onClick={onClick} sx={{ display: 'flex', flexDirection: 'column', gap: 1, minHeight: 186 }}
       aria-label={`${card.label}: ${value}${unit ? ` ${unit}` : ''}. ${card.context}`}>
@@ -97,9 +110,9 @@ export default function KpiCard({ card, value, unit, onClick, sparkFormat }) {
       </Box>
       <Box className="cockpit-kpi-context" sx={{ fontSize: 12.5, color: INK.secondary, lineHeight: 1.4, minHeight: 35 }}>{card.context}</Box>
       <Box sx={{ mt: 'auto' }}>
-        <Sparkline data={card.sparkline} color={color} format={sparkFormat} />
+        <Sparkline data={card.sparkline} color={color} format={sparkFormat} fromZero={sparkFromZero} />
         <Box sx={{ mt: 0.75 }}>
-          <DeltaBadge delta={card.deltaPercent} higherIsBetter={card.higherIsBetter} label={card.deltaLabel} />
+          <DeltaBadge delta={card.deltaPercent} higherIsBetter={card.higherIsBetter} label={card.deltaLabel} unit={card.deltaUnit} />
         </Box>
       </Box>
     </Card>
@@ -119,11 +132,11 @@ export function KpiSkeleton() {
 }
 
 /** 5 per row on large screens, 3 on laptops, 2 on tablets, 1 on phones. */
-export function KpiGrid({ children }) {
+export function KpiGrid({ children, xlColumns = 5 }) {
   return (
     <Box className="cockpit-cards-print" sx={{
       display: 'grid', gap: 2,
-      gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', md: 'repeat(3, minmax(0,1fr))', xl: 'repeat(5, minmax(0,1fr))' },
+      gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0,1fr))', md: 'repeat(3, minmax(0,1fr))', xl: `repeat(${xlColumns}, minmax(0,1fr))` },
     }}>
       {children}
     </Box>

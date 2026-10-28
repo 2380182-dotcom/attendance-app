@@ -42,6 +42,11 @@ public class Attendance implements TenantAware {
     private Integer lateMinutes = 0;
     private Boolean faceVerifiedCheckin = false;
     private Boolean faceVerifiedCheckout = false;
+    // Set by the 11:59 PM job when End Duty was never pressed (V36). The status
+    // is kept, so a shift can be LATE and missing End Duty at the same time.
+    // Rows closed before V36 carry status MISSED_END_DUTY instead.
+    @Column(name = "missed_end_duty", nullable = false)
+    private Boolean missedEndDuty = false;
 
     public Attendance() {}
 
@@ -95,6 +100,9 @@ public class Attendance implements TenantAware {
 
     public Boolean getFaceVerifiedCheckin() { return faceVerifiedCheckin; }
     public void setFaceVerifiedCheckin(Boolean faceVerifiedCheckin) { this.faceVerifiedCheckin = faceVerifiedCheckin; }
+
+    public Boolean getMissedEndDuty() { return missedEndDuty; }
+    public void setMissedEndDuty(Boolean missedEndDuty) { this.missedEndDuty = missedEndDuty; }
 
     public Boolean getFaceVerifiedCheckout() { return faceVerifiedCheckout; }
     public void setFaceVerifiedCheckout(Boolean faceVerifiedCheckout) { this.faceVerifiedCheckout = faceVerifiedCheckout; }

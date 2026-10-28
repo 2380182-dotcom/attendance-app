@@ -21,6 +21,9 @@ function resolveStatus(status, colors) {
   if (s === 'LATE') {
     return { bg: colors.warningLight, fg: colors.warningDark, label: 'LATE' };
   }
+  if (s === 'MISSED_END_DUTY') {
+    return { bg: colors.errorLight, fg: colors.error, label: 'NO END DUTY' };
+  }
   if (s === 'PENDING') {
     return { bg: colors.warningLight, fg: colors.warningDark, label: 'PENDING' };
   }

@@ -36,4 +36,9 @@ public final class KarachiTime {
     public static LocalDateTime endOfDayUtc(LocalDate karachiDate) {
         return karachiDate.atTime(23, 59, 59).atZone(ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
+
+    /** A stored (UTC) timestamp as Karachi wall-clock time — what to compare with a Pakistan shift start. */
+    public static LocalDateTime fromUtc(LocalDateTime utc) {
+        return utc.atOffset(ZoneOffset.UTC).atZoneSameInstant(ZONE).toLocalDateTime();
+    }
 }
