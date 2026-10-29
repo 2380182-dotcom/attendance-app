@@ -88,6 +88,85 @@ jobs:
       - name: Build
         run: npm run build
 
+  dashboard-browser:
+    name: Dashboard — browser check (every page, demo data)
+    runs-on: ubuntu-latest
+    # An EMPTY database: the backend's DataInitializer seeds demo data only
+    # (admin ADMIN001 / admin, demo products); the test adds a demo shop,
+    # salesman and voucher through the API. Never real data.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: demo
+          POSTGRES_PASSWORD: demo
+          POSTGRES_DB: attendance
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U demo -d attendance"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Build backend
+        run: mvn -B -q package -DskipTests
+
+      - name: Start backend on demo data
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/attendance
+          DB_USERNAME: demo
+          DB_PASSWORD: demo
+          DB_DRIVER_CLASS_NAME: org.postgresql.Driver
+          JWT_SECRET: ci-demo-only-secret-0123456789abcdef0123456789abcdef
+          PORT: "8080"
+        run: |
+          nohup java -jar target/attendance-0.0.1-SNAPSHOT.jar > backend.log 2>&1 &
+          for i in $(seq 1 90); do curl -sf localhost:8080/actuator/health >/dev/null && break; sleep 2; done
+          curl -sf localhost:8080/actuator/health || { tail -50 backend.log; exit 1; }
+
+      - name: Install dependencies and browser
+        working-directory: dashboard
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Build dashboard against the demo backend
+        working-directory: dashboard
+        env:
+          VITE_API_URL: http://localhost:8080/api
+        run: npm run build
+
+      - name: Open every page (fails on page/console errors, 5xx, error messages)
+        working-directory: dashboard
+        env:
+          E2E_API: http://localhost:8080/api
+        run: npx playwright test
+
+      - name: Keep screenshots, trace and backend log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-browser-check
+          path: |
+            dashboard/test-results/
+            backend.log
+          retention-days: 7
+
   mobile:
     name: Mobile — verify (lint + theme-color check + DIAG-marker check)
     runs-on: ubuntu-latest
