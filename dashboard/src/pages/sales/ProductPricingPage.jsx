@@ -25,6 +25,15 @@ import SortableHeader from '../../components/SortableHeader';
 const priceText = (v) => (v === null || v === undefined ? '' : String(v));
 export default function ProductPricingPage() {
   const queryClient = useQueryClient();
+  // Sales sees the On/Hidden status but only an administrator can switch it
+  // (the server enforces it too). Read from the stored login, not
+  // AuthContext: importing AuthContext into this lazy page made the
+  // production build put Vite's module runtime inside the shared "api"
+  // chunk, creating a chunk import cycle that crashed every page on load.
+  const user = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
+  }, []);
+  const canSwitch = user?.role === 'ADMIN';
   const pricing = useQuery({ queryKey: ['product-pricing'], queryFn: productApi.getPricing });
 
   const [search, setSearch] = useState('');
@@ -130,7 +139,7 @@ export default function ProductPricingPage() {
       {hiddenCount > 0 && (
         <Alert severity="info" sx={{ mb: 2 }}>
           <strong>{hiddenCount} product{hiddenCount === 1 ? ' is' : 's are'} hidden.</strong> Salesmen and agents can't see
-          {hiddenCount === 1 ? ' it' : ' them'} yet: enter both prices, save, then switch {hiddenCount === 1 ? 'it' : 'them'} on.
+          {hiddenCount === 1 ? ' it' : ' them'} yet: enter both prices, save, then an administrator switches {hiddenCount === 1 ? 'it' : 'them'} on.
         </Alert>
       )}
 
@@ -209,12 +218,13 @@ export default function ProductPricingPage() {
                         </IconButton>
                       </TableCell>
                       <TableCell>
-                        <Tooltip title={pricesSet || p.active ? '' : 'Enter and save both prices first'}>
+                        <Tooltip title={!canSwitch ? 'Only an administrator can switch products on or off'
+                          : pricesSet || p.active ? '' : 'Enter and save both prices first'}>
                           <span>
                             <Switch
                               size="small"
                               checked={!!p.active}
-                              disabled={(!pricesSet && !p.active) || activeMutation.isPending}
+                              disabled={!canSwitch || (!pricesSet && !p.active) || activeMutation.isPending}
                               onChange={(e) => activeMutation.mutate({ id: p.id, active: e.target.checked })}
                               slotProps={{ input: { 'aria-label': `${p.name}: ${p.active ? 'on' : 'hidden'}` } }}
                             />

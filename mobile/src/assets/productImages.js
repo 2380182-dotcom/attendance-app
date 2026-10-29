@@ -57,9 +57,9 @@ const PRODUCT_IMAGES = {
   38: require('../../assets/products/p13_bakar_khani_1x2.jpg'),
   39: require('../../assets/products/p51_round_rusk.jpg'),
   40: require('../../assets/products/p56_roll_patti_1x28.jpg'), // pack reads "Spring Roll Pastry, 24 sheets"
-  // Official product list (V38, 2026-10). Products 58-68 (S/W Bran Bread, the
-  // MAC Royal 4in buns, Brioche, Corn Meal, Potato, Hot Dog 1*4, Jumbo bun,
-  // Boat Cakes) have no photo yet and show the bakery icon.
+  // Official product list (V38, 2026-10). Products 58-68 and 70 (S/W Bran
+  // Bread, the MAC Royal 4in buns, Brioche, Corn Meal, Potato, Hot Dog 1*4,
+  // Jumbo bun, Boat Cakes, Panini) have no photo yet and show the bakery icon.
   41: require('../../assets/products/p05_medium_bread.jpg'),
   42: require('../../assets/products/p02_milky_large.jpg'),
   43: require('../../assets/products/p10_pitta_5_pec.jpg'),
@@ -77,6 +77,7 @@ const PRODUCT_IMAGES = {
   55: require('../../assets/products/p57_paratha_5_pec.jpg'),
   56: require('../../assets/products/p58_paratha_20_pec.jpg'),
   57: require('../../assets/products/p59_paratha_30_pec.jpg'),
+  69: require('../../assets/products/p08b_sandwich_bread_jumbo.jpg'), // S/W Bread - Jumbo: "Extra Large Slice" pack
 };
 
 export function getProductImage(productId) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
@@ -88,6 +88,11 @@ export default function CustomerShopsPage() {
   const [formError, setFormError] = useState('');
   // Shop prices of 0 are allowed (= free at this shop) but asked about first.
   const [zeroWarning, setZeroWarning] = useState('');
+  const zeroWarningRef = useRef(null);
+  // The warning sits at the end of a long dialog: bring it into view when it appears.
+  useEffect(() => {
+    if (zeroWarning) zeroWarningRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [zeroWarning]);
   const [actionError, setActionError] = useState('');
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
@@ -763,7 +768,7 @@ export default function CustomerShopsPage() {
           )}
           {/* Next to Save, so it's seen without scrolling back up. */}
           {zeroWarning && (
-            <Alert severity="warning" sx={{ mb: 2, mt: 1 }}
+            <Alert ref={zeroWarningRef} severity="warning" sx={{ mb: 2, mt: 1 }}
               action={(
                 <Stack direction="row" spacing={1}>
                   <Button color="inherit" size="small" onClick={() => setZeroWarning('')}>Change</Button>

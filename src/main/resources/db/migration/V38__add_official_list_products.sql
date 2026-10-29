@@ -3,11 +3,13 @@
 -- Prices are not known yet, so a price can now be empty: NULL = "Not set"
 -- (0 stays a valid price). Every new product is added HIDDEN (is_active =
 -- false): hidden products are not offered to salesmen or agents, and sales
--- and stock entries for them are refused. An admin (or Sales) enters both
--- prices on Admin > Pricing and switches the product on there; switching on
--- is refused while either price is "Not set".
+-- and stock entries for them are refused. Admin or Sales enters both prices
+-- on the Pricing page; only an administrator switches the product on there,
+-- and switching on is refused while either price is "Not set".
 --
--- Fixed ids 41-68: the mobile app's bundled photos are keyed by product id.
+-- Fixed ids 41-70: the mobile app's bundled photos are keyed by product id.
+-- "Tortilla Bread (1*8)" on the list is the existing "Tortilla Bread 10in
+-- (1X8)" and is not added.
 -- Only for the DAWNBREAD company (a database without it gets nothing), and a
 -- name that already exists for the company is skipped, as in V4. Existing
 -- products are not changed.
@@ -45,7 +47,9 @@ CROSS JOIN (VALUES
     (65, 'Hot Dog B/Bun (1*4)',                 'BUN',     'pack'),
     (66, 'Jumbo B/Bun B/Seeded (1*2)',          'BUN',     'pack'),
     (67, 'Boat Cake Plain (1X6)',               'CAKE',    'pack'),
-    (68, 'Boat Cake Mango (1X6)',               'CAKE',    'pack')
+    (68, 'Boat Cake Mango (1X6)',               'CAKE',    'pack'),
+    (69, 'S/W Bread - Jumbo',                   'BREAD',   'piece'),
+    (70, 'Panini Bread',                        'BREAD',   'pack')
 ) AS v(id, name, category, unit)
 WHERE t.company_code = 'DAWNBREAD'
   AND NOT EXISTS (SELECT 1 FROM products p WHERE p.tenant_id = t.id AND lower(p.name) = lower(v.name));

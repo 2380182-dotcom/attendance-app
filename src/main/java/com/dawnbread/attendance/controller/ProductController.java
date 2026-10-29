@@ -45,11 +45,16 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success("Product pricing retrieved", productService.getAllForPricing()));
     }
 
-    /** Body: {"active": true|false}. Switching on needs both main prices entered. */
+    /**
+     * Body: {"active": true|false}. ADMIN only — Sales sees the On/Hidden
+     * status on the pricing list but cannot switch it. Switching on needs
+     * both main prices entered.
+     */
     @PutMapping("/{id}/active")
     public ResponseEntity<ApiResponse<ProductPricingDTO>> setActive(@PathVariable Long id, @RequestBody java.util.Map<String, Object> body) {
-        if (!AccessControl.hasRole(request, PRICING_ROLES)) {
-            return forbidden();
+        if (!AccessControl.hasRole(request, "ADMIN")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only an administrator can switch a product on or off."));
         }
         if (!(body.get("active") instanceof Boolean active)) {
             return ResponseEntity.badRequest().body(ApiResponse.error("active must be true or false"));

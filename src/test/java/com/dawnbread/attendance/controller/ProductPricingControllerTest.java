@@ -107,6 +107,7 @@ class ProductPricingControllerTest {
         int at = list.indexOf(name);
         assertTrue(at > 0, list);
         String row = list.substring(list.lastIndexOf("{", at), list.indexOf("}", at) + 1);
+        assertTrue(call(HttpMethod.GET, "/api/products/pricing", null, sales).getBody().contains(name), "Sales sees hidden products too");
         assertTrue(row.contains("\"agentPrice\":null") && row.contains("\"salesmanPrice\":null"), row);
         assertTrue(row.contains("\"active\":false"), row);
         // Never offered to salesmen or agents.
@@ -114,12 +115,12 @@ class ProductPricingControllerTest {
         assertFalse(call(HttpMethod.GET, "/api/sales/products-with-images", null, salesman).getBody().contains(name));
 
         // Switching on is refused while the prices are not set.
-        ResponseEntity<String> refused = call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", true), sales);
+        ResponseEntity<String> refused = call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", true), admin);
         assertEquals(HttpStatus.BAD_REQUEST, refused.getStatusCode(), refused.getBody());
         assertTrue(refused.getBody().contains("Enter both the agent price and the salesman price"), refused.getBody());
 
-        // Only Admin and Sales may switch.
-        for (String role : List.of("AGENT", "SALESMAN_LOCAL", "SALESMAN_LMT", "HR")) {
+        // Only Admin may switch: Sales sees the status (above) and edits prices, but cannot switch.
+        for (String role : List.of("SALES", "AGENT", "SALESMAN_LOCAL", "SALESMAN_LMT", "HR")) {
             String t = tokenProvider.generateToken(9L, "PRICE_" + role, role);
             assertEquals(HttpStatus.FORBIDDEN,
                     call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", true), t).getStatusCode(), role);
@@ -128,7 +129,7 @@ class ProductPricingControllerTest {
         // 0 is a real price: entered as 0 and 0, the product can be switched on.
         assertEquals(HttpStatus.OK, call(HttpMethod.PUT, "/api/products/" + product.getId() + "/pricing",
                 Map.of("agentPrice", 0.0, "salesmanPrice", 0.0), sales).getStatusCode());
-        ResponseEntity<String> on = call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", true), sales);
+        ResponseEntity<String> on = call(HttpMethod.PUT, "/api/products/" + product.getId() + "/active", Map.of("active", true), admin);
         assertEquals(HttpStatus.OK, on.getStatusCode(), on.getBody());
         assertTrue(call(HttpMethod.GET, "/api/sales/products", null, salesman).getBody().contains(name), "now offered");
 

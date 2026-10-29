@@ -38,6 +38,7 @@ public class ProductService {
 
     /**
      * Switch a product on (offered to salesmen and agents) or off (hidden).
+     * ADMIN only (checked in ProductController).
      * On needs both main prices entered — 0 counts, "Not set" does not.
      */
     public ProductPricingDTO setActive(Long productId, boolean active) {
