@@ -8,6 +8,7 @@ import ErrorState from '../../components/ErrorState';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
 import { useNearbyShops } from '../../hooks/useNearbyShops';
+import ShopFeedbackButton from '../../components/ShopFeedbackButton';
 
 /**
  * LMT flow redesign, D3: replaces manual shop-code entry as LmtHome's
@@ -115,6 +116,8 @@ export default function NearbyShopsScreen({ navigation }) {
                   <Text style={styles.shopDistance}>
                     {item.distanceMeters != null ? `${Math.round(item.distanceMeters)}m` : ''}
                   </Text>
+                  {/* Shop closed / QR out of reach: feedback straight from the list. */}
+                  <ShopFeedbackButton shopName={item.shopName} onPress={() => navigation.navigate('ShopFeedback', { shop: item })} />
                 </View>
               </AppCard>
             </TouchableOpacity>
