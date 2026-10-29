@@ -27,8 +27,42 @@ public class ProductService {
 
     public List<ProductPricingDTO> getAllForPricing() {
         return productRepository.findAllByOrderByNameAsc().stream()
-                .map(p -> new ProductPricingDTO(p.getId(), p.getName(), p.getCategory(), p.getAgentPrice(), p.getSalesmanPrice()))
+                .map(ProductService::toPricingDTO)
                 .collect(Collectors.toList());
+    }
+
+    private static ProductPricingDTO toPricingDTO(Product p) {
+        return new ProductPricingDTO(p.getId(), p.getName(), p.getCategory(), p.getUnit(), p.getAgentPrice(),
+                p.getSalesmanPrice(), Boolean.TRUE.equals(p.getIsActive()));
+    }
+
+    /**
+     * Switch a product on (offered to salesmen and agents) or off (hidden).
+     * ADMIN only (checked in ProductController).
+     * On needs both main prices entered — 0 counts, "Not set" does not.
+     */
+    public ProductPricingDTO setActive(Long productId, boolean active) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + productId));
+        if (active && (product.getAgentPrice() == null || product.getSalesmanPrice() == null)) {
+            throw new IllegalArgumentException("Enter both the agent price and the salesman price before switching '"
+                    + product.getName() + "' on.");
+        }
+        product.setIsActive(active);
+        return toPricingDTO(productRepository.save(product));
+    }
+
+    /**
+     * Sales and stock entries only for products that are switched on. A
+     * hidden product (e.g. a new one whose prices are not set yet) is never
+     * offered by the apps; this refuses it even from an old app or a direct
+     * API call.
+     */
+    public static Product requireActive(Product product) {
+        if (!Boolean.TRUE.equals(product.getIsActive())) {
+            throw new IllegalArgumentException("'" + product.getName() + "' is not available yet.");
+        }
+        return product;
     }
 
     public ProductPricingDTO updatePricing(Long productId, ProductPricingUpdateDTO dto) {
@@ -36,7 +70,6 @@ public class ProductService {
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + productId));
         product.setAgentPrice(dto.getAgentPrice());
         product.setSalesmanPrice(dto.getSalesmanPrice());
-        Product saved = productRepository.save(product);
-        return new ProductPricingDTO(saved.getId(), saved.getName(), saved.getCategory(), saved.getAgentPrice(), saved.getSalesmanPrice());
+        return toPricingDTO(productRepository.save(product));
     }
 }

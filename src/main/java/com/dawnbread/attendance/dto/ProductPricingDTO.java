@@ -8,6 +8,10 @@ public class ProductPricingDTO {
     private String category;
     private Double agentPrice;
     private Double salesmanPrice;
+    // Hidden products (active = false) are not offered to salesmen/agents;
+    // a null price means "Not set".
+    private boolean active;
+    private String unit;
 
     public ProductPricingDTO() {}
 
@@ -17,6 +21,13 @@ public class ProductPricingDTO {
         this.category = category;
         this.agentPrice = agentPrice;
         this.salesmanPrice = salesmanPrice;
+    }
+
+    public ProductPricingDTO(Long id, String name, String category, String unit, Double agentPrice, Double salesmanPrice,
+                             boolean active) {
+        this(id, name, category, agentPrice, salesmanPrice);
+        this.unit = unit;
+        this.active = active;
     }
 
     public Long getId() { return id; }
@@ -33,4 +44,10 @@ public class ProductPricingDTO {
 
     public Double getSalesmanPrice() { return salesmanPrice; }
     public void setSalesmanPrice(Double salesmanPrice) { this.salesmanPrice = salesmanPrice; }
+
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
+
+    public String getUnit() { return unit; }
+    public void setUnit(String unit) { this.unit = unit; }
 }

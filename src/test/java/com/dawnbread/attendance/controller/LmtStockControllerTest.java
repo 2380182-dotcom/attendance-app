@@ -20,6 +20,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * LMT flow refinement: the salesman must never see Sold, Returned, or
@@ -44,6 +45,9 @@ class LmtStockControllerTest {
 
     @Autowired
     private TenantRepository tenantRepository;
+
+    @Autowired
+    private com.dawnbread.attendance.repository.ProductRepository productRepository;
 
     private String url(String path) {
         return "http://localhost:" + port + path;
@@ -87,6 +91,44 @@ class LmtStockControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         Map<String, Object> body = response.getBody();
         return (Map<String, Object>) body.get("data");
+    }
+
+    @Test
+    void morningStockRefusesAHiddenProduct() {
+        Agent lmt = seedLmt("LMTCTRL_HIDDEN_1");
+        String token = tokenProvider.generateToken(lmt.getId(), lmt.getAgentId(), "SALESMAN_LMT");
+        com.dawnbread.attendance.entity.Product hidden = new com.dawnbread.attendance.entity.Product();
+        hidden.setTenantId(tenantId());
+        hidden.setName("Hidden Stock Product " + System.nanoTime());
+        hidden.setIsActive(false);   // as V38 adds new products: hidden, prices "Not set"
+        hidden.setCreatedAt(LocalDateTime.now());
+        hidden = productRepository.save(hidden);
+
+        Map<String, Object> morningBody = new HashMap<>();
+        morningBody.put("agentId", lmt.getId());
+        Map<String, Object> item = new HashMap<>();
+        item.put("productId", hidden.getId());
+        item.put("openingStock", 10);
+        morningBody.put("items", List.of(item));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(token);
+        ResponseEntity<String> response = restTemplate.exchange(url("/api/lmt/stock/morning"), HttpMethod.POST,
+                new HttpEntity<>(morningBody, headers), String.class);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode(), response.getBody());
+        assertTrue(response.getBody().contains("is not available yet"), response.getBody());
+
+        ResponseEntity<Map> today = restTemplate.exchange(
+                url("/api/lmt/stock/today?agentId=" + lmt.getId()), HttpMethod.GET, withToken(token), Map.class);
+        Object data = today.getBody() == null ? null : today.getBody().get("data");
+        Object items = data == null ? null : ((Map<?, ?>) data).get("items");
+        assertTrue(items == null || ((List<?>) items).isEmpty(), "nothing saved for the day: " + today.getBody());
+
+        // The refusal left nothing behind: the real morning stock still goes in.
+        item.put("productId", firstActiveProductId(token));
+        ResponseEntity<String> ok = restTemplate.exchange(url("/api/lmt/stock/morning"), HttpMethod.POST,
+                new HttpEntity<>(morningBody, headers), String.class);
+        assertTrue(ok.getStatusCode().is2xxSuccessful(), ok.getBody());
     }
 
     @Test

@@ -8,6 +8,7 @@ import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
 import { STRINGS } from './strings';
 import { useNearbyShops } from '../../hooks/useNearbyShops';
+import ShopFeedbackButton from '../../components/ShopFeedbackButton';
 
 /** `{en, ur}` -> "English\nUrdu", the pattern every message on this screen uses. No Urdu (e.g. a raw server error) -> English only. */
 function bilingual(strings) {
@@ -97,15 +98,8 @@ export default function LocalNearbyShopsScreen({ navigation }) {
               {item.distanceMeters != null && (
                 <Text style={styles.shopDistance}>{Math.round(item.distanceMeters)} m</Text>
               )}
-              {/* "Salesman updates" feature: reached the shop, couldn't sell — record feedback instead of a voucher. */}
-              <TouchableOpacity
-                style={styles.feedbackButton}
-                onPress={() => navigation.navigate('LocalShopFeedback', { shop: item })}
-                accessibilityRole="button"
-                accessibilityLabel={`${STRINGS.addFeedback.en} ${STRINGS.addFeedback.ur}`}
-              >
-                <MaterialIcons name="feedback" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
+              {/* "Salesman updates" feature: reached the shop, couldn't sell (e.g. closed) — record feedback instead of a voucher. */}
+              <ShopFeedbackButton shopName={item.shopName} onPress={() => navigation.navigate('LocalShopFeedback', { shop: item })} />
             </TouchableOpacity>
           )}
           ListEmptyComponent={
@@ -163,6 +157,5 @@ const createStyles = (colors) =>
     shopName: { fontSize: 22, fontWeight: 'bold', color: colors.textPrimary },
     shopMeta: { fontSize: 15, color: colors.textSecondary, marginTop: 2 },
     shopDistance: { fontSize: 20, fontWeight: 'bold', color: colors.textPrimary },
-    feedbackButton: { padding: 8, marginLeft: 4 },
     footer: { padding: 12 },
   });

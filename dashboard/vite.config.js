@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Unit tests only; the browser check in e2e/ runs with Playwright.
+  test: {
+    exclude: ['e2e/**', 'node_modules/**'],
+  },
   // sockjs-client (the Stage 3 live-feed WebSocket dependency) references
   // Node's `global`, which doesn't exist in a browser. Vite's dev server
   // (esbuild) tolerates this; the production build (Rollup) doesn't, and
