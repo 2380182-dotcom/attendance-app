@@ -92,8 +92,8 @@ jobs:
     name: Dashboard — browser check (every page, demo data)
     runs-on: ubuntu-latest
     # An EMPTY database: the backend's DataInitializer seeds demo data only
-    # (admin ADMIN001 / admin, demo products); the test adds a demo shop,
-    # salesman and voucher through the API. Never real data.
+    # (admin ADMIN001 / admin, demo products); the test adds demo shops, a
+    # salesman and a voucher through the API. Never real data.
     services:
       postgres:
         image: postgres:18-alpine

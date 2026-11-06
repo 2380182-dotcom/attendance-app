@@ -14,6 +14,7 @@ const SALES_NAV = [
   { path: '/sales/reconciliation', label: 'LMT Reconciliation' },
   { path: '/sales/pricing', label: 'Product Pricing' },
   { path: '/sales/qr-visits', label: 'QR Scanned Shops' },
+  { path: '/sales/routes', label: 'Routes' },
   { path: '/sales/vouchers/local/shops', label: 'Local Sales Vouchers' },
   { path: '/sales/vouchers/lmt/shops', label: 'LMT Sales Vouchers' },
 ];

@@ -23,6 +23,13 @@ public class CacheConfig {
 
     public static final String SALES_COCKPIT = "salesCockpit";
     public static final String HR_COCKPIT = "hrCockpit";
+    /**
+     * Sales > Routes: one entry is a whole company's shop list for a date
+     * range (about 1 MB for 3,000 shops), so it gets its own cache with a
+     * much smaller entry limit (at most ~20 MB), never the cockpits' 300.
+     */
+    public static final String ROUTES = "routes";
+    static final int ROUTES_MAX_ENTRIES = 20;
 
     @Bean
     public CacheManager cacheManager() {
@@ -30,6 +37,10 @@ public class CacheConfig {
         manager.setCaffeine(Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofSeconds(90))
                 .maximumSize(300));
+        manager.registerCustomCache(ROUTES, Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofSeconds(90))
+                .maximumSize(ROUTES_MAX_ENTRIES)
+                .build());
         return manager;
     }
 }

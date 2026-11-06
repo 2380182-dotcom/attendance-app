@@ -541,4 +541,70 @@ class PostgresCompatibilityTest {
         assertEquals(day, days.get(0)[1]);
         assertEquals(1L, ((Number) days.get(0)[2]).longValue(), "late that day");
     }
+
+    // ===== Sales > Routes (RoutesQueries) =====
+
+    @Autowired
+    private RoutesQueries routesQueries;
+
+    @Test
+    void routesQueriesRunOnPostgresAndCountEachVisitedDayOnce() {
+        LocalDate d1 = LocalDate.of(2025, 2, 3), d2 = d1.plusDays(1), d3 = d1.plusDays(2);
+        assertEquals(0, routesQueries.unassignedShops(List.of(), d3).size(), "empty database, no due dates");
+
+        Agent salesman = seedAgent("PG_ROUTES_1", "SALESMAN_LOCAL");
+        CustomerShop shop = seedShop("PG-SHOP-RT", "PG Routes Shop");
+        shop.setAssignedAgent(salesman);
+        customerShopRepository.save(shop);
+        CustomerShop unassigned = seedShop("PG-SHOP-RT2", "PG Routes Unassigned");
+
+        ShopVisitScan scan = new ShopVisitScan();
+        scan.setTenantId(tenantId);
+        scan.setAgentId(salesman.getId());
+        scan.setCustomerShop(shop);
+        scan.setScannedCode("PG-SHOP-RT");
+        scan.setScanDate(d1);
+        scan.setScanTime(LocalTime.of(10, 0));
+        scan.setGpsLatitude(0.0);
+        scan.setGpsLongitude(0.0);
+        scan.setGeofenceStatus(GeofenceStatus.INSIDE);
+        scan.setVisitStatus(ShopVisitStatus.SUCCESS);
+        scan.setCreatedAt(LocalDateTime.now());
+        shopVisitScanRepository.save(scan);
+        for (LocalDate d : List.of(d1, d2)) {
+            ShopFeedback fb = new ShopFeedback();
+            fb.setTenantId(tenantId);
+            fb.setAgentId(salesman.getId());
+            fb.setCustomerShop(d == d1 ? shop : unassigned);
+            fb.setReason(ShopFeedbackReason.SHOP_CLOSED);
+            fb.setGpsLatitude(0.0);
+            fb.setGpsLongitude(0.0);
+            fb.setGeofenceStatus(GeofenceStatus.INSIDE);
+            fb.setVisitDate(d);
+            fb.setVisitTime(LocalTime.of(11, 0));
+            fb.setCreatedAt(LocalDateTime.now());
+            shopFeedbackRepository.save(fb);
+        }
+        CompanyHoliday h = new CompanyHoliday();
+        h.setTenantId(tenantId);
+        h.setHolidayDate(d3);
+        h.setName("PG Holiday");
+        h.setCreatedAt(LocalDateTime.now());
+        companyHolidayRepository.save(h);
+
+        List<Object[]> salesmen = routesQueries.salesmenWithShops();
+        assertEquals(1, salesmen.size());
+        List<Object[]> rows = routesQueries.assignedShops(List.of(salesman.getId()), List.of(d1, d2), d3);
+        assertEquals(1, rows.size());
+        assertEquals(d1, rows.get(0)[7], "last scan");
+        assertEquals(d1, rows.get(0)[8], "last feedback");
+        assertEquals(1L, ((Number) rows.get(0)[9]).longValue(), "scan + feedback on the same day = one visited day");
+        assertEquals(0L, ((Number) routesQueries.assignedShops(List.of(salesman.getId()), List.of(), d3).get(0)[9]).longValue());
+
+        List<Object[]> un = routesQueries.unassignedShops(List.of(d1, d2), d3);
+        assertEquals(1, un.size());
+        assertEquals(d2, un.get(0)[8]);
+        assertEquals(1L, ((Number) un.get(0)[9]).longValue());
+        assertEquals(1, routesQueries.holidays(d1, d3).size());
+    }
 }

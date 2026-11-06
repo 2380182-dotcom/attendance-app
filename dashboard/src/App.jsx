@@ -21,6 +21,7 @@ const SalesVoucherListPage = lazy(() => import('./pages/sales/SalesVoucherListPa
 const SalesVoucherDetailPage = lazy(() => import('./pages/sales/SalesVoucherDetailPage'));
 const QrShopVisitsPage = lazy(() => import('./pages/sales/QrShopVisitsPage'));
 const SalesmanVisitHistoryPage = lazy(() => import('./pages/sales/SalesmanVisitHistoryPage'));
+const RoutesPage = lazy(() => import('./pages/sales/RoutesPage'));
 const HierarchyPeoplePage = lazy(() => import('./pages/admin/HierarchyPeoplePage'));
 const SalesCockpitPage = lazy(() => import('./cockpit/sales/SalesCockpitPage'));
 const HrCockpitPage = lazy(() => import('./cockpit/hr/HrCockpitPage'));
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="vouchers/:voucherId" element={<SalesVoucherDetailPage />} />
           <Route path="qr-visits" element={<QrShopVisitsPage />} />
           <Route path="qr-visits/:agentId" element={<SalesmanVisitHistoryPage />} />
+          <Route path="routes" element={<RoutesPage />} />
         </Route>
 
         <Route
