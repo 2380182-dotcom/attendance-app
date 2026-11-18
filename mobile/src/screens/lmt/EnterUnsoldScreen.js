@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,11 +10,15 @@ import {
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { apiService } from '../../services/api';
+import { cachedFetch } from '../../services/apiCache';
 import { AuthContext } from '../../context/AuthContext';
 import Loading from '../../components/Loading';
 import AppButton from '../../components/AppButton';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
+import ProductFamilyBar, { FamilyHeading } from '../../components/ProductFamilyBar';
+import { useFamilyFilter } from '../../hooks/useProductFamilies';
+import { withFamilyHeadings } from '../../utils/productFamilies';
 
 /**
  * LMT flow refinement: day-level Unsold entry, once per day — renamed and
@@ -40,6 +44,7 @@ export default function EnterUnsoldScreen({ navigation }) {
   const { user } = useContext(AuthContext);
 
   const [items, setItems] = useState([]);
+  const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [unsoldValues, setUnsoldValues] = useState({});
@@ -48,8 +53,13 @@ export default function EnterUnsoldScreen({ navigation }) {
   const fetchTodayStock = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const stock = await apiService.lmt.getTodayStock(user.id);
+      const [stock, products] = await Promise.all([
+        apiService.lmt.getTodayStock(user.id),
+        // Only for the families of today's stock lines; without it the lines still show, in list order.
+        cachedFetch('products', () => apiService.sales.getProducts(), 5 * 60 * 1000).catch(() => []),
+      ]);
       setItems(stock?.items || []);
+      setCatalog(products || []);
       setAlreadyReconciled(stock?.status === 'RECONCILED');
     } catch (e) {
       console.error(e);
@@ -62,6 +72,15 @@ export default function EnterUnsoldScreen({ navigation }) {
   useEffect(() => {
     fetchTodayStock();
   }, [fetchTodayStock]);
+
+  // Today's stock lines as products (family + list order from the catalog), so the family filter and
+  // headings work like on every other product list. Every line is shown and counted, even a product
+  // switched off since this morning: its stock still has to be counted.
+  const stockProducts = useMemo(() => {
+    const byId = new Map(catalog.map((p) => [p.id, p]));
+    return items.map((it) => ({ ...(byId.get(it.productId) || {}), id: it.productId, name: it.productName, stockItem: it }));
+  }, [items, catalog]);
+  const familyFilter = useFamilyFilter(stockProducts);
 
   const handleSubmit = () => {
     Alert.alert(
@@ -113,8 +132,8 @@ export default function EnterUnsoldScreen({ navigation }) {
 
         <View style={styles.listContainer}>
           <FlatList
-            data={items}
-            keyExtractor={(item) => item.productId.toString()}
+            data={withFamilyHeadings(stockProducts, familyFilter.families)}
+            keyExtractor={(row) => row.key}
             ListHeaderComponent={
               items.length > 0 ? (
                 <View style={styles.headerRow}>
@@ -123,12 +142,16 @@ export default function EnterUnsoldScreen({ navigation }) {
                 </View>
               ) : null
             }
-            renderItem={({ item }) => (
-              <View style={styles.productRow}>
-                <Text style={[styles.productName, { flex: 1 }]} numberOfLines={2}>{item.productName}</Text>
-                <Text style={styles.readOnlyQty}>{item.unsoldQty}</Text>
-              </View>
-            )}
+            renderItem={({ item: row }) => {
+              if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} style={styles.familyHeading} />;
+              const item = row.item.stockItem;
+              return (
+                <View style={styles.productRow}>
+                  <Text style={[styles.productName, { flex: 1 }]} numberOfLines={2}>{item.productName}</Text>
+                  <Text style={styles.readOnlyQty}>{item.unsoldQty}</Text>
+                </View>
+              );
+            }}
           />
         </View>
 
@@ -146,10 +169,12 @@ export default function EnterUnsoldScreen({ navigation }) {
         <Text style={styles.bannerText}>Enter Unsold quantity, per product</Text>
       </View>
 
+      <ProductFamilyBar buttons={familyFilter.buttons} selected={familyFilter.selected} onSelect={familyFilter.setSelected} />
+
       <View style={styles.listContainer}>
         <FlatList
-          data={items}
-          keyExtractor={(item) => item.productId.toString()}
+          data={familyFilter.rows}
+          keyExtractor={(row) => row.key}
           ListHeaderComponent={
             items.length > 0 ? (
               <View style={styles.headerRow}>
@@ -159,21 +184,25 @@ export default function EnterUnsoldScreen({ navigation }) {
               </View>
             ) : null
           }
-          renderItem={({ item }) => (
-            <View style={styles.productRow}>
-              <Text style={[styles.productName, { flex: 1 }]} numberOfLines={2}>{item.productName}</Text>
-              <Text style={styles.openingStock}>{item.openingStock}</Text>
-              <TextInput
-                style={styles.qtyInput}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                value={unsoldValues[item.productId] || ''}
-                onChangeText={(val) => setUnsoldValues((prev) => ({ ...prev, [item.productId]: val }))}
-                maxLength={5}
-              />
-            </View>
-          )}
+          renderItem={({ item: row }) => {
+            if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} style={styles.familyHeading} />;
+            const item = row.item.stockItem;
+            return (
+              <View style={styles.productRow}>
+                <Text style={[styles.productName, { flex: 1 }]} numberOfLines={2}>{item.productName}</Text>
+                <Text style={styles.openingStock}>{item.openingStock}</Text>
+                <TextInput
+                  style={styles.qtyInput}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={colors.textMuted}
+                  value={unsoldValues[item.productId] || ''}
+                  onChangeText={(val) => setUnsoldValues((prev) => ({ ...prev, [item.productId]: val }))}
+                  maxLength={5}
+                />
+              </View>
+            );
+          }}
           ListEmptyComponent={
             <EmptyState icon="inventory" title="No stock entered today" message="Nothing to record — today's opening stock was never entered." />
           }
@@ -195,6 +224,7 @@ export default function EnterUnsoldScreen({ navigation }) {
 const createStyles = (colors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    familyHeading: { marginHorizontal: 12 },
     banner: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.controller;
 
+import com.dawnbread.attendance.util.ProductOrder;
 import com.dawnbread.attendance.dto.*;
 import com.dawnbread.attendance.entity.Area;
 import com.dawnbread.attendance.entity.CustomerShop;
@@ -185,6 +186,7 @@ public class CustomerShopController {
     public ResponseEntity<ApiResponse<List<ShopProductDiscountDTO>>> getProductDiscounts(@PathVariable Long id) {
         try {
             List<ShopProductDiscountDTO> dtos = customerShopService.getProductDiscounts(id).stream()
+                    .sorted(ProductOrder.by(ShopProductDiscount::getProduct))
                     .map(this::convertDiscountToDTO).collect(Collectors.toList());
             return ResponseEntity.ok(ApiResponse.success("Shop product discounts retrieved successfully", dtos));
         } catch (Exception e) {
@@ -226,6 +228,7 @@ public class CustomerShopController {
     public ResponseEntity<ApiResponse<List<ShopProductPriceDTO>>> getProductPrices(@PathVariable Long id) {
         try {
             List<ShopProductPriceDTO> dtos = customerShopService.getProductPrices(id).stream()
+                    .sorted(ProductOrder.by(ShopProductPrice::getProduct))
                     .map(this::convertPriceToDTO).collect(Collectors.toList());
             return ResponseEntity.ok(ApiResponse.success("Shop product prices retrieved successfully", dtos));
         } catch (Exception e) {
@@ -242,6 +245,7 @@ public class CustomerShopController {
         }
         try {
             List<ShopProductPriceDTO> saved = customerShopService.applyProductPrices(id, dto.getPrices()).stream()
+                    .sorted(ProductOrder.by(ShopProductPrice::getProduct))
                     .map(this::convertPriceToDTO).collect(Collectors.toList());
             return ResponseEntity.ok(ApiResponse.success("Shop product prices saved successfully", saved));
         } catch (Exception e) {

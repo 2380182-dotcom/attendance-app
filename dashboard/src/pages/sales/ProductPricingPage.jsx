@@ -4,12 +4,14 @@ import {
   Box, Paper, Typography, Table, TableContainer, TableHead, TableRow, TableCell, TableBody,
   CircularProgress, Alert, TextField, InputAdornment, IconButton, Snackbar, Switch, Tooltip,
   ToggleButtonGroup, ToggleButton, Dialog, DialogTitle, DialogContent, DialogActions, Button,
+  FormControl, InputLabel, Select, MenuItem, Checkbox, FormControlLabel, Chip,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import SaveIcon from '@mui/icons-material/Save';
+import EditIcon from '@mui/icons-material/Edit';
+import CategoryIcon from '@mui/icons-material/Category';
 import { productApi } from '../../services/productApi';
-import { sortRows, useSort } from '../../utils/sorting';
-import SortableHeader from '../../components/SortableHeader';
+import ProductFamiliesDialog from './ProductFamiliesDialog';
 
 /**
  * Role-based pricing (P3): ADMIN + SALES edit each product's Agent Price
@@ -21,6 +23,11 @@ import SortableHeader from '../../components/SortableHeader';
  * New products arrive hidden with prices "Not set" (null; 0 is a real
  * price). Enter both prices, then switch the product on: only then do
  * salesmen and agents see it. Saving a 0 price asks first.
+ *
+ * ORDER: always the official price list's SR No. order, exactly as the
+ * server sends it (never by name, category or price). An administrator sets
+ * each product's family (the app's filter button), SR No. and whether it is
+ * on the list, and manages the families.
  */
 const priceText = (v) => (v === null || v === undefined ? '' : String(v));
 export default function ProductPricingPage() {
@@ -35,9 +42,14 @@ export default function ProductPricingPage() {
   }, []);
   const canSwitch = user?.role === 'ADMIN';
   const pricing = useQuery({ queryKey: ['product-pricing'], queryFn: productApi.getPricing });
+  const familiesQuery = useQuery({ queryKey: ['product-families'], queryFn: productApi.getFamilies });
+  const families = useMemo(() => familiesQuery.data || [], [familiesQuery.data]);
+  const familyName = useMemo(() => Object.fromEntries(families.map((f) => [f.id, f.name])), [families]);
 
   const [search, setSearch] = useState('');
-  const [sort, onSort] = useSort('name', 'asc');
+  const [familyFilter, setFamilyFilter] = useState('ALL'); // ALL | NONE | family id
+  const [placing, setPlacing] = useState(null);            // { product, familyId, sortOrder, onPriceList }
+  const [familiesOpen, setFamiliesOpen] = useState(false);
   const [edits, setEdits] = useState({});
   const [savingId, setSavingId] = useState(null);
   const [snackbar, setSnackbar] = useState('');
@@ -81,15 +93,48 @@ export default function ProductPricingPage() {
     onError: (err) => setSnackbar(err.response?.data?.message || 'Failed to change the product.'),
   });
 
-  const hiddenCount = (pricing.data || []).filter((p) => !p.active).length;
+  const placementMutation = useMutation({
+    mutationFn: ({ id, placement }) => productApi.setPlacement(id, placement),
+    onSuccess: (p) => {
+      queryClient.invalidateQueries({ queryKey: ['product-pricing'] });
+      setPlacing(null);
+      setSnackbar(`${p.name}: list place saved.`);
+    },
+    onError: (err) => setSnackbar(err.response?.data?.message || 'Failed to save the list place.'),
+  });
 
+  const hiddenCount = (pricing.data || []).filter((p) => !p.active).length;
+  const productCounts = useMemo(() => {
+    const counts = {};
+    (pricing.data || []).forEach((p) => { if (p.familyId != null) counts[p.familyId] = (counts[p.familyId] || 0) + 1; });
+    return counts;
+  }, [pricing.data]);
+
+  // The server's order (the price list's SR No.) is kept as is: filters only hide rows.
   const filtered = useMemo(() => {
     const rows = pricing.data || [];
     const q = search.trim().toLowerCase();
-    const shown = rows.filter((p) => show === 'ALL' || (show === 'ON' ? p.active : !p.active));
-    const matched = q ? shown.filter((p) => p.name.toLowerCase().includes(q)) : shown;
-    return sortRows(matched, sort.key, sort.direction);
-  }, [pricing.data, search, sort, show]);
+    return rows
+      .filter((p) => show === 'ALL' || (show === 'ON' ? p.active : !p.active))
+      .filter((p) => familyFilter === 'ALL' || (familyFilter === 'NONE' ? p.familyId == null : p.familyId === familyFilter))
+      .filter((p) => !q || p.name.toLowerCase().includes(q));
+  }, [pricing.data, search, show, familyFilter]);
+
+  const openPlacement = (p) => setPlacing({
+    product: p, familyId: p.familyId ?? '', sortOrder: p.sortOrder == null ? '' : String(p.sortOrder), onPriceList: !!p.onPriceList,
+  });
+  const savePlacement = () => {
+    const order = placing.sortOrder.trim();
+    if (order !== '' && (!Number.isInteger(Number(order)) || Number(order) < 1)) {
+      setSnackbar('The SR No. must be a whole number of 1 or more, or empty.');
+      return;
+    }
+    placementMutation.mutate({ id: placing.product.id, placement: {
+      familyId: placing.familyId === '' ? null : placing.familyId,
+      sortOrder: order === '' ? null : Number(order),
+      onPriceList: placing.onPriceList,
+    } });
+  };
 
   const handleFieldChange = (id, field, value) => {
     setEdits((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
@@ -134,6 +179,7 @@ export default function ProductPricingPage() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Agent Price is charged on regular Agent sales; Salesman Price is charged on LMT shop-visit sales — set
         independently per product. A product is offered to salesmen and agents only when it is switched on.
+        Products are listed in the order of Dawn Bread's official price list (SR No.), the same order as in the app.
       </Typography>
 
       {hiddenCount > 0 && (
@@ -151,11 +197,24 @@ export default function ProductPricingPage() {
         sx={{ mb: 2, mr: 2, width: { xs: '100%', sm: 320 } }}
         InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
       />
-      <ToggleButtonGroup size="small" exclusive value={show} onChange={(e, v) => v && setShow(v)} sx={{ mb: 2 }}>
+      <ToggleButtonGroup size="small" exclusive value={show} onChange={(e, v) => v && setShow(v)} sx={{ mb: 2, mr: 2 }}>
         <ToggleButton value="ALL">All ({(pricing.data || []).length})</ToggleButton>
         <ToggleButton value="ON">On ({(pricing.data || []).length - hiddenCount})</ToggleButton>
         <ToggleButton value="HIDDEN">Hidden ({hiddenCount})</ToggleButton>
       </ToggleButtonGroup>
+      <FormControl size="small" sx={{ mb: 2, mr: 2, minWidth: 180 }}>
+        <InputLabel id="pricing-family">Family</InputLabel>
+        <Select labelId="pricing-family" label="Family" value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)}>
+          <MenuItem value="ALL">All families</MenuItem>
+          {families.map((f) => <MenuItem key={f.id} value={f.id}>{f.name} ({productCounts[f.id] || 0})</MenuItem>)}
+          <MenuItem value="NONE">No family</MenuItem>
+        </Select>
+      </FormControl>
+      {canSwitch && (
+        <Button variant="outlined" startIcon={<CategoryIcon />} onClick={() => setFamiliesOpen(true)} sx={{ mb: 2 }}>
+          Families
+        </Button>
+      )}
 
       {pricing.isLoading && <CircularProgress />}
       {pricing.isError && <Alert severity="error">Failed to load product pricing.</Alert>}
@@ -166,13 +225,16 @@ export default function ProductPricingPage() {
             <Table>
               <TableHead>
                 <TableRow>
-                  <SortableHeader label="Product" sortKey="name" sort={sort} onSort={onSort} />
-                  <SortableHeader label="Category" sortKey="category" sort={sort} onSort={onSort} />
-                  <SortableHeader label="Unit" sortKey="unit" sort={sort} onSort={onSort} />
+                  <TableCell align="right" sx={{ width: 64 }}>SR No.</TableCell>
+                  <TableCell>Product</TableCell>
+                  <TableCell>Family</TableCell>
+                  <TableCell>Category</TableCell>
+                  <TableCell>Unit</TableCell>
                   <TableCell align="right">Agent Price (PKR)</TableCell>
                   <TableCell align="right">Salesman Price (PKR)</TableCell>
                   <TableCell align="center">Save</TableCell>
-                  <SortableHeader label="On / Hidden" sortKey="active" sort={sort} onSort={onSort} />
+                  <TableCell>On / Hidden</TableCell>
+                  {canSwitch && <TableCell align="center">List place</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -182,7 +244,14 @@ export default function ProductPricingPage() {
                   const pricesSet = p.agentPrice != null && p.salesmanPrice != null;
                   return (
                     <TableRow key={p.id} hover>
-                      <TableCell>{p.name}</TableCell>
+                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums', color: 'text.secondary' }}>
+                        {p.onPriceList && p.sortOrder != null ? p.sortOrder : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {p.name}
+                        {!p.onPriceList && <Chip size="small" variant="outlined" label="Not on the list" sx={{ ml: 1 }} />}
+                      </TableCell>
+                      <TableCell>{p.familyId != null ? familyName[p.familyId] || '—' : '—'}</TableCell>
                       <TableCell>{p.category || '—'}</TableCell>
                       <TableCell>{p.unit || '—'}</TableCell>
                       <TableCell align="right">
@@ -234,6 +303,15 @@ export default function ProductPricingPage() {
                           {p.active ? 'On' : 'Hidden'}
                         </Typography>
                       </TableCell>
+                      {canSwitch && (
+                        <TableCell align="center">
+                          <Tooltip title="Family, SR No. and price list">
+                            <IconButton size="small" onClick={() => openPlacement(p)} aria-label={`List place of ${p.name}`}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
@@ -260,6 +338,43 @@ export default function ProductPricingPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog open={!!placing} onClose={() => setPlacing(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>List place: {placing?.product.name}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Every product list in the app, the dashboard and the reports follows the SR No. Products with no SR No.
+            come after all the others.
+          </Typography>
+          <FormControl fullWidth size="small" sx={{ mb: 2, mt: 1 }}>
+            <InputLabel id="placing-family">Family</InputLabel>
+            <Select labelId="placing-family" label="Family" value={placing?.familyId ?? ''}
+              onChange={(e) => setPlacing((pl) => ({ ...pl, familyId: e.target.value }))}>
+              <MenuItem value="">No family</MenuItem>
+              {families.map((f) => <MenuItem key={f.id} value={f.id}>{f.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField label="SR No." type="number" size="small" fullWidth value={placing?.sortOrder ?? ''}
+            onChange={(e) => setPlacing((pl) => ({ ...pl, sortOrder: e.target.value }))}
+            helperText="Its number on the official price list" slotProps={{ htmlInput: { min: 1 } }} sx={{ mb: 1 }} />
+          <FormControlLabel
+            control={<Checkbox checked={!!placing?.onPriceList}
+              onChange={(e) => setPlacing((pl) => ({ ...pl, onPriceList: e.target.checked }))} />}
+            label="On the official price list" />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPlacing(null)}>Cancel</Button>
+          <Button variant="contained" onClick={savePlacement} disabled={placementMutation.isPending}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      <ProductFamiliesDialog
+        open={familiesOpen}
+        onClose={() => setFamiliesOpen(false)}
+        families={families}
+        productCounts={productCounts}
+        onChanged={() => queryClient.invalidateQueries({ queryKey: ['product-families'] })}
+      />
 
       <Snackbar
         open={!!snackbar}

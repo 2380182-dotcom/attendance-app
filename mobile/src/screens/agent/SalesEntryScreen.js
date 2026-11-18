@@ -19,6 +19,9 @@ import SearchBar from '../../components/SearchBar';
 import AppButton from '../../components/AppButton';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
+import ProductFamilyBar, { FamilyHeading } from '../../components/ProductFamilyBar';
+import { useFamilyFilter } from '../../hooks/useProductFamilies';
+import { sortProducts, withFamilyHeadings } from '../../utils/productFamilies';
 
 export default function SalesEntryScreen({ navigation }) {
   const { colors } = useTheme();
@@ -36,7 +39,8 @@ export default function SalesEntryScreen({ navigation }) {
   const fetchProducts = useCallback(async () => {
     try {
       const data = await apiService.sales.getProducts();
-      setProducts(data);
+      // The official price list's SR No. order.
+      setProducts(sortProducts(data));
       // Initialize quantities to 1 for all products
       const qtys = {};
       data.forEach(p => {
@@ -155,9 +159,10 @@ export default function SalesEntryScreen({ navigation }) {
     );
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Family filter buttons + search, in the price list's order ("All" with family headings).
+  const familyFilter = useFamilyFilter(products, searchQuery);
+  // The cart: list order with family headings, no filter buttons.
+  const cartRows = withFamilyHeadings(cart, familyFilter.families, (c) => c.product);
 
   if (loading) {
     return <Loading message="Loading Dawn Bread products..." fullScreen />;
@@ -176,35 +181,41 @@ export default function SalesEntryScreen({ navigation }) {
         style={styles.searchSection}
       />
 
+      <ProductFamilyBar buttons={familyFilter.buttons} selected={familyFilter.selected} onSelect={familyFilter.setSelected} />
+
       <Text style={styles.sectionHeader}>Available Products</Text>
       <View style={styles.listContainer}>
         <FlatList
-          data={filteredProducts}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.productRow}>
-              <ProductThumbnail uri={item.thumbnailUrl} size={40} style={styles.productImage} />
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productPrice}>PKR {item.agentPrice}</Text>
+          data={familyFilter.rows}
+          keyExtractor={(row) => row.key}
+          renderItem={({ item: row }) => {
+            if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} style={styles.familyHeading} />;
+            const item = row.item;
+            return (
+              <View style={styles.productRow}>
+                <ProductThumbnail uri={item.thumbnailUrl} size={40} style={styles.productImage} />
+                <View style={styles.productInfo}>
+                  <Text style={styles.productName}>{item.name}</Text>
+                  <Text style={styles.productPrice}>PKR {item.agentPrice}</Text>
+                </View>
+                <View style={styles.actionRow}>
+                  <TextInput
+                    style={styles.qtyInput}
+                    keyboardType="number-pad"
+                    value={quantities[item.id] || '1'}
+                    onChangeText={(val) => handleQtyChange(item.id, val)}
+                    maxLength={3}
+                  />
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => handleAddToCart(item)}
+                  >
+                    <Text style={styles.addButtonText}>+ Add</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles.actionRow}>
-                <TextInput
-                  style={styles.qtyInput}
-                  keyboardType="number-pad"
-                  value={quantities[item.id] || '1'}
-                  onChangeText={(val) => handleQtyChange(item.id, val)}
-                  maxLength={3}
-                />
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={() => handleAddToCart(item)}
-                >
-                  <Text style={styles.addButtonText}>+ Add</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+            );
+          }}
           ListEmptyComponent={
             <EmptyState
               icon="search-off"
@@ -226,23 +237,27 @@ export default function SalesEntryScreen({ navigation }) {
 
         <View style={styles.cartListContainer}>
           <FlatList
-            data={cart}
-            keyExtractor={(item) => item.product.id.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.cartItem}>
-                <View style={styles.cartItemDetails}>
-                  <Text style={styles.cartItemName}>{item.product.name}</Text>
-                  <Text style={styles.cartItemSub}>Qty: {item.quantity} x PKR {item.product.agentPrice}</Text>
+            data={cartRows}
+            keyExtractor={(row) => row.key}
+            renderItem={({ item: row }) => {
+              if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} style={styles.familyHeading} />;
+              const item = row.item;
+              return (
+                <View style={styles.cartItem}>
+                  <View style={styles.cartItemDetails}>
+                    <Text style={styles.cartItemName}>{item.product.name}</Text>
+                    <Text style={styles.cartItemSub}>Qty: {item.quantity} x PKR {item.product.agentPrice}</Text>
+                  </View>
+                  <Text style={styles.cartItemTotal}>PKR {item.totalPrice}</Text>
+                  <TouchableOpacity
+                    onPress={() => handleRemoveFromCart(item.product.id)}
+                    style={styles.removeBtn}
+                  >
+                    <MaterialIcons name="cancel" size={20} color={colors.error} />
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.cartItemTotal}>PKR {item.totalPrice}</Text>
-                <TouchableOpacity
-                  onPress={() => handleRemoveFromCart(item.product.id)}
-                  style={styles.removeBtn}
-                >
-                  <MaterialIcons name="cancel" size={20} color={colors.error} />
-                </TouchableOpacity>
-              </View>
-            )}
+              );
+            }}
             ListEmptyComponent={
               <View style={styles.emptyCart}>
                 <MaterialIcons name="shopping-cart" size={32} color={colors.textMuted} />
@@ -291,6 +306,7 @@ const createStyles = (colors) => StyleSheet.create({
   searchSection: {
     margin: 12,
   },
+  familyHeading: { marginHorizontal: 4 },
   sectionHeader: {
     fontSize: 12,
     fontWeight: 'bold',

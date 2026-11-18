@@ -53,6 +53,20 @@ public class Product implements TenantAware {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    // Official price-list placement (V39). Every product list shows products
+    // by sortOrder (the list's SR No.), never by name; see ProductOrder.
+    // familyId = the app's filter button (ProductFamily), null = "Other".
+    // onPriceList = false for products that are not on the official list
+    // (the app's "All" view shows them in their own last group).
+    @Column(name = "family_id")
+    private Long familyId;
+
+    @Column(name = "sort_order")
+    private Integer sortOrder;
+
+    @Column(name = "on_price_list", nullable = false)
+    private Boolean onPriceList = false;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -93,6 +107,15 @@ public class Product implements TenantAware {
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+
+    public Long getFamilyId() { return familyId; }
+    public void setFamilyId(Long familyId) { this.familyId = familyId; }
+
+    public Integer getSortOrder() { return sortOrder; }
+    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+
+    public Boolean getOnPriceList() { return onPriceList; }
+    public void setOnPriceList(Boolean onPriceList) { this.onPriceList = onPriceList; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

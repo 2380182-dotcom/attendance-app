@@ -12,6 +12,10 @@ public class ProductPricingDTO {
     // a null price means "Not set".
     private boolean active;
     private String unit;
+    // Official price-list placement (V39): family (null = "Other"), SR No. order, on the list or not.
+    private Long familyId;
+    private Integer sortOrder;
+    private boolean onPriceList;
 
     public ProductPricingDTO() {}
 
@@ -50,4 +54,13 @@ public class ProductPricingDTO {
 
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
+
+    public Long getFamilyId() { return familyId; }
+    public void setFamilyId(Long familyId) { this.familyId = familyId; }
+
+    public Integer getSortOrder() { return sortOrder; }
+    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+
+    public boolean isOnPriceList() { return onPriceList; }
+    public void setOnPriceList(boolean onPriceList) { this.onPriceList = onPriceList; }
 }

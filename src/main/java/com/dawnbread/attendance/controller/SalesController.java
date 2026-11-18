@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.controller;
 
+import com.dawnbread.attendance.util.ProductOrder;
 import com.dawnbread.attendance.dto.*;
 import com.dawnbread.attendance.entity.Product;
 import com.dawnbread.attendance.entity.SalesRecord;
@@ -42,6 +43,9 @@ public class SalesController {
     private SalesService salesService;
 
     @Autowired
+    private com.dawnbread.attendance.service.ProductService productService;
+
+    @Autowired
     private ShopVisitIdempotencyService shopVisitIdempotencyService;
 
     @Autowired
@@ -77,9 +81,16 @@ public class SalesController {
         return ResponseEntity.ok(ApiResponse.success("Product catalog loaded", products));
     }
 
+    /** The product families (the apps' filter buttons) in button order; open to any authenticated role, like the catalog. */
+    @GetMapping("/product-families")
+    public ResponseEntity<ApiResponse<List<com.dawnbread.attendance.entity.ProductFamily>>> getProductFamilies() {
+        return ResponseEntity.ok(ApiResponse.success("Product families loaded", productService.getFamilies()));
+    }
+
     @GetMapping("/products-with-images")
     public ResponseEntity<ApiResponse<List<Product>>> getProductsWithImages() {
-        List<Product> products = productRepository.findByIsActiveTrue();
+        // In the official price list's order (ProductOrder): app 1.2.0 shows them in this order as sent.
+        List<Product> products = productRepository.findByIsActiveTrue().stream().sorted(ProductOrder.PRODUCTS).toList();
         return ResponseEntity.ok(ApiResponse.success("Products catalog loaded successfully", products));
     }
 

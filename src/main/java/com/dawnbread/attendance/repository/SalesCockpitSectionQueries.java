@@ -239,11 +239,14 @@ public class SalesCockpitSectionQueries {
 
     // ================================================================ Products
 
-    /** Every product sold in the period: id, name, soldUnits, saleValue (highest value first). */
+    /**
+     * Every product sold in the period: id, name, soldUnits, saleValue, sortOrder (highest value first, which
+     * the ABC classes need; the service then shows them in the price list's order).
+     */
     public List<Object[]> productSales(CockpitFilter f) {
-        return rows(base.sales("SELECT p.id, p.name, " + SOLD_UNITS + ", " + SALE_VALUE,
+        return rows(base.sales("SELECT p.id, p.name, " + SOLD_UNITS + ", " + SALE_VALUE + ", p.sort_order",
                         "JOIN products p ON p.id = si.product_id", f, f.startDate(), f.endDate())
-                .add("GROUP BY p.id, p.name ORDER BY 4 DESC, 2").build(em));
+                .add("GROUP BY p.id, p.name, p.sort_order ORDER BY 4 DESC, 2").build(em));
     }
 
     /** Active products with the fewest sold units in the period (incl. none): id, name, soldUnits, saleValue, lastSold. */

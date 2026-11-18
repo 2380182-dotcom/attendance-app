@@ -11,6 +11,7 @@ import { sortRows, useSort } from '../../utils/sorting';
 import { usePagination } from '../../utils/pagination';
 import { toCsv, downloadCsv } from '../../utils/csvExport';
 import SortableHeader from '../../components/SortableHeader';
+import { useProductOrder } from '../../utils/productOrder';
 
 const pkr = (n) => `PKR ${(n ?? 0).toLocaleString()}`;
 
@@ -73,7 +74,11 @@ function ShopRow({ shop }) {
 /** Shop-wise sales, returns and discounts for a set of LMT shop-visit records. */
 export default function LmtShopBreakdown({ records, filenameHint }) {
   const [sort, onSort] = useSort('revenue', 'desc');
-  const shops = useMemo(() => aggregateByShop(records), [records]);
+  const productOrder = useProductOrder();
+  // Each shop's product lines in the official price list's order (the shops themselves stay sortable).
+  const shops = useMemo(() => aggregateByShop(records).map((s) => ({
+    ...s, products: productOrder.sort(s.products, (p) => ({ id: p.productId, name: p.productName })),
+  })), [records, productOrder]);
   const sorted = useMemo(() => sortRows(shops, sort.key, sort.direction), [shops, sort]);
   const { page, rowsPerPage, paged, handleChangePage, handleChangeRowsPerPage } = usePagination(sorted);
 

@@ -44,7 +44,18 @@ async function seedDemo(request) {
   });
   const agents = await api(request, 'GET', '/agents', admin);
   const demoAgent = agents.find((a) => a.agentId === 'DEMO001');
-  return { shopId: shop.id, salesmanId: salesman.id, demoAgentId: demoAgent.id };
+
+  // Price list order: two demo families, and the LAST three demo products placed at SR 1-3 (reverse id
+  // order), so the Pricing page proves it follows the SR No., not the id or the name.
+  const bread = await api(request, 'POST', '/products/families', admin, { name: `E2E Bread ${stamp}`, sortOrder: 1 });
+  const rusk = await api(request, 'POST', '/products/families', admin, { name: `E2E Rusk ${stamp}`, sortOrder: 2 });
+  const pricing = await api(request, 'GET', '/products/pricing', admin);
+  const placed = pricing.slice(-3).reverse();
+  for (const [i, p] of placed.entries()) {
+    await api(request, 'PUT', `/products/${p.id}/placement`, admin,
+      { familyId: i < 2 ? bread.id : rusk.id, sortOrder: i + 1, onPriceList: true });
+  }
+  return { shopId: shop.id, salesmanId: salesman.id, demoAgentId: demoAgent.id, placedNames: placed.map((p) => p.name), stamp };
 }
 
 const ERROR_TEXT = /Could not load|Failed to load|Something went wrong|Unable to load/i;
@@ -102,6 +113,22 @@ test('every dashboard page opens without errors (demo data)', async ({ page, req
   await page.locator('tbody tr').first().click();
   await page.waitForURL(/\/sales\/vouchers\/\d+$/);
   failures.push(...await visit(page, problems, new URL(page.url()).pathname));
+
+  // Pricing: SR No. order (the three placed products first, SR 1-3), the Families dialog and the
+  // list-place dialog open without errors.
+  failures.push(...await visit(page, problems, '/sales/pricing'));
+  const pricingProblems = problems.length;
+  const firstNames = await page.locator('tbody tr td:nth-child(2)').evaluateAll((cells) => cells.slice(0, 3).map((c) => c.textContent.trim()));
+  expect(firstNames, 'Pricing follows the SR No.').toEqual(ids.placedNames);
+  await expect(page.locator('tbody tr').first()).toContainText(`E2E Bread ${ids.stamp}`);
+  await page.getByRole('button', { name: 'Families' }).click();
+  await expect(page.getByRole('dialog', { name: 'Product families' })).toBeVisible();
+  await expect(page.getByLabel(`E2E Rusk ${ids.stamp} name`)).toHaveValue(`E2E Rusk ${ids.stamp}`);
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: `List place of ${ids.placedNames[0]}` }).click();
+  await expect(page.getByLabel('SR No.')).toHaveValue('1');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  failures.push(...problems.slice(pricingProblems).map((p) => `/sales/pricing (dialogs): ${p}`));
 
   expect(failures, failures.join('\n')).toEqual([]);
 });
