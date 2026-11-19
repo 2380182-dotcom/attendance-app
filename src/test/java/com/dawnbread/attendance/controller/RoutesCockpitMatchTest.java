@@ -30,6 +30,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * case seeds its own company (no cached answer from another case).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// Its own in-memory database: this class's context (it has its own clock) recreates the schema on start, which
+// would otherwise reset the shared test database's ids under other classes' cached cockpit answers.
+@org.springframework.test.context.TestPropertySource(properties =
+        "spring.datasource.url=jdbc:h2:mem:routes_cockpit_match;DB_CLOSE_DELAY=-1;MODE=MySQL")
 class RoutesCockpitMatchTest {
 
     private static final ZoneId PK = ZoneId.of("Asia/Karachi");
