@@ -5,6 +5,7 @@ import com.dawnbread.attendance.dto.cockpit.CockpitFilter;
 import com.dawnbread.attendance.dto.routes.RoutesDTOs.*;
 import com.dawnbread.attendance.repository.RoutesQueries;
 import com.dawnbread.attendance.repository.SalesCockpitQueries;
+import com.dawnbread.attendance.util.ShopDueDays;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,8 @@ import static com.dawnbread.attendance.repository.SalesCockpitQueries.lng;
  * from it by RoutesViews, so changing a filter or a sort never runs SQL.
  *
  * Due days: each salesman's working days in the range minus company
- * holidays. Salesmen are grouped by their working-day set (normally one
+ * holidays (ShopDueDays, the same rule as the Sales cockpit's "today"
+ * cards). Salesmen are grouped by their working-day set (normally one
  * group: MON-SAT) and each group is one query with its own due dates.
  */
 @Service
@@ -77,7 +79,7 @@ public class RoutesService {
         List<ShopRow> shops = new ArrayList<>();
         for (Map.Entry<Set<String>, List<Long>> g : groups.entrySet()) {
             List<LocalDate> due = nonHolidays.stream()
-                    .filter(d -> g.getKey().isEmpty() || g.getKey().contains(d.getDayOfWeek().name().substring(0, 3)))
+                    .filter(d -> ShopDueDays.worksOn(List.copyOf(g.getKey()), d))
                     .toList();
             for (Object[] r : queries.assignedShops(g.getValue(), due, to)) {
                 shops.add(new ShopRow(id(r[0]), (String) r[1], (String) r[2], (String) r[3], id(r[4]), (String) r[5],

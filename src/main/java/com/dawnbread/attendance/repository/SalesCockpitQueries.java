@@ -378,8 +378,13 @@ public class SalesCockpitQueries {
                     + "SELECT fb.visit_date, fb.customer_shop_id, fb.agent_id FROM shop_feedback fb "
                     + "WHERE fb.tenant_id = :tenantId AND fb.visit_date BETWEEN :from AND :to";
 
+    /**
+     * Active shops of ACTIVE salesmen (same as Sales > Routes): a shop whose salesman is inactive is
+     * "unassigned" there, so it is not counted as assigned here either.
+     */
     void assignedFilters(Sql q, CockpitFilter f) {
-        q.and("cs.tenant_id = :tenantId AND cs.is_active = true AND ag.role IN (:roles)", "roles", salesmanRoles(f));
+        q.and("cs.tenant_id = :tenantId AND cs.is_active = true AND ag.is_active = true AND ag.role IN (:roles)",
+                "roles", salesmanRoles(f));
         if (f.areaId() != null) q.and("cs.area_id = :areaId", "areaId", f.areaId());
         if (f.agentId() != null) q.and("ag.id = :agentId", "agentId", f.agentId());
     }
@@ -399,6 +404,34 @@ public class SalesCockpitQueries {
         q.param("tenantId", tenantId()).param("from", from).param("to", to);
         assignedFilters(q, f);
         return rows(q.add("GROUP BY v.d").build(em));
+    }
+
+    /** Assigned shops per salesman: salesmanId, shops. Small (one row per salesman). */
+    public List<Object[]> assignedShopsBySalesman(CockpitFilter f) {
+        Sql q = new Sql("SELECT ag.id, COUNT(*) FROM customer_shops cs JOIN agent ag ON ag.id = cs.assigned_agent_id WHERE 1 = 1");
+        q.param("tenantId", tenantId());
+        assignedFilters(q, f);
+        return rows(q.add("GROUP BY ag.id").build(em));
+    }
+
+    /**
+     * Per day and salesman: date, salesmanId, assigned shops visited by that salesman that day. One query for the
+     * whole range; the caller keeps only the salesman's due days (ShopDueDays).
+     */
+    public List<Object[]> visitedAssignedShopsByDayAndSalesman(CockpitFilter f, LocalDate from, LocalDate to) {
+        Sql q = new Sql("SELECT v.d, ag.id, COUNT(DISTINCT cs.id) FROM (" + VISITS + ") v "
+                + "JOIN customer_shops cs ON cs.id = v.shop_id AND cs.assigned_agent_id = v.agent_id "
+                + "JOIN agent ag ON ag.id = cs.assigned_agent_id WHERE 1 = 1");
+        q.param("tenantId", tenantId()).param("from", from).param("to", to);
+        assignedFilters(q, f);
+        return rows(q.add("GROUP BY v.d, ag.id").build(em));
+    }
+
+    /** Company holidays in a range: date, name. */
+    public List<Object[]> holidays(LocalDate from, LocalDate to) {
+        Sql q = new Sql("SELECT h.holiday_date, h.name FROM company_holiday h WHERE h.tenant_id = :tenantId "
+                + "AND h.holiday_date BETWEEN :from AND :to ORDER BY h.holiday_date");
+        return rows(q.param("tenantId", tenantId()).param("from", from).param("to", to).build(em));
     }
 
     /** Assigned shops whose assigned salesman has no visit AFTER cutoff (last visit on/before cutoff, or never). */
