@@ -5,7 +5,6 @@ import com.dawnbread.attendance.dto.cockpit.CockpitFilter;
 import com.dawnbread.attendance.dto.cockpit.SalesCockpitDTOs.*;
 import com.dawnbread.attendance.dto.PageResponse;
 import com.dawnbread.attendance.repository.SalesCockpitQueries;
-import com.dawnbread.attendance.util.ShopDueDays;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -53,6 +52,9 @@ public class SalesCockpitService {
 
     @Autowired
     private LmtSettingsService lmtSettingsService;
+
+    @Autowired
+    private ShopDueCoverage shopDueCoverage;
 
     @Autowired
     private Clock clock;
@@ -110,19 +112,18 @@ public class SalesCockpitService {
         // --- today's coverage: the SAME numbers as Sales > Routes for today (ShopDueDays): a shop is due on its
         // active salesman's working days except company holidays, and only visits on due days count.
         LocalDate todaySparkStart = today.minusDays(SPARK_DAYS - 1);
-        DueCoverage cov = dueCoverage(f, todaySparkStart, today);
+        ShopDueCoverage.Coverage cov = shopDueCoverage.forRange(f, todaySparkStart, today);
         List<DayValue> visitedSpark = new ArrayList<>();
         List<DayValue> notVisitedSpark = new ArrayList<>();
         for (LocalDate d = todaySparkStart; !d.isAfter(today); d = d.plusDays(1)) {
-            long due = cov.due().getOrDefault(d, 0L);
-            long v = cov.visited().getOrDefault(d, 0L);
+            long due = cov.dueOn(d);
+            long v = cov.visitedOn(d);
             visitedSpark.add(new DayValue(d, v));
             notVisitedSpark.add(new DayValue(d, Math.max(due - v, 0)));
         }
-        long dueToday = cov.due().getOrDefault(today, 0L);
-        String holidayToday = cov.holidays().get(today);
-        String nothingDue = holidayToday != null ? "Company holiday: " + holidayToday + " · no shops are due today"
-                : "Day off: no shops are due today";
+        long dueToday = cov.dueOn(today);
+        String nothingDue = cov.nothingDueReason(today) + (cov.holidays().containsKey(today) ? " · " : ": ")
+                + "no shops are due today";
         double visitedToday = last(visitedSpark);
         double visitedLastWeek = weekAgo(visitedSpark);
         double coverage = dueToday > 0 ? visitedToday * 100.0 / dueToday : 0.0;
@@ -438,40 +439,5 @@ public class SalesCockpitService {
 
     private static String money(double v) {
         return String.format(Locale.ROOT, "%,.0f", v);
-    }
-
-    /** Per day: shops due and shops visited on a due day (ShopDueDays), plus the holidays by date. */
-    record DueCoverage(long assigned, Map<LocalDate, Long> due, Map<LocalDate, Long> visited, Map<LocalDate, String> holidays) {
-    }
-
-    /**
-     * The shared due-day rule, per day of [from, to], for the filter's salesmen. Small: one row per salesman
-     * for the shops, one per (day, salesman) for the visits, plus the holidays; the rest is counted here.
-     */
-    DueCoverage dueCoverage(CockpitFilter f, LocalDate from, LocalDate to) {
-        Map<Long, Long> shops = new java.util.HashMap<>();
-        for (Object[] r : queries.assignedShopsBySalesman(f)) shops.put(SalesCockpitQueries.id(r[0]), lng(r[1]));
-        Map<Long, List<String>> workingDays = queries.workingDays(new ArrayList<>(shops.keySet()));
-        Map<LocalDate, String> holidays = new java.util.HashMap<>();
-        for (Object[] r : queries.holidays(from, to)) holidays.put((LocalDate) r[0], (String) r[1]);
-        java.util.Set<LocalDate> holidayDates = holidays.keySet();
-
-        Map<LocalDate, Long> due = new java.util.HashMap<>();
-        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
-            long n = 0;
-            for (Map.Entry<Long, Long> e : shops.entrySet()) {
-                if (ShopDueDays.isDue(workingDays.get(e.getKey()), holidayDates, d)) n += e.getValue();
-            }
-            due.put(d, n);
-        }
-        Map<LocalDate, Long> visited = new java.util.HashMap<>();
-        for (Object[] r : queries.visitedAssignedShopsByDayAndSalesman(f, from, to)) {
-            LocalDate d = (LocalDate) r[0];
-            if (ShopDueDays.isDue(workingDays.get(SalesCockpitQueries.id(r[1])), holidayDates, d)) {
-                visited.merge(d, lng(r[2]), Long::sum);
-            }
-        }
-        long assigned = shops.values().stream().mapToLong(Long::longValue).sum();
-        return new DueCoverage(assigned, due, visited, holidays);
     }
 }

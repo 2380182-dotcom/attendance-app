@@ -73,13 +73,16 @@ function CoverageTrend({ trend }) {
         <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} {...axisProps} axisLine={false} width={40} />
         <Tooltip
           content={({ active, payload }) => (active && payload?.length ? (
-            <TooltipBox title={shortDate(payload[0].payload.date)} rows={[
-              { label: 'Coverage', value: pct(payload[0].payload.coveragePercent), color: MEANING.ok },
-              { label: 'Shops visited', value: `${int(payload[0].payload.visitedShops)} of ${int(payload[0].payload.assignedShops)}` },
-            ]} />
+            <TooltipBox title={shortDate(payload[0].payload.date)} rows={payload[0].payload.dayOff
+              // Nothing was due (salesmen's day off or a company holiday): no coverage %, never 0%.
+              ? [{ label: payload[0].payload.dayOff, value: 'no shops due' }]
+              : [
+                { label: 'Coverage', value: pct(payload[0].payload.coveragePercent), color: MEANING.ok },
+                { label: 'Shops visited', value: `${int(payload[0].payload.visitedShops)} of ${int(payload[0].payload.dueShops)} due` },
+              ]} />
           ) : null)}
         />
-        <Area type="monotone" dataKey="coveragePercent" stroke={MEANING.ok} strokeWidth={2} fill="url(#cov-fill)"
+        <Area type="monotone" dataKey="coveragePercent" connectNulls={false} stroke={MEANING.ok} strokeWidth={2} fill="url(#cov-fill)"
           dot={false} activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }} isAnimationActive={!reducedMotion} />
       </AreaChart>
     </ResponsiveContainer>
@@ -220,7 +223,7 @@ export default function CoverageSection({ query, filters, visible, onDrill }) {
         </ChartCard>
         <ChartCard
           title="Coverage % per day"
-          hint="Assigned shops visited by their salesman that day (today's assignments)"
+          hint="Shops due that day visited by their salesman (same rule as Routes) · gaps are days off and holidays"
           loading={loading} error={error} onRetry={retry} height={240}
           empty={!d?.trend?.length} emptyTitle="No days in range" emptyMessage="Pick a range that includes past days."
         >

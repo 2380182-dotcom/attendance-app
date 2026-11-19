@@ -38,7 +38,11 @@ public final class SalesCockpitSectionDTOs {
                                    double coveragePercent) {
     }
 
-    public record CoverageDay(LocalDate date, long visitedShops, long assignedShops, double coveragePercent) {
+    /**
+     * One day of the coverage trend, with the Sales > Routes rule: dueShops = shops due that day.
+     * coveragePercent is null and dayOff says why ("Day off" / "Company holiday: name") when nothing was due.
+     */
+    public record CoverageDay(LocalDate date, long visitedShops, long dueShops, Double coveragePercent, String dayOff) {
     }
 
     public record ReasonCount(String reason, long count) {

@@ -24,7 +24,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * Sales > Routes and the Sales cockpit's "Shop visits today" / "Not visited
  * today" must ALWAYS show the same numbers: same visited rule, same due days
  * (each salesman's working days, minus company holidays) and shops of an
- * inactive salesman under Unassigned, not assigned. "Today" is set with a
+ * inactive salesman under Unassigned, not assigned. The cockpit's "Coverage
+ * % per day" chart follows the same rule day by day. "Today" is set with a
  * settable clock so a weekday, a Sunday and a holiday are each tested. Each
  * case seeds its own company (no cached answer from another case).
  */
@@ -268,5 +269,56 @@ class RoutesCockpitMatchTest {
         // The day before (Monday) was a normal day for the sparkline: 2 due, none visited.
         JsonNode spark = card(cockpit, "not_visited_today").get("sparkline");
         assertEquals(2, spark.get(spark.size() - 2).get("value").asInt());
+    }
+
+    @Test
+    void theCoverageTrendMatchesRoutesDayByDayAndSkipsSundaysAndHolidays() throws Exception {
+        clock.setDay(TUESDAY_HOLIDAY);
+        Tenant t = tenant("TREND");
+        CompanyHoliday h = new CompanyHoliday();
+        h.setTenantId(t.getId());
+        h.setHolidayDate(TUESDAY_HOLIDAY);
+        h.setName("Test Day");
+        h.setCreatedAt(LocalDateTime.now());
+        companyHolidayRepository.save(h);
+        Agent ali = salesman(t, "Ali", MON_SAT, true);
+        Agent offMonday = salesman(t, "Off Monday", TUE_SAT, true);
+        Agent gone = salesman(t, "Gone", MON_SAT, false);
+        CustomerShop a1 = shop(t, ali, "A1");
+        CustomerShop a2 = shop(t, ali, "A2");
+        CustomerShop o1 = shop(t, offMonday, "O1");
+        CustomerShop g1 = shop(t, gone, "G1");
+        LocalDate saturday = SUNDAY.minusDays(1);
+        for (LocalDate d = saturday; !d.isAfter(TUESDAY_HOLIDAY); d = d.plusDays(1)) {
+            scan(t, ali, a1, d);      // every day, including Sunday and the holiday
+            scan(t, offMonday, o1, d);
+            scan(t, gone, g1, d);
+        }
+        feedback(t, ali, a2, saturday);
+
+        JsonNode trend = data(t, "cockpit/sales/coverage?startDate=" + saturday + "&endDate=" + TUESDAY_HOLIDAY).get("trend");
+        assertEquals(4, trend.size());
+        for (JsonNode day : trend) {
+            LocalDate d = LocalDate.parse(day.get("date").asText());
+            JsonNode routes = data(t, "routes/summary?startDate=" + d + "&endDate=" + d).get("total");
+            assertEquals(routes.get("visited").asInt(), day.get("visitedShops").asInt(), d + " visited: Routes vs cockpit");
+            assertEquals(routes.get("due").asInt(), day.get("dueShops").asInt(), d + " due: Routes vs cockpit");
+            if (routes.get("due").asInt() == 0) {
+                assertTrue(day.get("coveragePercent").isNull(), d + ": a day with nothing due is not 0%");
+            } else {
+                assertEquals(routes.get("coveragePercent").asDouble(), day.get("coveragePercent").asDouble(), 0.05, d + " coverage %");
+            }
+        }
+        // Saturday: Ali 2 + Off Monday 1 due, all visited. Sunday: day off. Monday: Ali's 2 due (1 visited),
+        // Off Monday is off. Tuesday: holiday. The inactive salesman's shop is never counted.
+        assertEquals(List.of("3/3", "Day off", "1/2", "Company holiday: Test Day"), trendText(trend));
+    }
+
+    private static List<String> trendText(JsonNode trend) {
+        List<String> out = new java.util.ArrayList<>();
+        for (JsonNode d : trend) {
+            out.add(d.get("dayOff").isNull() ? d.get("visitedShops").asInt() + "/" + d.get("dueShops").asInt() : d.get("dayOff").asText());
+        }
+        return out;
     }
 }

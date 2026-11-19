@@ -396,16 +396,6 @@ public class SalesCockpitQueries {
         return single(q.build(em));
     }
 
-    /** Per day: how many assigned shops were visited by their assigned salesman. One query for the whole range. */
-    public List<Object[]> visitedAssignedShopsByDay(CockpitFilter f, LocalDate from, LocalDate to) {
-        Sql q = new Sql("SELECT v.d, COUNT(DISTINCT cs.id) FROM (" + VISITS + ") v "
-                + "JOIN customer_shops cs ON cs.id = v.shop_id AND cs.assigned_agent_id = v.agent_id "
-                + "JOIN agent ag ON ag.id = cs.assigned_agent_id WHERE 1 = 1");
-        q.param("tenantId", tenantId()).param("from", from).param("to", to);
-        assignedFilters(q, f);
-        return rows(q.add("GROUP BY v.d").build(em));
-    }
-
     /** Assigned shops per salesman: salesmanId, shops. Small (one row per salesman). */
     public List<Object[]> assignedShopsBySalesman(CockpitFilter f) {
         Sql q = new Sql("SELECT ag.id, COUNT(*) FROM customer_shops cs JOIN agent ag ON ag.id = cs.assigned_agent_id WHERE 1 = 1");

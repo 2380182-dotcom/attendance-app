@@ -38,6 +38,9 @@ public class SalesCockpitSectionService {
     private static final String KEY_PREFIX = "T(com.dawnbread.attendance.security.TenantContext).getTenantId() + ':";
 
     @Autowired
+    private ShopDueCoverage shopDueCoverage;
+
+    @Autowired
     private SalesCockpitSectionQueries q;
     @Autowired
     private SalesCockpitQueries base;
@@ -107,13 +110,17 @@ public class SalesCockpitSectionService {
         bySalesman.sort(Comparator.comparingDouble(SalesmanCoverage::coveragePercent)
                 .thenComparing(SalesmanCoverage::name));
 
-        long assignedNow = base.countAssignedShops(f);
+        // Per day, the shops DUE that day (same rule as Sales > Routes, ShopDueCoverage): a day off or a company
+        // holiday has no coverage % (shown as "Day off" / the holiday), never as 0%.
         LocalDate trendEnd = f.endDate().isAfter(today()) ? today() : f.endDate();
-        Map<LocalDate, Double> visitedByDay = byDate(base.visitedAssignedShopsByDay(f, f.startDate(), trendEnd), 1);
         List<CoverageDay> trend = new ArrayList<>();
-        for (LocalDate d = f.startDate(); !d.isAfter(trendEnd); d = d.plusDays(1)) {
-            long v = visitedByDay.getOrDefault(d, 0.0).longValue();
-            trend.add(new CoverageDay(d, v, assignedNow, pct(v, assignedNow)));
+        if (!f.startDate().isAfter(trendEnd)) {
+            ShopDueCoverage.Coverage cov = shopDueCoverage.forRange(f, f.startDate(), trendEnd);
+            for (LocalDate d = f.startDate(); !d.isAfter(trendEnd); d = d.plusDays(1)) {
+                long due = cov.dueOn(d);
+                long v = cov.visitedOn(d);
+                trend.add(new CoverageDay(d, v, due, due > 0 ? pct(v, due) : null, cov.nothingDueReason(d)));
+            }
         }
 
         List<ReasonCount> reasons = new ArrayList<>();
