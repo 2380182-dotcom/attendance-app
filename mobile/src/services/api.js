@@ -475,6 +475,15 @@ export const apiService = {
         return handleApiError(error);
       }
     },
+    /** The product families (filter buttons) in button order. */
+    async getProductFamilies() {
+      try {
+        const response = await api.get('/sales/product-families');
+        return handleResponse(response);
+      } catch (error) {
+        return handleApiError(error);
+      }
+    },
     async submitSales(salesRequest) {
       try {
         const response = await api.post('/sales/entry-with-images', salesRequest);

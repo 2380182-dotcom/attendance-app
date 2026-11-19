@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -18,6 +18,9 @@ import SearchBar from '../../components/SearchBar';
 import AppButton from '../../components/AppButton';
 import EmptyState from '../../components/EmptyState';
 import { useTheme } from '../../theme';
+import ProductFamilyBar, { FamilyHeading } from '../../components/ProductFamilyBar';
+import { useFamilyFilter } from '../../hooks/useProductFamilies';
+import { sortProducts, withFamilyHeadings } from '../../utils/productFamilies';
 
 /**
  * Phase C4: morning full-stock entry, per product. Always reachable from
@@ -49,7 +52,8 @@ export default function MorningStockEntryScreen({ navigation }) {
       // Cached briefly (apiCache) — the catalog is shared with the other
       // LMT screens and rarely changes within a shift.
       const data = await cachedFetch('products', () => apiService.sales.getProducts(), 5 * 60 * 1000);
-      setProducts(data);
+      // The official price list's SR No. order.
+      setProducts(sortProducts(data));
     } catch (e) {
       console.error(e);
       Alert.alert('Data Error', 'Unable to fetch products list.');
@@ -66,6 +70,9 @@ export default function MorningStockEntryScreen({ navigation }) {
     try {
       const stock = await apiService.lmt.getTodayStock(user.id);
       if (stock) {
+        // The catalog only for the family headings of the read-only list; without it the list still shows.
+        const catalog = await cachedFetch('products', () => apiService.sales.getProducts(), 5 * 60 * 1000).catch(() => []);
+        setProducts(sortProducts(catalog));
         setExistingStock(stock);
         setLoading(false);
         return;
@@ -123,7 +130,14 @@ export default function MorningStockEntryScreen({ navigation }) {
     }
   };
 
-  const filteredProducts = products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Family filter buttons + search, in the price list's order ("All" with family headings).
+  const familyFilter = useFamilyFilter(products, searchQuery);
+  // Already entered: the server's list order, with family headings, no filter buttons.
+  const enteredRows = useMemo(() => {
+    const byId = new Map(products.map((p) => [p.id, p]));
+    return withFamilyHeadings(existingStock?.items || [], familyFilter.families,
+      (it) => byId.get(it.productId) || { id: it.productId }, (it) => it.productId);
+  }, [products, existingStock, familyFilter.families]);
   const enteredCount = enteredItems().length;
 
   if (loading) {
@@ -143,14 +157,18 @@ export default function MorningStockEntryScreen({ navigation }) {
 
         <View style={styles.listContainer}>
           <FlatList
-            data={existingStock.items || []}
-            keyExtractor={(item) => item.productId.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.readOnlyRow}>
-                <Text style={[styles.productName, { flex: 1 }]} numberOfLines={2}>{item.productName}</Text>
-                <Text style={styles.readOnlyQty}>{item.openingStock}</Text>
-              </View>
-            )}
+            data={enteredRows}
+            keyExtractor={(row) => row.key}
+            renderItem={({ item: row }) => {
+              if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} style={styles.familyHeading} />;
+              const item = row.item;
+              return (
+                <View style={styles.readOnlyRow}>
+                  <Text style={[styles.productName, { flex: 1 }]} numberOfLines={2}>{item.productName}</Text>
+                  <Text style={styles.readOnlyQty}>{item.openingStock}</Text>
+                </View>
+              );
+            }}
             ListEmptyComponent={
               <EmptyState icon="inventory" title="No products entered" message="Today's stock was submitted with no product lines." />
             }
@@ -178,27 +196,33 @@ export default function MorningStockEntryScreen({ navigation }) {
         style={styles.searchSection}
       />
 
+      <ProductFamilyBar buttons={familyFilter.buttons} selected={familyFilter.selected} onSelect={familyFilter.setSelected} />
+
       <View style={styles.listContainer}>
         <FlatList
-          data={filteredProducts}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.productRow}>
-              <ProductThumbnail productId={item.id} uri={item.thumbnailUrl} size={40} style={styles.productImage} />
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{item.name}</Text>
+          data={familyFilter.rows}
+          keyExtractor={(row) => row.key}
+          renderItem={({ item: row }) => {
+            if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} style={styles.familyHeading} />;
+            const item = row.item;
+            return (
+              <View style={styles.productRow}>
+                <ProductThumbnail productId={item.id} uri={item.thumbnailUrl} size={40} style={styles.productImage} />
+                <View style={styles.productInfo}>
+                  <Text style={styles.productName}>{item.name}</Text>
+                </View>
+                <TextInput
+                  style={styles.qtyInput}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={colors.textMuted}
+                  value={quantities[item.id] || ''}
+                  onChangeText={(val) => handleQtyChange(item.id, val)}
+                  maxLength={5}
+                />
               </View>
-              <TextInput
-                style={styles.qtyInput}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                value={quantities[item.id] || ''}
-                onChangeText={(val) => handleQtyChange(item.id, val)}
-                maxLength={5}
-              />
-            </View>
-          )}
+            );
+          }}
           ListEmptyComponent={
             <EmptyState icon="search-off" title="No products found" message="No products match your search query." />
           }
@@ -232,6 +256,7 @@ const createStyles = (colors) =>
     },
     bannerText: { marginLeft: 8, fontSize: 13, fontWeight: '600', color: colors.textPrimary, flex: 1 },
     searchSection: { margin: 12 },
+    familyHeading: { marginHorizontal: 12 },
     listContainer: {
       flex: 1,
       backgroundColor: colors.surface,

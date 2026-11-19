@@ -237,8 +237,10 @@ public class SalesCockpitSectionService {
         List<Object[]> rows = q.productSales(f);
         double total = rows.stream().mapToDouble(r -> num(r[3])).sum();
         List<ProductRow> products = new ArrayList<>();
+        Map<Long, Integer> listOrder = new HashMap<>();
         double cumulative = 0;
         for (Object[] r : rows) {
+            if (r[4] != null) listOrder.put(id(r[0]), ((Number) r[4]).intValue());
             double value = num(r[3]);
             double share = pct(value, total);
             // Class by where the product STARTS in the cumulative curve, so the product that
@@ -247,6 +249,11 @@ public class SalesCockpitSectionService {
             cumulative += share;
             products.add(new ProductRow(id(r[0]), (String) r[1], lng(r[2]), value, share, Math.min(cumulative, 100.0), abc));
         }
+        // ABC classes come from the value ranking above; the rows are shown in the price list's SR No. order
+        // (ProductOrder: unplaced products last, by id). Slow products below stay a ranking.
+        products.sort(Comparator.comparing((ProductRow p) -> listOrder.get(p.productId()),
+                        Comparator.nullsLast(Comparator.<Integer>naturalOrder()))
+                .thenComparing(ProductRow::productId));
         List<SlowProduct> slow = new ArrayList<>();
         for (Object[] r : q.slowProducts(f, SLOW)) {
             slow.add(new SlowProduct(id(r[0]), (String) r[1], lng(r[2]), num(r[3]), (LocalDate) r[4]));

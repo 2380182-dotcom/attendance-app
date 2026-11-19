@@ -11,6 +11,9 @@ import QuantityStepper from '../../components/QuantityStepper';
 import SearchBar from '../../components/SearchBar';
 import SalesVoucher from '../../components/SalesVoucher';
 import { cachedFetch } from '../../services/apiCache';
+import ProductFamilyBar, { FamilyHeading } from '../../components/ProductFamilyBar';
+import { useFamilyFilter } from '../../hooks/useProductFamilies';
+import { sortProducts, withFamilyHeadings } from '../../utils/productFamilies';
 import { useTheme } from '../../theme';
 import { STRINGS } from './strings';
 import { computeTotals, formatRs, getFinalUnitPrice } from './pricing';
@@ -79,7 +82,8 @@ export default function LocalEntryScreen({ route, navigation }) {
         cachedFetch(`shop-prices:${shop.id}`, () => apiService.lmt.getShopProductPrices(shop.id), 5 * 60 * 1000).catch(() => []),
         cachedFetch(`shop-discounts:${shop.id}`, () => apiService.lmt.getShopProductDiscounts(shop.id), 5 * 60 * 1000).catch(() => []),
       ]);
-      setProducts(productList || []);
+      // The official price list's SR No. order everywhere (confirm lines follow this order too).
+      setProducts(sortProducts(productList));
       setShopPrices(prices || []);
       setShopDiscounts(discounts || []);
     } catch (e) {
@@ -112,10 +116,13 @@ export default function LocalEntryScreen({ route, navigation }) {
   const netRs = saleTotals.totalRs - returnTotals.totalRs;
   const hasNothing = saleTotals.totalBreads === 0 && returnTotals.totalBreads === 0 && expiryTotals.totalBreads === 0;
 
-  const visibleProducts = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return q ? products.filter((p) => p.name.toLowerCase().includes(q)) : products;
-  }, [products, searchQuery]);
+  // Family filter buttons + search, in the price list's order ("All" with family headings).
+  const familyFilter = useFamilyFilter(products, searchQuery);
+  // The short confirm lists: list order with family headings, no filter buttons.
+  const confirmRows = (lines, keyPrefix, renderLine) =>
+    withFamilyHeadings(lines, familyFilter.families, (l) => l.product).map((row) => (row.type === 'heading'
+      ? <FamilyHeading key={`${keyPrefix}-${row.key}`} en={row.en} ur={row.ur} />
+      : renderLine(row.item)));
 
   const setSaleQuantity = (productId, next) => {
     setSaleQuantities((prev) => ({ ...prev, [productId]: next }));
@@ -315,7 +322,7 @@ export default function LocalEntryScreen({ route, navigation }) {
           {saleTotals.lines.length > 0 && (
             <>
               <Text style={styles.confirmSectionHeader}>{STRINGS.soldItems.en} · {STRINGS.soldItems.ur}</Text>
-              {saleTotals.lines.map((line) => (
+              {confirmRows(saleTotals.lines, 'sale', (line) => (
                 <View key={`sale-${line.product.id}`} style={styles.confirmLine}>
                   <Text style={styles.confirmLineName} numberOfLines={2}>{line.product.name}</Text>
                   <Text style={styles.confirmLineQty}>× {line.quantity}</Text>
@@ -328,7 +335,7 @@ export default function LocalEntryScreen({ route, navigation }) {
           {returnTotals.lines.length > 0 && (
             <>
               <Text style={styles.confirmSectionHeader}>{STRINGS.returnedItems.en} · {STRINGS.returnedItems.ur}</Text>
-              {returnTotals.lines.map((line) => (
+              {confirmRows(returnTotals.lines, 'return', (line) => (
                 <View key={`return-${line.product.id}`} style={styles.confirmLine}>
                   <Text style={styles.confirmLineName} numberOfLines={2}>{line.product.name}</Text>
                   <Text style={styles.confirmLineQty}>× {line.quantity}</Text>
@@ -345,7 +352,7 @@ export default function LocalEntryScreen({ route, navigation }) {
                 {STRINGS.expiryItems.en} · {STRINGS.expiryItems.ur}
               </Text>
               <Text style={styles.expiryHint}>{STRINGS.replacedHint.en} · {STRINGS.replacedHint.ur}</Text>
-              {expiryTotals.lines.map((line) => (
+              {confirmRows(expiryTotals.lines, 'expiry', (line) => (
                 <View key={`expiry-${line.product.id}`} style={styles.confirmLine}>
                   <Text style={styles.confirmLineName} numberOfLines={2}>{line.product.name}</Text>
                   <Text style={styles.confirmLineQty}>× {line.quantity}</Text>
@@ -403,13 +410,17 @@ export default function LocalEntryScreen({ route, navigation }) {
         style={styles.search}
       />
 
+      <ProductFamilyBar buttons={familyFilter.buttons} selected={familyFilter.selected} onSelect={familyFilter.setSelected} />
+
       <FlatList
-        data={visibleProducts}
-        keyExtractor={(item) => item.id.toString()}
+        data={familyFilter.rows}
+        keyExtractor={(row) => row.key}
         extraData={quantities}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
-        renderItem={({ item }) => {
+        renderItem={({ item: row }) => {
+          if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} />;
+          const item = row.item;
           const quantity = quantities[item.id] || 0;
           const unitPrice = getFinalUnitPrice(item, priceMode, shop, shopPrices, shopDiscounts);
           return (

@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -22,6 +22,9 @@ import EmptyState from '../../components/EmptyState';
 import SalesVoucher from '../../components/SalesVoucher';
 import { cachedFetch } from '../../services/apiCache';
 import { useTheme } from '../../theme';
+import ProductFamilyBar, { FamilyHeading } from '../../components/ProductFamilyBar';
+import { useFamilyFilter } from '../../hooks/useProductFamilies';
+import { sortProducts, withFamilyHeadings } from '../../utils/productFamilies';
 import { STRINGS } from './strings';
 
 /**
@@ -107,7 +110,8 @@ export default function RecordVisitScreen({ route, navigation }) {
         cachedFetch('products', () => apiService.sales.getProducts(), 5 * 60 * 1000),
         fetchShopPrices(),
       ]);
-      setProducts(data);
+      // The official price list's SR No. order.
+      setProducts(sortProducts(data));
     } catch (e) {
       console.error(e);
       Alert.alert('Data Error', 'Unable to fetch products list.');
@@ -331,7 +335,10 @@ export default function RecordVisitScreen({ route, navigation }) {
     }
   };
 
-  const filteredProducts = products.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Family filter buttons + search, in the price list's order ("All" with family headings).
+  const familyFilter = useFamilyFilter(products, searchQuery);
+  // The cart and the review: list order with family headings, no filter buttons.
+  const cartRows = useMemo(() => withFamilyHeadings(cart, familyFilter.families, (c) => c.product), [cart, familyFilter.families]);
 
   if (loading) {
     return <Loading message="Loading Dawn Bread products..." fullScreen />;
@@ -370,16 +377,20 @@ export default function RecordVisitScreen({ route, navigation }) {
             <Text style={styles.reviewHeaderLabel}>Expiry</Text>
           </View>
           <FlatList
-            data={cart}
-            keyExtractor={(item) => item.product.id.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.reviewRow}>
-                <Text style={[styles.reviewProductName, { flex: 1 }]} numberOfLines={2}>{item.product.name}</Text>
-                <Text style={styles.reviewQty}>{item.saleQty || '—'}</Text>
-                <Text style={styles.reviewQty}>{item.returnQty || '—'}</Text>
-                <Text style={styles.reviewQty}>{item.expiryQty || '—'}</Text>
-              </View>
-            )}
+            data={cartRows}
+            keyExtractor={(row) => row.key}
+            renderItem={({ item: row }) => {
+              if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} style={styles.familyHeading} />;
+              const item = row.item;
+              return (
+                <View style={styles.reviewRow}>
+                  <Text style={[styles.reviewProductName, { flex: 1 }]} numberOfLines={2}>{item.product.name}</Text>
+                  <Text style={styles.reviewQty}>{item.saleQty || '—'}</Text>
+                  <Text style={styles.reviewQty}>{item.returnQty || '—'}</Text>
+                  <Text style={styles.reviewQty}>{item.expiryQty || '—'}</Text>
+                </View>
+              );
+            }}
           />
         </View>
 
@@ -468,64 +479,70 @@ export default function RecordVisitScreen({ route, navigation }) {
         style={styles.searchSection}
       />
 
+      <ProductFamilyBar buttons={familyFilter.buttons} selected={familyFilter.selected} onSelect={familyFilter.setSelected} />
+
       <Text style={styles.sectionHeader}>Available Products</Text>
       <View style={styles.listContainer}>
         <FlatList
-          data={filteredProducts}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.productRow}>
-              <ProductThumbnail productId={item.id} uri={item.thumbnailUrl} size={40} style={styles.productImage} />
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productPrice}>PKR {getBasePrice(item)}</Text>
+          data={familyFilter.rows}
+          keyExtractor={(row) => row.key}
+          renderItem={({ item: row }) => {
+            if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} style={styles.familyHeading} />;
+            const item = row.item;
+            return (
+              <View style={styles.productRow}>
+                <ProductThumbnail productId={item.id} uri={item.thumbnailUrl} size={40} style={styles.productImage} />
+                <View style={styles.productInfo}>
+                  <Text style={styles.productName}>{item.name}</Text>
+                  <Text style={styles.productPrice}>PKR {getBasePrice(item)}</Text>
+                </View>
+                <View style={styles.actionRow}>
+                  <View style={styles.qtyField}>
+                    <Text style={styles.qtyFieldLabel}>Sold</Text>
+                    <TextInput
+                      style={styles.qtyInput}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textMuted}
+                      value={saleQuantities[item.id] || ''}
+                      onChangeText={(val) => handleSaleQtyChange(item.id, val)}
+                      maxLength={3}
+                    />
+                  </View>
+                  <View style={styles.qtyField}>
+                    <Text style={styles.qtyFieldLabel}>Returned</Text>
+                    <TextInput
+                      style={styles.qtyInput}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textMuted}
+                      value={returnQuantities[item.id] || ''}
+                      onChangeText={(val) => handleReturnQtyChange(item.id, val)}
+                      maxLength={3}
+                    />
+                  </View>
+                  {/* "Salesman updates" feature: Return Before Expiry — a 3rd field, same pattern as Sold/Returned. */}
+                  <View style={styles.qtyField}>
+                    <Text style={styles.qtyFieldLabel}>
+                      {STRINGS.expiryField.en} <Text style={{ writingDirection: 'rtl' }}>{STRINGS.expiryField.ur}</Text>
+                    </Text>
+                    <TextInput
+                      style={styles.qtyInput}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textMuted}
+                      value={expiryQuantities[item.id] || ''}
+                      onChangeText={(val) => handleExpiryQtyChange(item.id, val)}
+                      maxLength={3}
+                    />
+                  </View>
+                  <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(item)}>
+                    <Text style={styles.addButtonText}>+ Add</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles.actionRow}>
-                <View style={styles.qtyField}>
-                  <Text style={styles.qtyFieldLabel}>Sold</Text>
-                  <TextInput
-                    style={styles.qtyInput}
-                    keyboardType="number-pad"
-                    placeholder="0"
-                    placeholderTextColor={colors.textMuted}
-                    value={saleQuantities[item.id] || ''}
-                    onChangeText={(val) => handleSaleQtyChange(item.id, val)}
-                    maxLength={3}
-                  />
-                </View>
-                <View style={styles.qtyField}>
-                  <Text style={styles.qtyFieldLabel}>Returned</Text>
-                  <TextInput
-                    style={styles.qtyInput}
-                    keyboardType="number-pad"
-                    placeholder="0"
-                    placeholderTextColor={colors.textMuted}
-                    value={returnQuantities[item.id] || ''}
-                    onChangeText={(val) => handleReturnQtyChange(item.id, val)}
-                    maxLength={3}
-                  />
-                </View>
-                {/* "Salesman updates" feature: Return Before Expiry — a 3rd field, same pattern as Sold/Returned. */}
-                <View style={styles.qtyField}>
-                  <Text style={styles.qtyFieldLabel}>
-                    {STRINGS.expiryField.en} <Text style={{ writingDirection: 'rtl' }}>{STRINGS.expiryField.ur}</Text>
-                  </Text>
-                  <TextInput
-                    style={styles.qtyInput}
-                    keyboardType="number-pad"
-                    placeholder="0"
-                    placeholderTextColor={colors.textMuted}
-                    value={expiryQuantities[item.id] || ''}
-                    onChangeText={(val) => handleExpiryQtyChange(item.id, val)}
-                    maxLength={3}
-                  />
-                </View>
-                <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(item)}>
-                  <Text style={styles.addButtonText}>+ Add</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+            );
+          }}
           ListEmptyComponent={
             <EmptyState icon="search-off" title="No products found" message="No products match your search query." />
           }
@@ -542,24 +559,28 @@ export default function RecordVisitScreen({ route, navigation }) {
 
         <View style={styles.cartListContainer}>
           <FlatList
-            data={cart}
-            keyExtractor={(item) => item.product.id.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.cartItem}>
-                <View style={styles.cartItemDetails}>
-                  <Text style={styles.cartItemName}>{item.product.name}</Text>
-                  <Text style={styles.cartItemSub}>
-                    {item.saleQty > 0 ? `Sold: ${item.saleQty}` : ''}
-                    {item.saleQty > 0 && item.returnQty > 0 ? '  •  ' : ''}
-                    {item.returnQty > 0 ? `Returned: ${item.returnQty}` : ''}
-                  </Text>
+            data={cartRows}
+            keyExtractor={(row) => row.key}
+            renderItem={({ item: row }) => {
+              if (row.type === 'heading') return <FamilyHeading en={row.en} ur={row.ur} style={styles.familyHeading} />;
+              const item = row.item;
+              return (
+                <View style={styles.cartItem}>
+                  <View style={styles.cartItemDetails}>
+                    <Text style={styles.cartItemName}>{item.product.name}</Text>
+                    <Text style={styles.cartItemSub}>
+                      {item.saleQty > 0 ? `Sold: ${item.saleQty}` : ''}
+                      {item.saleQty > 0 && item.returnQty > 0 ? '  •  ' : ''}
+                      {item.returnQty > 0 ? `Returned: ${item.returnQty}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={styles.cartItemTotal}>PKR {item.totalPrice}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveFromCart(item.product.id)} style={styles.removeBtn}>
+                    <MaterialIcons name="cancel" size={20} color={colors.error} />
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.cartItemTotal}>PKR {item.totalPrice}</Text>
-                <TouchableOpacity onPress={() => handleRemoveFromCart(item.product.id)} style={styles.removeBtn}>
-                  <MaterialIcons name="cancel" size={20} color={colors.error} />
-                </TouchableOpacity>
-              </View>
-            )}
+              );
+            }}
             ListEmptyComponent={
               <View style={styles.emptyCart}>
                 <MaterialIcons name="shopping-cart" size={32} color={colors.textMuted} />
@@ -611,6 +632,7 @@ export default function RecordVisitScreen({ route, navigation }) {
 
 const createStyles = (colors) =>
   StyleSheet.create({
+    familyHeading: { marginHorizontal: 8 },
     container: { flex: 1, backgroundColor: colors.background },
     shopBanner: {
       flexDirection: 'row',

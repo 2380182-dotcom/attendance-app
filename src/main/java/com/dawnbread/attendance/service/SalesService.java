@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.service;
 
+import com.dawnbread.attendance.util.ProductOrder;
 import com.dawnbread.attendance.dto.*;
 import com.dawnbread.attendance.entity.*;
 import com.dawnbread.attendance.exception.ShopVisitConflictException;
@@ -110,6 +111,7 @@ public class SalesService {
         // what a client shows). `price` stays populated (= agentPrice)
         // for backward compatibility until P3 updates the mobile screens.
         return productRepository.findByIsActiveTrue().stream()
+                .sorted(ProductOrder.PRODUCTS)
                 .map(p -> new ProductCatalogDTO(p.getId(), p.getName(), p.getCategory(), p.getUnit(), p.getAgentPrice(), p.getSalesmanPrice()))
                 .collect(Collectors.toList());
     }
@@ -720,6 +722,7 @@ public class SalesService {
                     // Flatten items
                     List<SaleItemDTO> itemDTOs = agentRecords.stream()
                             .flatMap(r -> r.getItems().stream())
+                            .sorted(ProductOrder.by(SaleItem::getProduct))
                             .map(this::convertToItemDTO)
                             .collect(Collectors.toList());
 
@@ -774,6 +777,7 @@ public class SalesService {
 
                     List<SaleItemDTO> itemDTOs = agentRecords.stream()
                             .flatMap(r -> r.getItems().stream())
+                            .sorted(ProductOrder.by(SaleItem::getProduct))
                             .map(this::convertToItemDTO)
                             .collect(Collectors.toList());
 
@@ -1006,6 +1010,7 @@ public class SalesService {
     // Mapper DTOs
     public SalesDTO convertToDTO(SalesRecord record) {
         List<SaleItemDTO> itemDTOs = record.getItems().stream()
+                .sorted(ProductOrder.by(SaleItem::getProduct))
                 .map(this::convertToItemDTO)
                 .collect(Collectors.toList());
 

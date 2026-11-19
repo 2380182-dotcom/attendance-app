@@ -19,6 +19,7 @@ import { sortRows, useSort } from '../../utils/sorting';
 import { usePagination } from '../../utils/pagination';
 import { toCsv, downloadCsv } from '../../utils/csvExport';
 import SortableHeader from '../../components/SortableHeader';
+import { useProductOrder } from '../../utils/productOrder';
 
 const ALL_LMTS = 'ALL';
 const SHORTAGE_BG = 'rgba(211, 47, 47, 0.08)';
@@ -139,6 +140,7 @@ export default function LmtReconciliationPage() {
   const [sort, onSort] = useSort('stockDate', 'desc');
 
   const agents = useQuery({ queryKey: ['agents', 'all'], queryFn: () => agentApi.getAll() });
+  const productOrder = useProductOrder();
   const lmts = useMemo(() => (agents.data || []).filter((a) => a.role === 'SALESMAN_LMT'), [agents.data]);
   const nameById = useMemo(() => Object.fromEntries(lmts.map((a) => [a.id, a.name])), [lmts]);
 
@@ -163,6 +165,7 @@ export default function LmtReconciliationPage() {
           stockDate: day.stockDate,
           agentName: nameById[day.agentId] || `Salesman #${day.agentId}`,
           productName: item.productName,
+          productRank: productOrder.rank(item.productId, item.productName),
           openingStock: item.openingStock,
           soldQty: item.soldQty,
           returnedQty: item.returnedQty,
@@ -176,7 +179,7 @@ export default function LmtReconciliationPage() {
       });
     });
     return out;
-  }, [report.data, nameById]);
+  }, [report.data, nameById, productOrder]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -187,7 +190,13 @@ export default function LmtReconciliationPage() {
     });
   }, [rows, search, shortagesOnly]);
 
-  const sorted = useMemo(() => sortRows(filtered, sort.key, sort.direction), [filtered, sort]);
+  // Products always in the official price list's order (never by name): date (newest first), salesman, then
+  // SR No. underneath whichever column is sorted (sortRows is stable, so that order survives within ties).
+  const sorted = useMemo(() => {
+    const base = [...filtered].sort((a, b) => (b.stockDate || '').localeCompare(a.stockDate || '')
+      || a.agentName.localeCompare(b.agentName) || a.productRank - b.productRank);
+    return sortRows(base, sort.key, sort.direction);
+  }, [filtered, sort]);
   const { page, rowsPerPage, paged, handleChangePage, handleChangeRowsPerPage, resetPage } = usePagination(sorted, 25);
 
   const totals = useMemo(() => {
@@ -319,7 +328,7 @@ export default function LmtReconciliationPage() {
                     <TableCell padding="checkbox" />
                     <SortableHeader label="Date" sortKey="stockDate" sort={sort} onSort={onSort} />
                     <SortableHeader label="Salesman" sortKey="agentName" sort={sort} onSort={onSort} />
-                    <SortableHeader label="Product" sortKey="productName" sort={sort} onSort={onSort} />
+                    <TableCell>Product</TableCell>
                     <SortableHeader label="Opening" sortKey="openingStock" sort={sort} onSort={onSort} align="right" />
                     <SortableHeader label="Sold" sortKey="soldQty" sort={sort} onSort={onSort} align="right" />
                     <SortableHeader label="Returned" sortKey="returnedQty" sort={sort} onSort={onSort} align="right" />

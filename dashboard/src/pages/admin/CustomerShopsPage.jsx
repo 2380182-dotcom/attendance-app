@@ -16,6 +16,7 @@ import MyLocationIcon from '@mui/icons-material/MyLocation';
 import DownloadIcon from '@mui/icons-material/Download';
 import { QRCodeCanvas } from 'qrcode.react';
 import { customerShopApi, areaApi } from '../../services/lmtApi';
+import { withFamilyHeadings } from '../../utils/productOrder';
 import { productApi } from '../../services/productApi';
 import { agentApi } from '../../services/attendanceApi';
 import { sortRows, useSort } from '../../utils/sorting';
@@ -71,6 +72,7 @@ export default function CustomerShopsPage() {
   const areas = useQuery({ queryKey: ['lmt-areas'], queryFn: areaApi.getAll });
   const activeAreas = useMemo(() => (areas.data || []).filter((a) => a.isActive), [areas.data]);
   const products = useQuery({ queryKey: ['products-pricing'], queryFn: productApi.getPricing });
+  const productFamilies = useQuery({ queryKey: ['product-families'], queryFn: productApi.getFamilies });
   const agents = useQuery({ queryKey: ['agents', 'all'], queryFn: () => agentApi.getAll() });
   // Task 4 correction: assignment is the ONE mechanism for both sections —
   // Local and LMT salesmen are both assignable, clearly labeled by type.
@@ -648,29 +650,43 @@ export default function CustomerShopsPage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(products.data || [])
-                      .filter((p) => p.name.toLowerCase().includes(priceSearch.trim().toLowerCase()))
-                      .map((p) => (
-                        <TableRow key={p.id} hover>
-                          <TableCell>
-                            {p.name}
-                            {p.active === false && <Chip size="small" label="Hidden" sx={{ ml: 1, height: 20 }} />}
-                          </TableCell>
-                          <TableCell align="right">{p.salesmanPrice ?? 'Not set'}</TableCell>
-                          <TableCell align="right">
-                            <TextField
-                              size="small"
-                              type="number"
-                              placeholder={p.salesmanPrice == null ? 'Not set' : String(p.salesmanPrice)}
-                              value={priceEdits[p.id] ?? ''}
-                              onChange={(e) => setPriceEdits((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                              error={isInvalidPrice(priceEdits[p.id])}
-                              inputProps={{ min: 0, step: 'any' }}
-                              sx={{ width: 130 }}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                    {/* The official price list's order, under family headings. */}
+                    {withFamilyHeadings((products.data || [])
+                      .filter((p) => p.name.toLowerCase().includes(priceSearch.trim().toLowerCase())), productFamilies.data)
+                      .map((row) => {
+                        if (row.type === 'heading') {
+                          return (
+                            <TableRow key={row.key}>
+                              <TableCell colSpan={3} sx={{ fontWeight: 700, color: 'primary.main', bgcolor: 'action.hover', py: 0.75 }}>
+                                {row.name}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                        const p = row.item;
+                        return (
+                          <TableRow key={p.id} hover>
+                            <TableCell>
+                              {p.name}
+                              {p.active === false && <Chip size="small" label="Hidden" sx={{ ml: 1, height: 20 }} />}
+                            </TableCell>
+                            <TableCell align="right">{p.salesmanPrice ?? 'Not set'}</TableCell>
+                            <TableCell align="right">
+                              <TextField
+                                size="small"
+                                type="number"
+                                placeholder={p.salesmanPrice == null ? 'Not set' : String(p.salesmanPrice)}
+                                value={priceEdits[p.id] ?? ''}
+                                onChange={(e) => setPriceEdits((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                                error={isInvalidPrice(priceEdits[p.id])}
+                                inputProps={{ min: 0, step: 'any' }}
+                                sx={{ width: 130 }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                      
+                        );
+                      })}
                   </TableBody>
                 </Table>
               </TableContainer>

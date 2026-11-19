@@ -18,4 +18,20 @@ export const productApi = {
     const response = await api.put(`/products/${id}/active`, { active });
     return unwrap(response);
   },
+  /** The product families (the app's filter buttons), in button order. */
+  async getFamilies() {
+    return unwrap(await api.get('/sales/product-families'));
+  },
+  /** Admin only: { familyId | null, sortOrder | null, onPriceList }. sortOrder = the price list's SR No. */
+  async setPlacement(id, placement) {
+    return unwrap(await api.put(`/products/${id}/placement`, placement));
+  },
+  /** Admin only: add (no id) or change a family: { name, nameUr, sortOrder }. */
+  async saveFamily(id, family) {
+    return unwrap(id ? await api.put(`/products/families/${id}`, family) : await api.post('/products/families', family));
+  },
+  /** Admin only; refused while the family still has products. */
+  async deleteFamily(id) {
+    return unwrap(await api.delete(`/products/families/${id}`));
+  },
 };

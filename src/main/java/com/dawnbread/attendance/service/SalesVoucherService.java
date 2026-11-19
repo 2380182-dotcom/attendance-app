@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.service;
 
+import com.dawnbread.attendance.util.ProductOrder;
 import com.dawnbread.attendance.dto.VoucherDetailDTO;
 import com.dawnbread.attendance.dto.VoucherListItemDTO;
 import com.dawnbread.attendance.dto.VoucherShopSummaryDTO;
@@ -81,7 +82,7 @@ public class SalesVoucherService {
         dto.setDistanceFromShopMeters(sr.getDistanceFromShopMeters());
         dto.setStatus(sr.getStatus());
         dto.setRequestId(sr.getRequestId());
-        dto.setItems(sr.getItems().stream().map(SalesVoucherService::toItem).collect(Collectors.toList()));
+        dto.setItems(sr.getItems().stream().sorted(ProductOrder.by(SaleItem::getProduct)).map(SalesVoucherService::toItem).collect(Collectors.toList()));
         return dto;
     }
 

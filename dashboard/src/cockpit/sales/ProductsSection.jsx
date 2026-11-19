@@ -28,7 +28,7 @@ function ProductMix({ rows, onDrill }) {
   return (
     <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 0.5 }}>
       {rows.map((r) => (
-        <MuiTooltip key={r.productId} placement="top" title={`${int(r.soldUnits)} units sold · ${rs(r.saleValue)} · running total ${pct(r.cumulativePercent)}`}>
+        <MuiTooltip key={r.productId} placement="top" title={`${int(r.soldUnits)} units sold · ${rs(r.saleValue)} · class ${r.abcClass}`}>
           <Box role="button" tabIndex={0} className="cockpit-clickable"
             onClick={() => onDrill(r)} onKeyDown={(e) => { if (e.key === 'Enter') onDrill(r); }}
             sx={{
@@ -83,7 +83,7 @@ export default function ProductsSection({ query, onDrill }) {
     <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 2fr) minmax(0, 1fr)' } }} className="cockpit-grid-print-2">
       <ChartCard
         title="Product mix and ABC classes"
-        hint={d && d.products.length ? `Share of ${rs(d.totalSaleValue)} sold · A: ${counts[0]} products make the top 80% · B: ${counts[1]} · C: ${counts[2]} · click for vouchers` : 'Share of sales value'}
+        hint={d && d.products.length ? `Share of ${rs(d.totalSaleValue)} sold · A: ${counts[0]} products make the top 80% · B: ${counts[1]} · C: ${counts[2]} · in price list order · click for vouchers` : 'Share of sales value'}
         loading={loading} error={error} onRetry={retry} height={300}
         empty={!d?.products?.length} emptyTitle="No products sold" emptyMessage="Nothing was sold in this period."
       >

@@ -21,6 +21,7 @@ import { aggregateProductMix, computeRecordTotals, flattenSalesToLineItems } fro
 import { toCsv, downloadCsv } from '../../utils/csvExport';
 import SortableHeader from '../../components/SortableHeader';
 import LmtShopBreakdown from './LmtShopBreakdown';
+import { useProductOrder } from '../../utils/productOrder';
 
 const ALL_AGENTS = 'ALL';
 const AGENT_ROLE = 'AGENT';
@@ -101,9 +102,10 @@ function ExpandableRow({ collapsedCells, items, colSpan, showType }) {
   );
 }
 
+/** A product list, so always in the official price list's order (never by name or value). */
 function ProductMixTable({ rows, title, searchActive }) {
-  const [sort, onSort] = useSort('revenue', 'desc');
-  const sorted = useMemo(() => sortRows(rows, sort.key, sort.direction), [rows, sort]);
+  const productOrder = useProductOrder();
+  const sorted = useMemo(() => productOrder.sort(rows, (r) => ({ id: r.productId, name: r.productName })), [rows, productOrder]);
   const total = useMemo(
     () => rows.reduce((acc, r) => ({ quantity: acc.quantity + r.quantity, revenue: acc.revenue + r.revenue }), { quantity: 0, revenue: 0 }),
     [rows]
@@ -121,9 +123,9 @@ function ProductMixTable({ rows, title, searchActive }) {
       <TableContainer><Table size="small">
         <TableHead>
           <TableRow>
-            <SortableHeader label="Product" sortKey="productName" sort={sort} onSort={onSort} />
-            <SortableHeader label="Quantity Sold" sortKey="quantity" sort={sort} onSort={onSort} align="right" />
-            <SortableHeader label="Revenue" sortKey="revenue" sort={sort} onSort={onSort} align="right" />
+            <TableCell>Product</TableCell>
+            <TableCell align="right">Quantity Sold</TableCell>
+            <TableCell align="right">Revenue</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>

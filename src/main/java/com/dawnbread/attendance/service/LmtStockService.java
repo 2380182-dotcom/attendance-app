@@ -1,5 +1,6 @@
 package com.dawnbread.attendance.service;
 
+import com.dawnbread.attendance.util.ProductOrder;
 import com.dawnbread.attendance.dto.LmtDailyStockDTO;
 import com.dawnbread.attendance.dto.LmtDailyStockItemDTO;
 import com.dawnbread.attendance.dto.LmtMorningStockRequest;
@@ -250,6 +251,7 @@ public class LmtStockService {
 
         List<LmtDailyStockItemDTO> itemDtos = lmtDailyStockItemRepository.findByLmtDailyStockId(stock.getId())
                 .stream()
+                .sorted(ProductOrder.by(LmtDailyStockItem::getProduct))
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
         dto.setItems(itemDtos);
