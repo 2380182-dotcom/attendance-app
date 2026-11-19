@@ -18,13 +18,12 @@ export const ALL = 'ALL';
 export const OTHER = 'OTHER';
 const NOT_LISTED = 'NOT_LISTED';
 
-// Urdu labels: Dawn Bread is supplying the words; until then these show in
-// English only. Family names (and their Urdu) come from the server, where an
-// Admin can change them without a new app.
+// Urdu words from Dawn Bread. Family names (and their Urdu) come from the
+// server, where an Admin can change them without a new app.
 export const FAMILY_STRINGS = {
-  all: { en: 'All', ur: '' },
-  other: { en: 'Other', ur: '' },
-  notListed: { en: 'Not on the price list', ur: '' },
+  all: { en: 'All', ur: 'سب' },
+  other: { en: 'Other', ur: 'دیگر' },
+  notListed: { en: 'Not on the price list', ur: 'قیمت فہرست میں نہیں' },
 };
 
 /** SR No. order: sortOrder (missing = last), then id. */

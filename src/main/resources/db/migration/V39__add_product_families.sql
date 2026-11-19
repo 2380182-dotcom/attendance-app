@@ -32,12 +32,14 @@ ALTER TABLE products ADD COLUMN on_price_list BOOLEAN NOT NULL DEFAULT false;
 CREATE INDEX ix_products_family_id ON products (family_id);
 
 -- The filter buttons, in the list's order (Cake split out of the list's
--- Sweets family, as Dawn Bread asked). DAWNBREAD only.
-INSERT INTO product_families (tenant_id, name, sort_order, created_at)
-SELECT t.id, v.name, v.sort_order, NOW()
+-- Sweets family, as Dawn Bread asked), with Dawn Bread's Urdu names.
+-- DAWNBREAD only.
+INSERT INTO product_families (tenant_id, name, name_ur, sort_order, created_at)
+SELECT t.id, v.name, v.name_ur, v.sort_order, NOW()
 FROM tenants t
-CROSS JOIN (VALUES ('Bread', 1), ('Pitta', 2), ('Burger', 3), ('Bun', 4),
-                   ('Cake', 5), ('Sweets', 6), ('Rusk', 7), ('Frozen', 8)) AS v(name, sort_order)
+CROSS JOIN (VALUES ('Bread',  'بریڈ',  1), ('Pitta',  'پیٹا',  2), ('Burger', 'برگر', 3), ('Bun',    'بن',    4),
+                   ('Cake',   'کیک',   5), ('Sweets', 'سویٹس', 6), ('Rusk',   'رسک',  7), ('Frozen', 'فروزن', 8))
+     AS v(name, name_ur, sort_order)
 WHERE t.company_code = 'DAWNBREAD';
 
 -- SR 53 and 54: same category and unit as the existing Crumbs; skipped if
