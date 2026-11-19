@@ -57,7 +57,20 @@ class RoutesTest {
     @Autowired
     private CompanyHolidayRepository companyHolidayRepository;
 
+    @Autowired
+    private org.springframework.cache.CacheManager cacheManager;
+
     private final ObjectMapper mapper = new ObjectMapper();
+
+    /**
+     * Test classes with their own context (e.g. AuthRateLimiterTest) recreate the shared in-memory database,
+     * which restarts the ids; a company seeded here can then get the id of an earlier test's company whose
+     * cockpit / Routes answer is still in the 90 s cache. Start every test with empty caches.
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void clearCaches() {
+        cacheManager.getCacheNames().forEach(n -> java.util.Objects.requireNonNull(cacheManager.getCache(n)).clear());
+    }
     private final LocalDate today = LocalDate.now(ZoneId.of("Asia/Karachi"));
 
     // ------------------------------------------------------------------ seeding
